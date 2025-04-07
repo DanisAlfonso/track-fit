@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import Colors from '@/constants/Colors';
@@ -109,6 +109,16 @@ export default function ExerciseDetailScreen() {
   if (!exercise) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Stack.Screen 
+          options={{
+            title: "Exercise Details",
+            headerShown: true,
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+          }}
+        />
         <Text style={[styles.loadingText, { color: colors.text }]}>Loading exercise...</Text>
       </View>
     );
@@ -116,20 +126,24 @@ export default function ExerciseDetailScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={[styles.backButton, { backgroundColor: colors.card }]}
-          onPress={() => router.back()}
-        >
-          <FontAwesome name="arrow-left" size={16} color={colors.text} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.favoriteButton, { backgroundColor: colors.card }]}
-        >
-          <FontAwesome name="heart-o" size={16} color={colors.text} />
-        </TouchableOpacity>
-      </View>
+      <Stack.Screen 
+        options={{
+          title: exercise.name,
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.text,
+          headerRight: () => (
+            <TouchableOpacity 
+              style={[styles.headerButton, { backgroundColor: colors.card }]}
+              onPress={() => {/* Toggle favorite */}}
+            >
+              <FontAwesome name="heart-o" size={16} color={colors.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       
       <Text style={[styles.exerciseTitle, { color: colors.text }]}>{exercise.name}</Text>
       <Text style={[styles.exerciseCategory, { color: colors.subtext }]}>
@@ -253,11 +267,11 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     padding: 16,
-    paddingTop: 60,
+    paddingTop: 16,
   },
-  backButton: {
+  headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -268,18 +282,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-  },
-  favoriteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    marginRight: 8,
   },
   exerciseTitle: {
     fontSize: 28,
