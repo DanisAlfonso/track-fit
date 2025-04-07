@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
+import { getExerciseInstructions, getExerciseImage } from '@/data/exercises';
 
 // Exercise types match our database schema
 type Exercise = {
@@ -15,35 +16,6 @@ type Exercise = {
   description: string | null;
   primary_muscle: string;
   secondary_muscles: string | null;
-};
-
-// Using existing icon as placeholders until we have real exercise animations
-const exerciseIcon = require('@/assets/images/icon.png');
-
-// Mock exercise instructions - in a real app, these would come from a database
-const exerciseInstructions = {
-  'Bench Press': [
-    'Lie on a flat bench with your feet firmly on the ground',
-    'Grip the barbell slightly wider than shoulder-width',
-    'Unrack the barbell and lower it to your chest under control',
-    'Press the barbell back up until your arms are fully extended',
-    'Repeat for the desired number of repetitions'
-  ],
-  'Squat': [
-    'Stand with feet shoulder-width apart',
-    'Place the barbell across your upper back (not on your neck)',
-    'Bend at the knees and hips to lower your body',
-    'Keep your chest up and back straight',
-    'Lower until thighs are parallel to the ground',
-    'Push through your heels to return to the starting position'
-  ],
-  'default': [
-    'Set up properly with good form',
-    'Control the weight through the entire range of motion',
-    'Breathe properly (exhale during exertion)',
-    'Maintain proper posture throughout',
-    'Complete the exercise with controlled movements'
-  ]
 };
 
 export default function ExerciseDetailScreen() {
@@ -99,12 +71,6 @@ export default function ExerciseDetailScreen() {
     transform: [{ translateY: contentTranslateY.value }],
     opacity: 1 - contentTranslateY.value / 50,
   }));
-  
-  // Get the appropriate instructions based on exercise name
-  const getInstructions = (exerciseName: string) => {
-    return exerciseInstructions[exerciseName as keyof typeof exerciseInstructions] || 
-           exerciseInstructions['default'];
-  };
 
   if (!exercise) {
     return (
@@ -153,7 +119,7 @@ export default function ExerciseDetailScreen() {
       <Animated.View style={[styles.animationContainer, imageAnimatedStyle]}>
         <View style={[styles.animationBox, { backgroundColor: colors.card }]}>
           <Image 
-            source={exerciseIcon}
+            source={getExerciseImage(exercise.name)}
             style={styles.exerciseAnimation}
             resizeMode="contain"
           />
@@ -202,7 +168,7 @@ export default function ExerciseDetailScreen() {
         
         {activeTab === 'instructions' && (
           <View style={styles.instructionsContainer}>
-            {getInstructions(exercise.name).map((instruction, index) => (
+            {getExerciseInstructions(exercise.name).map((instruction, index) => (
               <View key={index} style={styles.instructionItem}>
                 <View style={[styles.instructionNumber, { backgroundColor: colors.primary }]}>
                   <Text style={styles.instructionNumberText}>{index + 1}</Text>

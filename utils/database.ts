@@ -93,23 +93,44 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Leg Press', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscles: 'Glutes,Hamstrings' },
     { name: 'Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscles: '' },
     { name: 'Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscles: '' },
+    { name: 'Romanian Deadlift', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscles: 'Glutes,Back' },
+    { name: 'Barbell Row', category: 'Compound', primary_muscle: 'Back', secondary_muscles: 'Biceps,Shoulders' },
+    { name: 'Dumbbell Shoulder Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscles: 'Triceps' },
+    { name: 'Incline Bench Press', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscles: 'Shoulders,Triceps' },
+    { name: 'Decline Bench Press', category: 'Compound', primary_muscle: 'Lower Chest', secondary_muscles: 'Triceps,Shoulders' },
+    { name: 'Dumbbell Fly', category: 'Isolation', primary_muscle: 'Chest', secondary_muscles: 'Shoulders' },
+    { name: 'Face Pull', category: 'Compound', primary_muscle: 'Upper Back', secondary_muscles: 'Rear Deltoids,Biceps' },
+    { name: 'Lat Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscles: 'Biceps,Shoulders' },
+    { name: 'Leg Extension', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscles: '' },
+    { name: 'Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscles: 'Calves' },
+    { name: 'Hip Thrust', category: 'Compound', primary_muscle: 'Glutes', secondary_muscles: 'Hamstrings' },
+    { name: 'Plank', category: 'Isolation', primary_muscle: 'Core', secondary_muscles: 'Shoulders' },
+    { name: 'Russian Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscles: 'Core' },
   ];
 
   try {
-    // Check if we already have exercises
-    const result = await database.getFirstAsync<{count: number}>('SELECT COUNT(*) as count FROM exercises');
-    
-    if (result && result.count === 0) {
-      // Insert exercises one by one
-      await database.withTransactionAsync(async () => {
-        for (const exercise of exercises) {
-          await database.runAsync(
-            'INSERT INTO exercises (name, category, primary_muscle, secondary_muscles) VALUES (?, ?, ?, ?)',
-            [exercise.name, exercise.category, exercise.primary_muscle, exercise.secondary_muscles]
-          );
-        }
-      });
-    }
+    // Drop and recreate the exercises table
+    await database.execAsync(`
+      DROP TABLE IF EXISTS exercises;
+      CREATE TABLE exercises (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        primary_muscle TEXT NOT NULL,
+        secondary_muscles TEXT
+      );
+    `);
+
+    // Insert exercises one by one
+    await database.withTransactionAsync(async () => {
+      for (const exercise of exercises) {
+        await database.runAsync(
+          'INSERT INTO exercises (name, category, primary_muscle, secondary_muscles) VALUES (?, ?, ?, ?)',
+          [exercise.name, exercise.category, exercise.primary_muscle, exercise.secondary_muscles]
+        );
+      }
+    });
   } catch (error) {
     console.error('Error inserting default exercises:', error);
     throw error;
