@@ -4,6 +4,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
+import { useRouter } from 'expo-router';
 
 type Exercise = {
   id: number;
@@ -18,6 +19,7 @@ export default function ExercisesScreen() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
   const colors = Colors[theme];
+  const router = useRouter();
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
@@ -77,10 +79,14 @@ export default function ExercisesScreen() {
     setFilteredExercises(filtered);
   };
 
+  const navigateToExerciseDetail = (exerciseId: number) => {
+    router.push(`/exercise/${exerciseId}`);
+  };
+
   const renderExerciseItem = ({ item }: { item: Exercise }) => (
     <TouchableOpacity 
       style={[styles.exerciseCard, { backgroundColor: colors.card }]}
-      onPress={() => {/* Navigate to exercise details */}}
+      onPress={() => navigateToExerciseDetail(item.id)}
     >
       <View style={styles.exerciseContent}>
         <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
