@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import Colors from '@/constants/Colors';
-import { getDatabase } from '@/utils/database';
+import { getDatabase, isExerciseFavorited, toggleFavorite } from '@/utils/database';
 import { getExerciseInstructions, getExerciseImage } from '@/data/exercises';
 
 // Exercise types match our database schema
@@ -28,6 +28,7 @@ export default function ExerciseDetailScreen() {
   
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [activeTab, setActiveTab] = useState('instructions'); // 'instructions' or 'muscles'
+  const [isFavorited, setIsFavorited] = useState(false);
   
   // Animation values
   const imageOpacity = useSharedValue(0);
@@ -56,9 +57,24 @@ export default function ExerciseDetailScreen() {
       
       if (result) {
         setExercise(result);
+        // Check if the exercise is favorited
+        const favorited = await isExerciseFavorited(exerciseId);
+        setIsFavorited(favorited);
       }
     } catch (error) {
       console.error('Error loading exercise details:', error);
+    }
+  };
+  
+  const handleToggleFavorite = async () => {
+    if (!exercise) return;
+    
+    try {
+      await toggleFavorite(exercise.id);
+      // Update the local state immediately
+      setIsFavorited(!isFavorited);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
     }
   };
   
@@ -103,9 +119,13 @@ export default function ExerciseDetailScreen() {
           headerRight: () => (
             <TouchableOpacity 
               style={[styles.headerButton, { backgroundColor: colors.card }]}
-              onPress={() => {/* Toggle favorite */}}
+              onPress={handleToggleFavorite}
             >
-              <FontAwesome name="heart-o" size={16} color={colors.text} />
+              <FontAwesome 
+                name={isFavorited ? "heart" : "heart-o"} 
+                size={16} 
+                color={isFavorited ? colors.primary : colors.text} 
+              />
             </TouchableOpacity>
           ),
         }}

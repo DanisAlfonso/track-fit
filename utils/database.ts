@@ -71,6 +71,14 @@ export const initDatabase = async (): Promise<void> => {
         notes TEXT,
         FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises (id) ON DELETE CASCADE
       );
+
+      CREATE TABLE IF NOT EXISTS favorites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        exercise_id INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE,
+        UNIQUE(exercise_id)
+      );
     `);
   } catch (error) {
     console.error('Error creating database tables:', error);
@@ -134,5 +142,74 @@ export const insertDefaultExercises = async (): Promise<void> => {
   } catch (error) {
     console.error('Error inserting default exercises:', error);
     throw error;
+  }
+};
+
+// Check if an exercise is favorited
+export const isExerciseFavorited = async (exerciseId: number): Promise<boolean> => {
+  const database = await getDatabase();
+  try {
+    const result = await database.getFirstAsync<{count: number}>(
+      'SELECT COUNT(*) as count FROM favorites WHERE exercise_id = ?',
+      [exerciseId]
+    );
+    return result ? result.count > 0 : false;
+  } catch (error) {
+    console.error('Error checking if exercise is favorited:', error);
+    return false;
+  }
+};
+
+// Add an exercise to favorites
+export const addToFavorites = async (exerciseId: number): Promise<void> => {
+  const database = await getDatabase();
+  try {
+    await database.runAsync(
+      'INSERT OR REPLACE INTO favorites (exercise_id, created_at) VALUES (?, ?)',
+      [exerciseId, Date.now()]
+    );
+  } catch (error) {
+    console.error('Error adding exercise to favorites:', error);
+    throw error;
+  }
+};
+
+// Remove an exercise from favorites
+export const removeFromFavorites = async (exerciseId: number): Promise<void> => {
+  const database = await getDatabase();
+  try {
+    await database.runAsync(
+      'DELETE FROM favorites WHERE exercise_id = ?',
+      [exerciseId]
+    );
+  } catch (error) {
+    console.error('Error removing exercise from favorites:', error);
+    throw error;
+  }
+};
+
+// Toggle favorite status for an exercise
+export const toggleFavorite = async (exerciseId: number): Promise<boolean> => {
+  const isFavorited = await isExerciseFavorited(exerciseId);
+  if (isFavorited) {
+    await removeFromFavorites(exerciseId);
+    return false;
+  } else {
+    await addToFavorites(exerciseId);
+    return true;
+  }
+};
+
+// Get all favorited exercises
+export const getFavoritedExercises = async (): Promise<number[]> => {
+  const database = await getDatabase();
+  try {
+    const results = await database.getAllAsync<{exercise_id: number}>(
+      'SELECT exercise_id FROM favorites ORDER BY created_at DESC'
+    );
+    return results.map(result => result.exercise_id);
+  } catch (error) {
+    console.error('Error getting favorited exercises:', error);
+    return [];
   }
 }; 

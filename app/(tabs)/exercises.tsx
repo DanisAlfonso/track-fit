@@ -3,8 +3,10 @@ import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity } from 'r
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase } from '@/utils/database';
+import { getDatabase, getFavoritedExercises } from '@/utils/database';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 type Exercise = {
   id: number;
@@ -25,6 +27,8 @@ export default function ExercisesScreen() {
   const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<number[]>([]);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const muscleGroups = [
     'All',
@@ -40,13 +44,16 @@ export default function ExercisesScreen() {
     'Abs',
   ];
 
-  useEffect(() => {
-    loadExercises();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadExercises();
+      loadFavorites();
+    }, [])
+  );
 
   useEffect(() => {
     filterExercises();
-  }, [searchQuery, selectedFilter, exercises]);
+  }, [searchQuery, selectedFilter, exercises, showFavoritesOnly, favoriteExerciseIds]);
 
   const loadExercises = async () => {
     try {
@@ -55,6 +62,15 @@ export default function ExercisesScreen() {
       setExercises(results);
     } catch (error) {
       console.error('Error loading exercises:', error);
+    }
+  };
+
+  const loadFavorites = async () => {
+    try {
+      const favorites = await getFavoritedExercises();
+      setFavoriteExerciseIds(favorites);
+    } catch (error) {
+      console.error('Error loading favorites:', error);
     }
   };
 
@@ -73,6 +89,13 @@ export default function ExercisesScreen() {
       filtered = filtered.filter(exercise => 
         exercise.primary_muscle === selectedFilter || 
         (exercise.secondary_muscles && exercise.secondary_muscles.includes(selectedFilter))
+      );
+    }
+
+    // Apply favorites filter
+    if (showFavoritesOnly) {
+      filtered = filtered.filter(exercise => 
+        favoriteExerciseIds.includes(exercise.id)
       );
     }
 
@@ -99,7 +122,12 @@ export default function ExercisesScreen() {
           </Text>
         )}
       </View>
-      <FontAwesome name="chevron-right" size={16} color={colors.subtext} />
+      <View style={styles.exerciseActions}>
+        {favoriteExerciseIds.includes(item.id) && (
+          <FontAwesome name="heart" size={16} color={colors.primary} style={styles.favoriteIcon} />
+        )}
+        <FontAwesome name="chevron-right" size={16} color={colors.subtext} />
+      </View>
     </TouchableOpacity>
   );
 
@@ -117,6 +145,33 @@ export default function ExercisesScreen() {
       </View>
 
       <View style={styles.filtersContainer}>
+        <TouchableOpacity
+          style={[
+            styles.filterButton,
+            showFavoritesOnly
+              ? { backgroundColor: colors.primary }
+              : { backgroundColor: colors.card }
+          ]}
+          onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+        >
+          <FontAwesome 
+            name="heart" 
+            size={14} 
+            color={showFavoritesOnly ? 'white' : colors.primary} 
+            style={styles.filterIcon} 
+          />
+          <Text
+            style={[
+              styles.filterText,
+              showFavoritesOnly
+                ? { color: 'white' }
+                : { color: colors.text }
+            ]}
+          >
+            Favorites
+          </Text>
+        </TouchableOpacity>
+
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -186,12 +241,18 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     marginBottom: 16,
+    flexDirection: 'row',
   },
   filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 16,
     marginRight: 8,
+  },
+  filterIcon: {
+    marginRight: 4,
   },
   filterText: {
     fontSize: 14,
@@ -227,6 +288,13 @@ const styles = StyleSheet.create({
   secondaryMuscles: {
     fontSize: 12,
     marginTop: 4,
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  favoriteIcon: {
+    marginRight: 12,
   },
   emptyContainer: {
     alignItems: 'center',
