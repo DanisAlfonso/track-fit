@@ -5,6 +5,8 @@ import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 type Routine = {
   id: number;
@@ -22,9 +24,11 @@ export default function RoutinesScreen() {
 
   const [routines, setRoutines] = useState<Routine[]>([]);
 
-  useEffect(() => {
-    loadRoutines();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadRoutines();
+    }, [])
+  );
 
   const loadRoutines = async () => {
     try {
@@ -46,10 +50,18 @@ export default function RoutinesScreen() {
     return new Date(timestamp).toLocaleDateString();
   };
 
+  const navigateToCreateRoutine = () => {
+    router.push('/routine/create');
+  };
+
+  const navigateToRoutineDetail = (routineId: number) => {
+    router.push(`/routine/${routineId}`);
+  };
+
   const renderRoutineItem = ({ item }: { item: Routine }) => (
     <TouchableOpacity 
       style={[styles.routineCard, { backgroundColor: colors.card }]}
-      onPress={() => {/* Navigate to routine details */}}
+      onPress={() => navigateToRoutineDetail(item.id)}
     >
       <View style={styles.routineContent}>
         <Text style={[styles.routineName, { color: colors.text }]}>{item.name}</Text>
@@ -77,7 +89,7 @@ export default function RoutinesScreen() {
         <Text style={[styles.title, { color: colors.text }]}>My Routines</Text>
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => {/* Navigate to create routine screen */}}
+          onPress={navigateToCreateRoutine}
         >
           <FontAwesome name="plus" size={16} color="white" />
           <Text style={styles.addButtonText}>New Routine</Text>
@@ -97,7 +109,7 @@ export default function RoutinesScreen() {
             </Text>
             <TouchableOpacity
               style={[styles.createButton, { backgroundColor: colors.primary }]}
-              onPress={() => {/* Navigate to create routine screen */}}
+              onPress={navigateToCreateRoutine}
             >
               <Text style={styles.createButtonText}>Create a Routine</Text>
             </TouchableOpacity>
