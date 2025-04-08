@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -7,96 +7,85 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 
-type Routine = {
+type Workout = {
   id: number;
   name: string;
-  description: string | null;
-  created_at: number;
+  date: number;
+  completed_at: number | null;
+  routine_name: string;
 };
 
-type RoutineExercise = {
+type WorkoutExercise = {
   id: number;
   name: string;
-  sets: number;
-  exercise_order: number;
+  sets_completed: number;
 };
 
-export default function RoutineDetailScreen() {
+export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
   const colors = Colors[theme];
 
-  const [routine, setRoutine] = useState<Routine | null>(null);
-  const [exercises, setExercises] = useState<RoutineExercise[]>([]);
+  const [workout, setWorkout] = useState<Workout | null>(null);
+  const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    loadRoutineDetails();
+    loadWorkoutDetails();
   }, [id]);
 
-  const loadRoutineDetails = async () => {
+  const loadWorkoutDetails = async () => {
     if (!id) return;
     
     setIsLoading(true);
     
     try {
       const db = await getDatabase();
-      const routineId = parseInt(String(id), 10);
+      const workoutId = parseInt(String(id), 10);
       
-      // Get routine details
-      const routineResult = await db.getFirstAsync<Routine>(
-        'SELECT * FROM routines WHERE id = ?',
-        [routineId]
+      // Get workout details
+      const workoutResult = await db.getFirstAsync<Workout>(
+        `SELECT w.id, w.name, w.date, w.completed_at, r.name as routine_name
+         FROM workouts w
+         JOIN routines r ON w.routine_id = r.id
+         WHERE w.id = ?`,
+        [workoutId]
       );
       
-      if (routineResult) {
-        setRoutine(routineResult);
+      if (workoutResult) {
+        setWorkout(workoutResult);
         
-        // Get routine exercises
-        const exerciseResults = await db.getAllAsync<RoutineExercise>(
-          `SELECT re.id, e.name, re.sets, re.order_num as exercise_order
-           FROM routine_exercises re
-           JOIN exercises e ON re.exercise_id = e.id
-           WHERE re.routine_id = ?
-           ORDER BY re.order_num`,
-          [routineId]
+        // Get workout exercises
+        const exerciseResults = await db.getAllAsync<WorkoutExercise>(
+          `SELECT we.id, e.name, we.sets_completed
+           FROM workout_exercises we
+           JOIN exercises e ON we.exercise_id = e.id
+           WHERE we.workout_id = ?`,
+          [workoutId]
         );
         
         setExercises(exerciseResults);
       } else {
-        Alert.alert('Error', 'Routine not found');
+        Alert.alert('Error', 'Workout not found');
         router.back();
       }
     } catch (error) {
-      console.error('Error loading routine details:', error);
-      Alert.alert('Error', 'Failed to load routine details');
+      console.error('Error loading workout details:', error);
+      Alert.alert('Error', 'Failed to load workout details');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const startWorkout = () => {
-    if (!routine) return;
-    router.push({
-      pathname: "/workout/start",
-      params: { routineId: routine.id }
-    });
-  };
-
-  const editRoutine = () => {
-    if (!routine) return;
-    router.push(`/routine/edit/${routine.id}`);
-  };
-
-  const deleteRoutine = async () => {
-    if (!routine) return;
+  const deleteWorkout = async () => {
+    if (!workout) return;
     
     Alert.alert(
-      'Delete Routine',
-      `Are you sure you want to delete "${routine.name}"? This action cannot be undone.`,
+      'Delete Workout',
+      'Are you sure you want to delete this workout? This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -107,14 +96,14 @@ export default function RoutineDetailScreen() {
             
             try {
               const db = await getDatabase();
-              await db.runAsync('DELETE FROM routines WHERE id = ?', [routine.id]);
+              await db.runAsync('DELETE FROM workouts WHERE id = ?', [workout.id]);
               
-              Alert.alert('Success', 'Routine deleted successfully', [
+              Alert.alert('Success', 'Workout deleted successfully', [
                 { text: 'OK', onPress: () => router.back() }
               ]);
             } catch (error) {
-              console.error('Error deleting routine:', error);
-              Alert.alert('Error', 'Failed to delete routine');
+              console.error('Error deleting workout:', error);
+              Alert.alert('Error', 'Failed to delete workout');
             } finally {
               setIsDeleting(false);
             }
@@ -125,7 +114,21 @@ export default function RoutineDetailScreen() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
+    const date = new Date(timestamp);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const calculateDuration = () => {
+    if (!workout || !workout.completed_at) return null;
+    
+    const startTime = new Date(workout.date).getTime();
+    const endTime = new Date(workout.completed_at).getTime();
+    const durationMs = endTime - startTime;
+    
+    const minutes = Math.floor(durationMs / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+    
+    return `${minutes}m ${seconds}s`;
   };
 
   if (isLoading) {
@@ -134,7 +137,7 @@ export default function RoutineDetailScreen() {
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
-            title: "Routine Details",
+            title: "Workout Details",
             headerShown: true,
             headerStyle: {
               backgroundColor: colors.background,
@@ -144,63 +147,72 @@ export default function RoutineDetailScreen() {
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading routine...</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Loading workout details...</Text>
         </View>
       </View>
     );
   }
 
-  if (!routine) {
+  if (!workout) {
     return null;
   }
+
+  const duration = calculateDuration();
+  const isCompleted = workout.completed_at !== null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
-          title: routine.name,
+          title: workout.name,
           headerShown: true,
           headerStyle: {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
           headerRight: () => (
-            <View style={styles.headerActions}>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={editRoutine}
-                disabled={isDeleting}
-              >
-                <FontAwesome name="edit" size={18} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={deleteRoutine}
-                disabled={isDeleting}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator size="small" color={colors.error} />
-                ) : (
-                  <FontAwesome name="trash" size={18} color={colors.error} />
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={deleteWorkout}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color={colors.error} />
+              ) : (
+                <FontAwesome name="trash" size={18} color={colors.error} />
+              )}
+            </TouchableOpacity>
           ),
         }}
       />
       
       <ScrollView style={styles.scrollView}>
         <View style={styles.headerSection}>
-          <Text style={[styles.routineName, { color: colors.text }]}>{routine.name}</Text>
-          {routine.description && (
-            <Text style={[styles.routineDescription, { color: colors.subtext }]}>
-              {routine.description}
-            </Text>
-          )}
-          <Text style={[styles.routineMeta, { color: colors.subtext }]}>
-            Created: {formatDate(routine.created_at)}
+          <Text style={[styles.workoutName, { color: colors.text }]}>{workout.name}</Text>
+          <Text style={[styles.routineName, { color: colors.subtext }]}>
+            Based on: {workout.routine_name}
           </Text>
+          <Text style={[styles.workoutDate, { color: colors.subtext }]}>
+            Started: {formatDate(workout.date)}
+          </Text>
+          {isCompleted && (
+            <>
+              <Text style={[styles.workoutCompleted, { color: colors.success }]}>
+                Completed: {formatDate(workout.completed_at!)}
+              </Text>
+              {duration && (
+                <Text style={[styles.workoutDuration, { color: colors.subtext }]}>
+                  Duration: {duration}
+                </Text>
+              )}
+            </>
+          )}
+          <View style={[styles.statusBadge, { backgroundColor: isCompleted ? colors.success : colors.warning }]}>
+            <Text style={styles.statusText}>
+              {isCompleted ? 'Completed' : 'In Progress'}
+            </Text>
+          </View>
         </View>
         
         <View style={styles.exercisesSection}>
@@ -212,7 +224,7 @@ export default function RoutineDetailScreen() {
             <View style={[styles.emptyContainer, { backgroundColor: colors.card }]}>
               <FontAwesome name="list" size={24} color={colors.subtext} style={styles.emptyIcon} />
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                No exercises in this routine yet.
+                No exercises recorded for this workout.
               </Text>
             </View>
           ) : (
@@ -232,31 +244,15 @@ export default function RoutineDetailScreen() {
                       {exercise.name}
                     </Text>
                     <Text style={[styles.exerciseSets, { color: colors.subtext }]}>
-                      {exercise.sets} set{exercise.sets !== 1 ? 's' : ''}
+                      {exercise.sets_completed} set{exercise.sets_completed !== 1 ? 's' : ''} completed
                     </Text>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.exerciseButton}
-                    onPress={() => router.push(`/exercise/${exercise.id}`)}
-                  >
-                    <FontAwesome name="info-circle" size={18} color={colors.primary} />
-                  </TouchableOpacity>
                 </View>
               ))}
             </View>
           )}
         </View>
       </ScrollView>
-      
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[styles.startButton, { backgroundColor: colors.primary }]}
-          onPress={startWorkout}
-        >
-          <FontAwesome name="play" size={16} color="white" style={styles.startButtonIcon} />
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -280,19 +276,38 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     marginBottom: 24,
+    alignItems: 'center',
   },
-  routineName: {
+  workoutName: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  routineDescription: {
+  routineName: {
     fontSize: 16,
-    marginBottom: 8,
-    lineHeight: 22,
+    marginBottom: 4,
   },
-  routineMeta: {
+  workoutDate: {
     fontSize: 14,
+    marginBottom: 4,
+  },
+  workoutCompleted: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  workoutDuration: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 8,
+  },
+  statusText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
   exercisesSection: {
     marginBottom: 24,
@@ -336,9 +351,6 @@ const styles = StyleSheet.create({
   exerciseSets: {
     fontSize: 14,
   },
-  exerciseButton: {
-    padding: 8,
-  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -352,31 +364,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 8,
-  },
-  startButtonIcon: {
-    marginRight: 8,
-  },
-  startButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerButton: {
+  deleteButton: {
     padding: 8,
-    marginLeft: 8,
   },
 }); 

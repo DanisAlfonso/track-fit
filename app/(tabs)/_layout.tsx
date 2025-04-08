@@ -17,48 +17,56 @@ function TabBarIcon(props: {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
+  const colors = Colors[theme];
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[theme].primary,
-        tabBarInactiveTintColor: Colors[theme].subtext,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.subtext,
         tabBarStyle: {
-          backgroundColor: Colors[theme].card,
-          borderTopColor: Colors[theme].border,
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
         },
         headerStyle: {
-          backgroundColor: Colors[theme].card,
+          backgroundColor: colors.background,
         },
-        headerTintColor: Colors[theme].text,
+        headerTintColor: colors.text,
         headerShadowVisible: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="home" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="home" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="exercises"
         options={{
           title: 'Exercises',
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="list" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="list" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="routines"
         options={{
           title: 'Routines',
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="calendar" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="calendar" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
         name="workouts"
         options={{
           title: 'Workouts',
-          tabBarIcon: ({ color }: { color: string }) => <TabBarIcon name="bar-chart" color={color} />,
+          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="history" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="cog" size={24} color={color} />,
         }}
       />
     </Tabs>

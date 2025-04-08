@@ -4,8 +4,8 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
-import { initDatabase, insertDefaultExercises } from '../utils/database';
+import { useColorScheme, Alert } from 'react-native';
+import { initDatabase, insertDefaultExercises, resetDatabase } from '../utils/database';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -16,17 +16,23 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Initialize the database when the app starts
+  // Initialize database
   useEffect(() => {
-    async function setupDatabase() {
+    const setupDatabase = async () => {
       try {
+        console.log('Initializing database...');
         await initDatabase();
+        console.log('Database initialized successfully');
+        
+        console.log('Inserting default exercises...');
         await insertDefaultExercises();
+        console.log('Default exercises inserted successfully');
       } catch (error) {
-        console.error('Failed to initialize database:', error);
+        console.error('Error setting up database:', error);
+        Alert.alert('Database Error', 'Failed to initialize the database. The app may not function correctly.');
       }
-    }
-
+    };
+    
     setupDatabase();
   }, []);
 
