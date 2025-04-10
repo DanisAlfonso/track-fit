@@ -8,7 +8,8 @@ import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 
 type Exercise = {
-  id: number;
+  routine_exercise_id: number;
+  exercise_id: number;
   name: string;
   sets: number;
   exercise_order: number;
@@ -25,7 +26,8 @@ type Set = {
 };
 
 type WorkoutExercise = {
-  id: number;
+  routine_exercise_id: number;
+  exercise_id: number;
   name: string;
   sets: number;
   completedSets: number;
@@ -114,7 +116,7 @@ export default function StartWorkoutScreen() {
         
         // Get routine exercises
         const exerciseResults = await db.getAllAsync<Exercise>(
-          `SELECT re.id, e.name, re.sets, re.order_num as exercise_order
+          `SELECT re.id as routine_exercise_id, e.id as exercise_id, e.name, re.sets, re.order_num as exercise_order
            FROM routine_exercises re
            JOIN exercises e ON re.exercise_id = e.id
            WHERE re.routine_id = ?
@@ -129,7 +131,7 @@ export default function StartWorkoutScreen() {
         const workoutExercises: WorkoutExercise[] = exerciseResults.map(exercise => {
           // Create default sets data
           const sets_data: Set[] = [];
-          const previousSets = previousWorkoutData.get(exercise.id) || [];
+          const previousSets = previousWorkoutData.get(exercise.routine_exercise_id) || [];
           
           for (let i = 1; i <= exercise.sets; i++) {
             // Use previous workout data if available for this set
@@ -188,7 +190,7 @@ export default function StartWorkoutScreen() {
           `SELECT we.id 
            FROM workout_exercises we
            WHERE we.workout_id = ? AND we.exercise_id = ?`,
-          [recentWorkout.id, exercise.id]
+          [recentWorkout.id, exercise.exercise_id]
         );
         
         if (workoutExercise) {
@@ -200,7 +202,7 @@ export default function StartWorkoutScreen() {
           );
           
           if (sets.length > 0) {
-            workoutData.set(exercise.id, sets);
+            workoutData.set(exercise.routine_exercise_id, sets);
           }
         }
       }
@@ -249,10 +251,10 @@ export default function StartWorkoutScreen() {
     const currentSetData = {...exercise.sets_data[setIndex]};
     
     // Check if previous performance data exists for this exercise and set
-    if (previousWorkoutData.has(exercise.id) && 
-        previousWorkoutData.get(exercise.id)![setIndex]) {
+    if (previousWorkoutData.has(exercise.routine_exercise_id) && 
+        previousWorkoutData.get(exercise.routine_exercise_id)![setIndex]) {
       
-      const prevSet = previousWorkoutData.get(exercise.id)![setIndex];
+      const prevSet = previousWorkoutData.get(exercise.routine_exercise_id)![setIndex];
       
       // Only pre-fill values if they haven't been changed already
       if (currentSetData.reps === 0) {
@@ -352,7 +354,7 @@ export default function StartWorkoutScreen() {
                 // Insert workout exercise
                 const exerciseResult = await db.runAsync(
                   'INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)',
-                  [workoutId, exercise.id, exercise.completedSets, exercise.notes]
+                  [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes]
                 );
                 
                 const workoutExerciseId = exerciseResult.lastInsertRowId;
@@ -478,10 +480,10 @@ export default function StartWorkoutScreen() {
             )}
             
             {/* Show previous performance data if available */}
-            {!setItem.completed && previousWorkoutData.has(item.id) && previousWorkoutData.get(item.id)![setIndex] && (
+            {!setItem.completed && previousWorkoutData.has(item.routine_exercise_id) && previousWorkoutData.get(item.routine_exercise_id)![setIndex] && (
               <View style={styles.previousPerformance}>
                 <Text style={[styles.previousPerformanceText, { color: colors.subtext }]}>
-                  Last: {previousWorkoutData.get(item.id)![setIndex].reps} reps @ {previousWorkoutData.get(item.id)![setIndex].weight} kg
+                  Last: {previousWorkoutData.get(item.routine_exercise_id)![setIndex].reps} reps @ {previousWorkoutData.get(item.routine_exercise_id)![setIndex].weight} kg
                 </Text>
               </View>
             )}
@@ -541,8 +543,8 @@ export default function StartWorkoutScreen() {
     let defaultWeight = 0;
     
     // If there's previous data for the last set, use that as default for the new set
-    if (previousWorkoutData.has(exercise.id)) {
-      const prevSets = previousWorkoutData.get(exercise.id)!;
+    if (previousWorkoutData.has(exercise.routine_exercise_id)) {
+      const prevSets = previousWorkoutData.get(exercise.routine_exercise_id)!;
       if (prevSets.length > 0) {
         // Use the last set's data as a starting point, or the matching set if available
         const prevSet = nextSetNumber <= prevSets.length 
@@ -673,7 +675,7 @@ export default function StartWorkoutScreen() {
       <FlatList
         data={exercises}
         renderItem={renderExerciseItem}
-        keyExtractor={(item) => `exercise-${item.id}`}
+        keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
         contentContainerStyle={styles.exerciseList}
       />
       
@@ -713,14 +715,14 @@ export default function StartWorkoutScreen() {
             
             {/* Show previous performance data if available */}
             {selectedExercise !== null && 
-             previousWorkoutData.has(exercises[selectedExercise].id) && 
-             previousWorkoutData.get(exercises[selectedExercise].id)![currentSet.set_number - 1] && (
+             previousWorkoutData.has(exercises[selectedExercise].routine_exercise_id) && 
+             previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1] && (
               <View style={styles.previousPerformanceCard}>
                 <Text style={[styles.previousPerformanceTitle, { color: colors.text }]}>
                   Previous Performance
                 </Text>
                 <Text style={[styles.previousPerformanceData, { color: colors.primary }]}>
-                  {previousWorkoutData.get(exercises[selectedExercise].id)![currentSet.set_number - 1].reps} reps @ {previousWorkoutData.get(exercises[selectedExercise].id)![currentSet.set_number - 1].weight} kg
+                  {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1].reps} reps @ {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1].weight} kg
                 </Text>
                 <Text style={[styles.previousPerformanceHint, { color: colors.subtext }]}>
                   These values have been pre-filled for you

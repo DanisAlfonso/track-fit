@@ -163,6 +163,13 @@ export default function WorkoutsTab() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Workout History</Text>
+        <TouchableOpacity 
+          style={[styles.analyticsButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/analytics')}
+        >
+          <FontAwesome name="bar-chart" size={16} color="#fff" />
+          <Text style={styles.analyticsButtonText}>Analytics</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -194,6 +201,9 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
@@ -260,5 +270,17 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  analyticsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  analyticsButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    marginLeft: 6,
   },
 }); 
