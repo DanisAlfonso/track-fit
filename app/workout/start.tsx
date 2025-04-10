@@ -244,8 +244,8 @@ export default function StartWorkoutScreen() {
               
               // Update workout with completion time and duration
               await db.runAsync(
-                'UPDATE workouts SET date = ?, duration = ?, notes = ? WHERE id = ?',
-                [Date.now(), workoutDuration, workoutNotes, workoutId]
+                'UPDATE workouts SET date = ?, duration = ?, notes = ?, completed_at = ? WHERE id = ?',
+                [Date.now(), workoutDuration, workoutNotes, Date.now(), workoutId]
               );
               
               // Save completed exercises and sets
@@ -270,7 +270,13 @@ export default function StartWorkoutScreen() {
               }
               
               Alert.alert('Workout Completed', 'Great job! Your workout has been saved.', [
-                { text: 'OK', onPress: () => router.back() }
+                { 
+                  text: 'OK', 
+                  onPress: () => {
+                    // Navigate directly to the History tab
+                    router.replace('/(tabs)/workouts');
+                  }
+                }
               ]);
             } catch (error) {
               console.error('Error finishing workout:', error);
