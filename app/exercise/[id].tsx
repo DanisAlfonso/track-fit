@@ -136,6 +136,14 @@ export default function ExerciseDetailScreen() {
         {exercise.category} • {exercise.primary_muscle}
       </Text>
       
+      <TouchableOpacity 
+        style={[styles.historyButton, { backgroundColor: colors.primary }]}
+        onPress={() => router.push(`/exercise/history/${exercise.id}`)}
+      >
+        <FontAwesome name="history" size={16} color="#fff" style={styles.historyIcon} />
+        <Text style={styles.historyButtonText}>View Exercise History</Text>
+      </TouchableOpacity>
+      
       <Animated.View style={[styles.animationContainer, imageAnimatedStyle]}>
         <View style={[styles.animationBox, { backgroundColor: colors.card }]}>
           <Image 
@@ -406,5 +414,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 100,
     fontSize: 18,
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  historyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  historyIcon: {
+    marginRight: 8,
   },
 }); 

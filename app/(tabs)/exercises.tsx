@@ -222,9 +222,20 @@ export default function ExercisesScreen() {
         </View>
         
         <View style={styles.exerciseFooter}>
-          <TouchableOpacity style={styles.detailsButton} onPress={() => navigateToExerciseDetail(item.id)}>
-            <Text style={[styles.detailsButtonText, { color: colors.primary }]}>View Details</Text>
-            <FontAwesome name="chevron-right" size={14} color={colors.primary} />
+          <TouchableOpacity 
+            style={styles.footerButton} 
+            onPress={() => navigateToExerciseDetail(item.id)}
+          >
+            <Text style={[styles.footerButtonText, { color: colors.primary }]}>Details</Text>
+            <FontAwesome name="info-circle" size={14} color={colors.primary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.footerButton} 
+            onPress={() => router.push(`/exercise/history/${item.id}`)}
+          >
+            <Text style={[styles.footerButtonText, { color: colors.primary }]}>History</Text>
+            <FontAwesome name="history" size={14} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -520,20 +531,27 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   exerciseFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    marginTop: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
-    marginTop: 4,
-    paddingTop: 12,
   },
-  detailsButton: {
+  footerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 4,
   },
-  detailsButtonText: {
+  footerButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    marginRight: 4,
+    fontWeight: '500',
+    marginRight: 6,
   },
   exerciseActions: {
     flexDirection: 'row',
