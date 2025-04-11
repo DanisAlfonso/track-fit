@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
+import { useWorkout } from '@/context/WorkoutContext';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -43,7 +44,7 @@ type TouchedFields = {
 };
 
 export default function StartWorkoutScreen() {
-  const { routineId } = useLocalSearchParams();
+  const { routineId, workoutId: existingWorkoutId } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
@@ -52,6 +53,15 @@ export default function StartWorkoutScreen() {
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
   const timerAnimation = useRef(new Animated.Value(0)).current;
+
+  // Get workout context functions
+  const { 
+    startWorkout: startGlobalWorkout, 
+    endWorkout: endGlobalWorkout,
+    pauseWorkout: minimizeWorkout,
+    activeWorkout,
+    resumeWorkout
+  } = useWorkout();
 
   const [routineName, setRoutineName] = useState('');
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
@@ -123,6 +133,206 @@ export default function StartWorkoutScreen() {
       }
     };
   }, [workoutStarted]);
+
+  // When leaving the screen, handle minimization
+  useEffect(() => {
+    return () => {
+      // Only minimize if we have an active workout and we're not finishing
+      if (workoutId && workoutStarted) {
+        minimizeWorkout();
+      }
+      
+      if (workoutTimer.current) {
+        clearInterval(workoutTimer.current);
+      }
+    };
+  }, [workoutId, workoutStarted]);
+
+  // Check if we're resuming an existing workout
+  useEffect(() => {
+    if (existingWorkoutId && !workoutStarted) {
+      console.log("Resuming workout with ID:", existingWorkoutId);
+      resumeExistingWorkout(Number(existingWorkoutId));
+    }
+  }, [existingWorkoutId]);
+
+  const resumeExistingWorkout = async (workoutId: number) => {
+    setIsLoading(true);
+    
+    try {
+      console.log("Attempting to resume workout:", workoutId);
+      const db = await getDatabase();
+      
+      // Get the workout details
+      const workout = await db.getFirstAsync<{
+        id: number;
+        name: string;
+        routine_id: number;
+        date: number;
+        duration: number;
+        routine_name: string;
+      }>(
+        `SELECT w.id, w.name, w.routine_id, w.date, w.duration, r.name as routine_name 
+         FROM workouts w
+         JOIN routines r ON w.routine_id = r.id
+         WHERE w.id = ? AND w.completed_at IS NULL`,
+        [workoutId]
+      );
+      
+      console.log("Found workout:", workout);
+      
+      if (!workout) {
+        Alert.alert('Error', 'Workout not found or already completed');
+        router.replace('/(tabs)/workouts');
+        return;
+      }
+      
+      // Set workout state
+      setWorkoutId(workoutId);
+      setRoutineName(workout.routine_name);
+      setWorkoutStarted(true);
+      workoutStartTime.current = workout.date;
+      setWorkoutDuration(workout.duration || 0);
+      
+      // Resume global workout context
+      resumeWorkout();
+      
+      // Load workout exercises from database
+      console.log("Loading workout exercises for routine:", workout.routine_id);
+      
+      // First check if we already have exercises recorded
+      const existingExercises = await db.getAllAsync<{
+        id: number;
+        workout_id: number;
+        exercise_id: number;
+        sets_completed: number;
+        notes: string;
+      }>(
+        `SELECT * FROM workout_exercises WHERE workout_id = ?`,
+        [workoutId]
+      );
+      
+      console.log("Found existing exercises:", existingExercises.length);
+      
+      // If we have workout_exercises entries, load them with their sets
+      if (existingExercises.length > 0) {
+        const loadedExercises: WorkoutExercise[] = [];
+        
+        for (const exerciseRecord of existingExercises) {
+          // Get exercise details
+          const exercise = await db.getFirstAsync<{
+            id: number;
+            name: string;
+          }>(
+            `SELECT id, name FROM exercises WHERE id = ?`,
+            [exerciseRecord.exercise_id]
+          );
+          
+          if (!exercise) continue;
+          
+          // Get routine exercise details for order and sets
+          const routineExercise = await db.getFirstAsync<{
+            id: number;
+            order_num: number;
+            sets: number;
+          }>(
+            `SELECT id, order_num, sets FROM routine_exercises 
+             WHERE routine_id = ? AND exercise_id = ?`,
+            [workout.routine_id, exerciseRecord.exercise_id]
+          );
+          
+          if (!routineExercise) continue;
+          
+          // Get sets for this exercise
+          const sets = await db.getAllAsync<Set>(
+            `SELECT id, set_number, reps, weight, rest_time, completed, notes
+             FROM sets
+             WHERE workout_exercise_id = ?
+             ORDER BY set_number`,
+            [exerciseRecord.id]
+          );
+          
+          // If we have fewer sets than expected, add the missing ones
+          const allSets = [...sets];
+          
+          if (sets.length < routineExercise.sets) {
+            for (let i = sets.length + 1; i <= routineExercise.sets; i++) {
+              allSets.push({
+                set_number: i,
+                reps: 0,
+                weight: 0,
+                rest_time: 60,
+                completed: false,
+                notes: ''
+              });
+            }
+          }
+          
+          loadedExercises.push({
+            routine_exercise_id: routineExercise.id,
+            exercise_id: exercise.id,
+            name: exercise.name,
+            sets: routineExercise.sets,
+            completedSets: exerciseRecord.sets_completed,
+            exercise_order: routineExercise.order_num,
+            sets_data: allSets,
+            notes: exerciseRecord.notes || ''
+          });
+        }
+        
+        // Sort exercises by order
+        loadedExercises.sort((a, b) => a.exercise_order - b.exercise_order);
+        setExercises(loadedExercises);
+      } else {
+        // If no exercises found, load from routine definition
+        const exerciseResults = await db.getAllAsync<{
+          id: number;
+          exercise_id: number;
+          name: string;
+          sets: number;
+          order_num: number;
+        }>(
+          `SELECT re.id, re.exercise_id, e.name, re.sets, re.order_num
+           FROM routine_exercises re
+           JOIN exercises e ON re.exercise_id = e.id
+           WHERE re.routine_id = ?
+           ORDER BY re.order_num`,
+          [workout.routine_id]
+        );
+        
+        console.log("Loading from routine definition, found:", exerciseResults.length);
+        
+        if (exerciseResults.length > 0) {
+          const workoutExercises: WorkoutExercise[] = exerciseResults.map(exercise => ({
+            routine_exercise_id: exercise.id,
+            exercise_id: exercise.exercise_id,
+            name: exercise.name,
+            sets: exercise.sets,
+            completedSets: 0,
+            exercise_order: exercise.order_num,
+            sets_data: Array.from({ length: exercise.sets }, (_, i) => ({
+              set_number: i + 1,
+              reps: 0,
+              weight: 0,
+              rest_time: 60,
+              completed: false,
+              notes: ''
+            })),
+            notes: ''
+          }));
+          
+          setExercises(workoutExercises);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error resuming workout:', error);
+      Alert.alert('Error', 'Failed to resume workout');
+      router.replace('/(tabs)/workouts');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadRoutineExercises = async () => {
     if (!routineId) return;
@@ -262,6 +472,9 @@ export default function StartWorkoutScreen() {
       setWorkoutStarted(true);
       workoutStartTime.current = Date.now();
       
+      // Register with global workout context
+      startGlobalWorkout(newWorkoutId, routineName);
+      
       Alert.alert('Workout Started', 'Your workout has begun. Track your progress as you go!');
     } catch (error) {
       console.error('Error starting workout:', error);
@@ -398,6 +611,9 @@ export default function StartWorkoutScreen() {
                   }
                 }
               }
+              
+              // Clear the global workout
+              endGlobalWorkout();
               
               Alert.alert('Workout Completed', 'Great job! Your workout has been saved.', [
                 { 
@@ -702,6 +918,16 @@ export default function StartWorkoutScreen() {
     Alert.alert('Set Removed', `Last set removed from ${exercise.name}`);
   };
 
+  // New minimize function
+  const minimizeWorkoutAndNavigate = () => {
+    if (!workoutId) return;
+    
+    minimizeWorkout();
+    
+    // Navigate back to the previous screen
+    router.back();
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -735,13 +961,24 @@ export default function StartWorkoutScreen() {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
+          // Add minimize button in header
+          headerRight: () => (
+            workoutStarted ? (
+              <TouchableOpacity 
+                onPress={minimizeWorkoutAndNavigate}
+                style={styles.minimizeButton}
+              >
+                <FontAwesome name="minus-circle" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            ) : null
+          ),
         }}
       />
       
       {!workoutStarted ? (
         <View style={styles.startWorkoutContainer}>
           <View style={styles.startWorkoutContent}>
-            <FontAwesome name="dumbbell" size={48} color={colors.primary} style={styles.startWorkoutIcon} />
+            <FontAwesome name="trophy" size={48} color={colors.primary} style={styles.startWorkoutIcon} />
             <Text style={[styles.startWorkoutTitle, { color: colors.text }]}>Ready to Begin?</Text>
             <Text style={[styles.startWorkoutDescription, { color: colors.subtext }]}>
               You're about to start "{routineName}" with {exercises.length} exercises and {
@@ -1381,5 +1618,9 @@ const styles = StyleSheet.create({
   previousPerformanceHint: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  minimizeButton: {
+    marginRight: 16,
+    padding: 8,
   },
 }); 

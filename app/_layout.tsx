@@ -4,8 +4,10 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { useColorScheme, Alert } from 'react-native';
+import { useColorScheme, Alert, View } from 'react-native';
 import { initDatabase, insertDefaultExercises, resetDatabase } from '../utils/database';
+import { WorkoutProvider } from '@/context/WorkoutContext';
+import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -58,10 +60,15 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
-    </ThemeProvider>
+    <WorkoutProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <View style={{ flex: 1 }}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          </Stack>
+          <ActiveWorkoutIndicator />
+        </View>
+      </ThemeProvider>
+    </WorkoutProvider>
   );
 }
