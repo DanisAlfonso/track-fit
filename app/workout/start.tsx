@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -51,6 +51,7 @@ export default function StartWorkoutScreen() {
   const workoutStartTime = useRef<number | null>(null);
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
+  const timerAnimation = useRef(new Animated.Value(0)).current;
 
   const [routineName, setRoutineName] = useState('');
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
@@ -71,6 +72,33 @@ export default function StartWorkoutScreen() {
   const [workoutNotes, setWorkoutNotes] = useState('');
   const [touchedFields, setTouchedFields] = useState<TouchedFields>({ reps: false, weight: false });
   const [previousWorkoutData, setPreviousWorkoutData] = useState<Map<number, { reps: number, weight: number }[]>>(new Map());
+  const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
+
+  // Animation pulse for timer
+  useEffect(() => {
+    if (workoutStarted) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(timerAnimation, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(timerAnimation, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          })
+        ])
+      ).start();
+    } else {
+      timerAnimation.setValue(0);
+    }
+    
+    return () => {
+      timerAnimation.setValue(0);
+    };
+  }, [workoutStarted]);
 
   useEffect(() => {
     loadRoutineExercises();
@@ -247,6 +275,7 @@ export default function StartWorkoutScreen() {
     if (!workoutStarted) return;
     
     setSelectedExercise(exerciseIndex);
+    setSelectedSetIndex(setIndex);
     const exercise = exercises[exerciseIndex];
     const currentSetData = {...exercise.sets_data[setIndex]};
     
@@ -399,33 +428,100 @@ export default function StartWorkoutScreen() {
     return `${hours > 0 ? `${hours}:` : ''}${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Calculate overall workout progress percentage
+  const calculateProgressPercentage = () => {
+    if (exercises.length === 0) return 0;
+    
+    const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets_data.length, 0);
+    const completedSets = exercises.reduce((sum, exercise) => 
+      sum + exercise.sets_data.filter(set => set.completed).length, 0);
+    
+    return totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+  };
+
+  const renderProgressBar = () => {
+    const progress = calculateProgressPercentage();
+    
+    return (
+      <View style={styles.progressBarContainer}>
+        <View style={styles.progressBarBackground}>
+          <View 
+            style={[
+              styles.progressBarFill, 
+              { 
+                width: `${progress}%`, 
+                backgroundColor: progress === 100 ? colors.success : colors.primary 
+              }
+            ]} 
+          />
+        </View>
+        <Text style={[styles.progressText, { color: colors.text }]}>
+          {progress.toFixed(0)}% Complete
+        </Text>
+      </View>
+    );
+  };
+
   const renderSetItem = ({ item, index }: { item: Set, index: number }) => (
     <TouchableOpacity 
       style={[
         styles.setItem, 
         { 
-          backgroundColor: item.completed ? colors.success : colors.card,
-          borderColor: colors.border
+          backgroundColor: item.completed ? colors.success + '22' : colors.card,
+          borderColor: item.completed ? colors.success : colors.border,
+          borderWidth: 1.5,
         }
       ]}
-      onPress={() => openSetModal(index, index)}
+      onPress={() => openSetModal(selectedExercise !== null ? selectedExercise : 0, index)}
       disabled={!workoutStarted}
+      activeOpacity={0.7}
     >
-      <Text style={[styles.setNumber, { color: colors.text }]}>Set {item.set_number}</Text>
-      {item.completed ? (
-        <View style={styles.setDetails}>
-          <Text style={[styles.setDetail, { color: colors.text }]}>
-            {item.reps} reps @ {item.weight} kg
-          </Text>
-          {item.notes ? (
-            <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
-              {item.notes}
+      <View style={styles.setItemContent}>
+        <View style={styles.setNumberContainer}>
+          <View style={[
+            styles.setNumberBadge, 
+            { backgroundColor: item.completed ? colors.success : colors.primary + '33' }
+          ]}>
+            <Text style={[styles.setNumber, { color: item.completed ? 'white' : colors.text }]}>
+              {item.set_number}
             </Text>
-          ) : null}
+          </View>
         </View>
-      ) : (
-        <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to complete</Text>
-      )}
+        
+        {item.completed ? (
+          <View style={styles.setDetails}>
+            <Text style={[styles.setDetail, { color: colors.text, fontWeight: '600' }]}>
+              {item.reps} reps
+            </Text>
+            <Text style={[styles.setDetail, { color: colors.text }]}>
+              {item.weight} kg
+            </Text>
+            {item.notes ? (
+              <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
+                {item.notes}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.setDetails}>
+            <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to log</Text>
+            
+            {/* Show previous performance data if available */}
+            {previousWorkoutData.has(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id) && 
+             previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index] && (
+              <Text style={[styles.previousPerformanceText, { color: colors.primary }]}>
+                Last: {previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index].reps} × {previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index].weight}kg
+              </Text>
+            )}
+          </View>
+        )}
+        
+        {item.completed && (
+          <View style={[styles.completedCheck, { backgroundColor: colors.success }]}>
+            <FontAwesome name="check" size={12} color="white" />
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -440,95 +536,95 @@ export default function StartWorkoutScreen() {
     }
   };
 
-  const renderExerciseItem = ({ item, index }: { item: WorkoutExercise, index: number }) => (
-    <View style={[styles.exerciseItem, { backgroundColor: colors.card }]}>
-      <View style={styles.exerciseHeader}>
-        <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
-        <Text style={[styles.exerciseSets, { color: colors.subtext }]}>
-          Sets: {item.completedSets}/{item.sets_data.length}
-        </Text>
-      </View>
-      
-      <FlatList
-        data={item.sets_data}
-        renderItem={({ item: setItem, index: setIndex }) => (
-          <TouchableOpacity 
-            style={[
-              styles.setItem, 
-              { 
-                backgroundColor: setItem.completed ? colors.success : colors.card,
-                borderColor: colors.border
-              }
-            ]}
-            onPress={() => openSetModal(index, setIndex)}
-            disabled={!workoutStarted}
-          >
-            <Text style={[styles.setNumber, { color: colors.text }]}>Set {setItem.set_number}</Text>
-            {setItem.completed ? (
-              <View style={styles.setDetails}>
-                <Text style={[styles.setDetail, { color: colors.text }]}>
-                  {setItem.reps} reps @ {setItem.weight} kg
-                </Text>
-                {setItem.notes ? (
-                  <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
-                    {setItem.notes}
-                  </Text>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to complete</Text>
-            )}
-            
-            {/* Show previous performance data if available */}
-            {!setItem.completed && previousWorkoutData.has(item.routine_exercise_id) && previousWorkoutData.get(item.routine_exercise_id)![setIndex] && (
-              <View style={styles.previousPerformance}>
-                <Text style={[styles.previousPerformanceText, { color: colors.subtext }]}>
-                  Last: {previousWorkoutData.get(item.routine_exercise_id)![setIndex].reps} reps @ {previousWorkoutData.get(item.routine_exercise_id)![setIndex].weight} kg
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-        keyExtractor={(set) => `set-${set.set_number}`}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.setsList}
-      />
-      
-      {workoutStarted && (
-        <View style={styles.setsManagementContainer}>
-          <TouchableOpacity
-            style={[styles.setManagementButton, { backgroundColor: colors.primary }]}
-            onPress={() => addSet(index)}
-          >
-            <FontAwesome name="plus" size={14} color="#fff" style={styles.setManagementIcon} />
-            <Text style={styles.setManagementButtonText}>Add Set</Text>
-          </TouchableOpacity>
+  const renderExerciseItem = ({ item, index }: { item: WorkoutExercise, index: number }) => {
+    // Calculate exercise completion percentage
+    const totalSets = item.sets_data.length;
+    const completedSets = item.sets_data.filter(set => set.completed).length;
+    const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+    
+    return (
+      <View style={[styles.exerciseItem, { backgroundColor: colors.card }]}>
+        <View style={styles.exerciseHeader}>
+          <View style={styles.exerciseTitleArea}>
+            <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
+            <Text style={[styles.exerciseSets, { color: completedSets === totalSets ? colors.success : colors.subtext }]}>
+              {completedSets}/{totalSets} sets completed
+            </Text>
+          </View>
           
-          {item.sets_data.length > 1 && (
-            <TouchableOpacity
-              style={[styles.setManagementButton, { backgroundColor: colors.error }]}
-              onPress={() => removeSet(index)}
-            >
-              <FontAwesome name="minus" size={14} color="#fff" style={styles.setManagementIcon} />
-              <Text style={styles.setManagementButtonText}>Remove Set</Text>
-            </TouchableOpacity>
+          {/* Mini progress bar */}
+          <View style={styles.miniProgressContainer}>
+            <View style={styles.miniProgressBackground}>
+              <View 
+                style={[
+                  styles.miniProgressFill, 
+                  { 
+                    width: `${progress}%`, 
+                    backgroundColor: progress === 100 ? colors.success : colors.primary 
+                  }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+        
+        <View style={styles.setsContainer}>
+          <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets</Text>
+          
+          <FlatList
+            data={item.sets_data}
+            renderItem={({ item: setItem, index: setIndex }) => {
+              setSelectedExercise(index);
+              return renderSetItem({ item: setItem, index: setIndex });
+            }}
+            keyExtractor={(set) => `set-${set.set_number}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.setsList}
+            contentContainerStyle={styles.setsListContent}
+          />
+          
+          {workoutStarted && (
+            <View style={styles.setsManagementContainer}>
+              <TouchableOpacity
+                style={[styles.setManagementButton, { backgroundColor: colors.primary }]}
+                onPress={() => addSet(index)}
+              >
+                <FontAwesome name="plus" size={14} color="#fff" style={styles.setManagementIcon} />
+                <Text style={styles.setManagementButtonText}>Add Set</Text>
+              </TouchableOpacity>
+              
+              {item.sets_data.length > 1 && (
+                <TouchableOpacity
+                  style={[styles.setManagementButton, { backgroundColor: colors.error + 'DD' }]}
+                  onPress={() => removeSet(index)}
+                >
+                  <FontAwesome name="minus" size={14} color="#fff" style={styles.setManagementIcon} />
+                  <Text style={styles.setManagementButtonText}>Remove Set</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
-      )}
-      
-      <View style={styles.exerciseNotes}>
-        <TextInput
-          style={[styles.notesInput, { color: colors.text, borderColor: colors.border }]}
-          placeholder="Add notes for this exercise..."
-          placeholderTextColor={colors.subtext}
-          value={item.notes}
-          onChangeText={(text) => updateExerciseNotes(index, text)}
-          multiline
-        />
+        
+        <View style={styles.exerciseNotes}>
+          <Text style={[styles.notesLabel, { color: colors.subtext }]}>Exercise Notes</Text>
+          <TextInput
+            style={[styles.notesInput, { 
+              color: colors.text, 
+              borderColor: colors.border,
+              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+            }]}
+            placeholder="Add notes for this exercise..."
+            placeholderTextColor={colors.subtext}
+            value={item.notes}
+            onChangeText={(text) => updateExerciseNotes(index, text)}
+            multiline
+          />
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   // Function to add a new set to an exercise
   const addSet = (exerciseIndex: number) => {
@@ -612,7 +708,7 @@ export default function StartWorkoutScreen() {
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
-            title: "Start Workout",
+            title: "Loading Workout",
             headerShown: true,
             headerStyle: {
               backgroundColor: colors.background,
@@ -622,7 +718,7 @@ export default function StartWorkoutScreen() {
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Loading workout...</Text>
+          <Text style={[styles.loadingText, { color: colors.text }]}>Loading workout details...</Text>
         </View>
       </View>
     );
@@ -642,55 +738,96 @@ export default function StartWorkoutScreen() {
         }}
       />
       
-      <View style={styles.header}>
-        {workoutStarted ? (
-          <View style={styles.workoutInfo}>
-            <Text style={[styles.workoutDuration, { color: colors.text }]}>
-              Duration: {formatDuration(workoutDuration)}
+      {!workoutStarted ? (
+        <View style={styles.startWorkoutContainer}>
+          <View style={styles.startWorkoutContent}>
+            <FontAwesome name="dumbbell" size={48} color={colors.primary} style={styles.startWorkoutIcon} />
+            <Text style={[styles.startWorkoutTitle, { color: colors.text }]}>Ready to Begin?</Text>
+            <Text style={[styles.startWorkoutDescription, { color: colors.subtext }]}>
+              You're about to start "{routineName}" with {exercises.length} exercises and {
+                exercises.reduce((sum, exercise) => sum + exercise.sets_data.length, 0)
+              } total sets.
             </Text>
-            <TextInput
-              style={[styles.workoutNotes, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Add notes for this workout..."
-              placeholderTextColor={colors.subtext}
-              value={workoutNotes}
-              onChangeText={setWorkoutNotes}
-              multiline
-            />
+            
+            <TouchableOpacity 
+              style={[styles.startButton, { backgroundColor: colors.primary }]}
+              onPress={startWorkout}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <>
+                  <FontAwesome name="play-circle" size={20} color="white" style={styles.startButtonIcon} />
+                  <Text style={styles.startButtonText}>Start Workout</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
-        ) : (
+        </View>
+      ) : (
+        <>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+            <View style={styles.workoutInfo}>
+              <View style={styles.workoutStatusRow}>
+                <View style={styles.timerContainer}>
+                  <Animated.View style={[
+                    styles.timerIcon,
+                    { 
+                      backgroundColor: colors.primary + '22',
+                      opacity: timerAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.6, 1]
+                      })
+                    }
+                  ]}>
+                    <FontAwesome name="clock-o" size={16} color={colors.primary} />
+                  </Animated.View>
+                  <Text style={[styles.workoutDuration, { color: colors.text }]}>
+                    {formatDuration(workoutDuration)}
+                  </Text>
+                </View>
+                
+                {renderProgressBar()}
+              </View>
+              
+              <TextInput
+                style={[styles.workoutNotes, { 
+                  color: colors.text, 
+                  borderColor: colors.border,
+                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                }]}
+                placeholder="Add notes for this workout..."
+                placeholderTextColor={colors.subtext}
+                value={workoutNotes}
+                onChangeText={setWorkoutNotes}
+                multiline
+              />
+            </View>
+          </View>
+          
+          <FlatList
+            data={exercises}
+            renderItem={renderExerciseItem}
+            keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
+            contentContainerStyle={styles.exerciseList}
+          />
+          
           <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: colors.primary }]}
-            onPress={startWorkout}
+            style={[styles.finishButton, { backgroundColor: colors.success }]}
+            onPress={finishWorkout}
             disabled={isSaving}
           >
             {isSaving ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color="white" size="small" />
             ) : (
-              <Text style={styles.startButtonText}>Start Workout</Text>
+              <>
+                <FontAwesome name="check-circle" size={20} color="white" style={styles.finishButtonIcon} />
+                <Text style={styles.finishButtonText}>Finish Workout</Text>
+              </>
             )}
           </TouchableOpacity>
-        )}
-      </View>
-      
-      <FlatList
-        data={exercises}
-        renderItem={renderExerciseItem}
-        keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
-        contentContainerStyle={styles.exerciseList}
-      />
-      
-      {workoutStarted && (
-        <TouchableOpacity 
-          style={[styles.finishButton, { backgroundColor: colors.success }]}
-          onPress={finishWorkout}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.finishButtonText}>Finish Workout</Text>
-          )}
-        </TouchableOpacity>
+        </>
       )}
       
       <Modal
@@ -700,14 +837,19 @@ export default function StartWorkoutScreen() {
         onRequestClose={() => setSetModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
+          <View style={[styles.modalContent, { 
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderWidth: Platform.OS === 'ios' ? 0 : 1,
+          }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: 'rgba(150, 150, 150, 0.2)' }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {selectedExercise !== null ? exercises[selectedExercise].name : ''} - Set {currentSet.set_number}
               </Text>
               <TouchableOpacity 
                 onPress={() => setSetModalVisible(false)}
                 hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                style={styles.closeButton}
               >
                 <FontAwesome name="times" size={20} color={colors.text} />
               </TouchableOpacity>
@@ -716,16 +858,16 @@ export default function StartWorkoutScreen() {
             {/* Show previous performance data if available */}
             {selectedExercise !== null && 
              previousWorkoutData.has(exercises[selectedExercise].routine_exercise_id) && 
-             previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1] && (
-              <View style={styles.previousPerformanceCard}>
-                <Text style={[styles.previousPerformanceTitle, { color: colors.text }]}>
+             previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex] && (
+              <View style={[styles.previousPerformanceCard, { backgroundColor: colors.primary + '15' }]}>
+                <Text style={[styles.previousPerformanceTitle, { color: colors.subtext }]}>
                   Previous Performance
                 </Text>
-                <Text style={[styles.previousPerformanceData, { color: colors.primary }]}>
-                  {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1].reps} reps @ {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![currentSet.set_number - 1].weight} kg
+                <Text style={[styles.previousPerformanceData, { color: colors.text }]}>
+                  {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex].reps} reps × {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex].weight} kg
                 </Text>
                 <Text style={[styles.previousPerformanceHint, { color: colors.subtext }]}>
-                  These values have been pre-filled for you
+                  Try to match or exceed your previous performance!
                 </Text>
               </View>
             )}
@@ -741,7 +883,7 @@ export default function StartWorkoutScreen() {
                   { 
                     color: colors.text, 
                     borderColor: touchedFields.reps && currentSet.reps === 0 ? colors.error : colors.border,
-                    backgroundColor: colors.background 
+                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                   }
                 ]}
                 keyboardType="number-pad"
@@ -768,10 +910,10 @@ export default function StartWorkoutScreen() {
                   { 
                     color: colors.text, 
                     borderColor: touchedFields.weight && currentSet.weight === 0 ? colors.error : colors.border,
-                    backgroundColor: colors.background 
+                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                   }
                 ]}
-                keyboardType="number-pad"
+                keyboardType="decimal-pad"
                 value={currentSet.weight === 0 ? '' : currentSet.weight.toString()}
                 onChangeText={(text) => handleInputChange('weight', text)}
                 placeholder="Enter weight"
@@ -787,7 +929,11 @@ export default function StartWorkoutScreen() {
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Rest Time (seconds)</Text>
               <TextInput
-                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                style={[styles.input, { 
+                  color: colors.text, 
+                  borderColor: colors.border,
+                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                }]}
                 keyboardType="number-pad"
                 value={currentSet.rest_time.toString()}
                 onChangeText={(text) => setCurrentSet({...currentSet, rest_time: parseInt(text) || 0})}
@@ -799,7 +945,11 @@ export default function StartWorkoutScreen() {
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Notes</Text>
               <TextInput
-                style={[styles.modalNotesInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                style={[styles.modalNotesInput, { 
+                  color: colors.text, 
+                  borderColor: colors.border,
+                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                }]}
                 value={currentSet.notes}
                 onChangeText={(text) => setCurrentSet({...currentSet, notes: text})}
                 placeholder="Add notes for this set..."
@@ -812,6 +962,7 @@ export default function StartWorkoutScreen() {
               style={[styles.saveButton, { backgroundColor: colors.primary }]}
               onPress={saveSet}
             >
+              <FontAwesome name="save" size={18} color="white" style={styles.saveButtonIcon} />
               <Text style={styles.saveButtonText}>Save Set</Text>
             </TouchableOpacity>
           </View>
@@ -831,38 +982,107 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
+  },
+  startWorkoutContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  startWorkoutContent: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  startWorkoutIcon: {
+    marginBottom: 24,
+  },
+  startWorkoutTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  startWorkoutDescription: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
   },
   header: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
   },
   workoutInfo: {
     marginBottom: 10,
   },
+  workoutStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
   workoutDuration: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 10,
+  },
+  progressBarContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  progressBarBackground: {
+    height: 6,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'right',
   },
   workoutNotes: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     minHeight: 60,
     fontSize: 15,
   },
   startButton: {
-    padding: 16,
-    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  startButtonIcon: {
+    marginRight: 8,
   },
   startButtonText: {
     color: 'white',
@@ -874,8 +1094,8 @@ const styles = StyleSheet.create({
     paddingBottom: 100, // Give extra padding at bottom for finish button
   },
   exerciseItem: {
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -884,54 +1104,105 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   exerciseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
+  },
+  exerciseTitleArea: {
+    marginBottom: 8,
   },
   exerciseName: {
     fontSize: 20,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
   exerciseSets: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
+  },
+  miniProgressContainer: {
+    marginTop: 4,
+  },
+  miniProgressBackground: {
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  miniProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  setsContainer: {
+    marginBottom: 16,
+  },
+  setsLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
   },
   setsList: {
     marginBottom: 16,
   },
+  setsListContent: {
+    paddingRight: 16,
+  },
   setItem: {
-    padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     marginRight: 12,
-    minWidth: 110,
-    borderWidth: 1,
+    width: 110,
+    height: 100,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+    overflow: 'hidden',
+  },
+  setItemContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
+  },
+  setNumberContainer: {
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  setNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   setNumber: {
     fontWeight: 'bold',
-    marginBottom: 6,
-    fontSize: 15,
+    fontSize: 14,
   },
   setDetails: {
-    flexDirection: 'column',
+    flex: 1,
+    justifyContent: 'center',
   },
   setDetail: {
     fontSize: 14,
+    marginBottom: 2,
   },
   setNotes: {
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
   },
+  completedCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   setsManagementContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
   },
   setManagementButton: {
     padding: 10,
@@ -959,17 +1230,24 @@ const styles = StyleSheet.create({
   exerciseNotes: {
     marginTop: 8,
   },
+  notesLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   notesInput: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 12,
     minHeight: 40,
     fontSize: 15,
   },
   finishButton: {
-    padding: 18,
-    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    borderRadius: 12,
     margin: 16,
     position: 'absolute',
     bottom: 0,
@@ -980,6 +1258,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  finishButtonIcon: {
+    marginRight: 8,
   },
   finishButtonText: {
     color: 'white',
@@ -994,14 +1275,17 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 10,
-    maxHeight: '80%',
+    maxHeight: '90%',
+  },
+  closeButton: {
+    padding: 6,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1010,11 +1294,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
+    flex: 1,
   },
   inputGroup: {
     marginBottom: 20,
@@ -1039,28 +1323,33 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     fontSize: 16,
   },
   modalNotesInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     fontSize: 16,
     minHeight: 80,
     textAlignVertical: 'top',
   },
   saveButton: {
-    padding: 16,
-    borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
     marginTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  saveButtonIcon: {
+    marginRight: 8,
   },
   saveButtonText: {
     color: 'white',
@@ -1069,19 +1358,15 @@ const styles = StyleSheet.create({
   },
   previousPerformance: {
     marginTop: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    padding: 4,
-    borderRadius: 4,
   },
   previousPerformanceText: {
-    fontSize: 11,
-    fontStyle: 'italic',
+    fontSize: 12,
+    fontWeight: '500',
   },
   previousPerformanceCard: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
   },
   previousPerformanceTitle: {
     fontSize: 14,
@@ -1089,12 +1374,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   previousPerformanceData: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 4,
   },
   previousPerformanceHint: {
     fontSize: 12,
-    marginTop: 4,
     fontStyle: 'italic',
   },
 }); 
