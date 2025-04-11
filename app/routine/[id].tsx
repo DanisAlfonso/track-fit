@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Routine = {
   id: number;
@@ -34,9 +35,16 @@ export default function RoutineDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    loadRoutineDetails();
-  }, [id]);
+  useFocusEffect(
+    useCallback(() => {
+      loadRoutineDetails();
+      
+      // Clean up function when screen loses focus
+      return () => {
+        // Optional cleanup if needed
+      };
+    }, [id])
+  );
 
   const loadRoutineDetails = async () => {
     if (!id) return;

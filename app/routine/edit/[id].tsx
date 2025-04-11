@@ -15,11 +15,20 @@ type Exercise = {
   primary_muscle: string;
 };
 
-type RoutineExercise = {
-  id: number;
+type RoutineExerciseResult = {
+  id: number; // routine_exercise_id
+  exercise_id: number;
   name: string;
   sets: number;
   exercise_order: number;
+};
+
+type RoutineExercise = {
+  id: number; // exercise_id
+  name: string;
+  sets: number;
+  exercise_order: number;
+  routine_exercise_id: number;
 };
 
 export default function EditRoutineScreen() {
@@ -73,8 +82,8 @@ export default function EditRoutineScreen() {
         setDescription(routineResult.description || '');
         
         // Get routine exercises
-        const exerciseResults = await db.getAllAsync<RoutineExercise>(
-          `SELECT re.id, e.name, re.sets, re.order_num as exercise_order
+        const exerciseResults = await db.getAllAsync<RoutineExerciseResult>(
+          `SELECT re.id, e.id as exercise_id, e.name, re.sets, re.order_num as exercise_order
            FROM routine_exercises re
            JOIN exercises e ON re.exercise_id = e.id
            WHERE re.routine_id = ?
@@ -82,7 +91,16 @@ export default function EditRoutineScreen() {
           [routineId]
         );
         
-        setSelectedExercises(exerciseResults);
+        // Map the exercise results to our component state type
+        const mappedExercises: RoutineExercise[] = exerciseResults.map(ex => ({
+          id: ex.exercise_id, // This is the actual exercise ID
+          name: ex.name,
+          sets: ex.sets,
+          exercise_order: ex.exercise_order,
+          routine_exercise_id: ex.id // Keep the routine_exercise_id for reference
+        }));
+        
+        setSelectedExercises(mappedExercises);
       } else {
         Alert.alert('Error', 'Routine not found');
         router.back();
@@ -112,7 +130,8 @@ export default function EditRoutineScreen() {
       id: exercise.id,
       name: exercise.name,
       sets: 3, // Default sets
-      exercise_order: selectedExercises.length
+      exercise_order: selectedExercises.length,
+      routine_exercise_id: 0 // This will be assigned by the database when saved
     };
     
     setSelectedExercises([...selectedExercises, newExercise]);
@@ -161,13 +180,13 @@ export default function EditRoutineScreen() {
         [name.trim(), description.trim() || null, routineId]
       );
       
-      // Delete existing routine exercises
+      // Delete existing routine exercises - this is necessary since we need to recreate the entire order
       await db.runAsync(
         'DELETE FROM routine_exercises WHERE routine_id = ?',
         [routineId]
       );
       
-      // Insert updated routine exercises
+      // Insert all the exercises in the current selection
       for (const exercise of selectedExercises) {
         await db.runAsync(
           'INSERT INTO routine_exercises (routine_id, exercise_id, order_num, sets) VALUES (?, ?, ?, ?)',
