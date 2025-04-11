@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -678,86 +678,81 @@ export default function StartWorkoutScreen() {
     );
   };
 
-  const renderSetItem = ({ item, index }: { item: Set, index: number }) => (
-    <TouchableOpacity 
-      style={[
-        styles.setItem, 
-        { 
-          backgroundColor: item.completed ? colors.success + '22' : colors.card,
-          borderColor: item.completed ? colors.success : colors.border,
-          borderWidth: 1.5,
-        }
-      ]}
-      onPress={() => openSetModal(selectedExercise !== null ? selectedExercise : 0, index)}
-      disabled={!workoutStarted}
-      activeOpacity={0.7}
-    >
-      <View style={styles.setItemContent}>
-        <View style={styles.setNumberContainer}>
-          <View style={[
-            styles.setNumberBadge, 
-            { backgroundColor: item.completed ? colors.success : colors.primary + '33' }
-          ]}>
-            <Text style={[styles.setNumber, { color: item.completed ? 'white' : colors.text }]}>
-              {item.set_number}
-            </Text>
-          </View>
-        </View>
-        
-        {item.completed ? (
-          <View style={styles.setDetails}>
-            <Text style={[styles.setDetail, { color: colors.text, fontWeight: '600' }]}>
-              {item.reps} reps
-            </Text>
-            <Text style={[styles.setDetail, { color: colors.text }]}>
-              {item.weight} kg
-            </Text>
-            {item.notes ? (
-              <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
-                {item.notes}
-              </Text>
-            ) : null}
-          </View>
-        ) : (
-          <View style={styles.setDetails}>
-            <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to log</Text>
-            
-            {/* Show previous performance data if available */}
-            {previousWorkoutData.has(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id) && 
-             previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index] && (
-              <Text style={[styles.previousPerformanceText, { color: colors.primary }]}>
-                Last: {previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index].reps} × {previousWorkoutData.get(exercises[selectedExercise !== null ? selectedExercise : 0].routine_exercise_id)![index].weight}kg
-              </Text>
-            )}
-          </View>
-        )}
-        
-        {item.completed && (
-          <View style={[styles.completedCheck, { backgroundColor: colors.success }]}>
-            <FontAwesome name="check" size={12} color="white" />
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-
-  // Function to handle input changes and track which fields have been touched
-  const handleInputChange = (field: keyof TouchedFields, value: string) => {
-    setTouchedFields(prev => ({ ...prev, [field]: true }));
-    
-    if (field === 'reps') {
-      setCurrentSet({...currentSet, reps: parseInt(value) || 0});
-    } else if (field === 'weight') {
-      setCurrentSet({...currentSet, weight: parseFloat(value) || 0});
-    }
-  };
-
   const renderExerciseItem = ({ item, index }: { item: WorkoutExercise, index: number }) => {
     // Calculate exercise completion percentage
     const totalSets = item.sets_data.length;
     const completedSets = item.sets_data.filter(set => set.completed).length;
     const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
     
+    // Function to render set items with the correct exercise index
+    const renderExerciseSetItem = (setItem: Set, setIndex: number) => {
+      return (
+        <TouchableOpacity 
+          style={[
+            styles.setItem, 
+            { 
+              backgroundColor: setItem.completed ? colors.success + '22' : colors.card,
+              borderColor: setItem.completed ? colors.success : colors.border,
+              borderWidth: 1.5,
+            }
+          ]}
+          onPress={() => {
+            console.log(`Opening set modal for exercise: ${item.name} (index: ${index}), set: ${setIndex + 1}`);
+            openSetModal(index, setIndex);
+          }}
+          disabled={!workoutStarted}
+          activeOpacity={0.7}
+        >
+          <View style={styles.setItemContent}>
+            <View style={styles.setNumberContainer}>
+              <View style={[
+                styles.setNumberBadge, 
+                { backgroundColor: setItem.completed ? colors.success : colors.primary + '33' }
+              ]}>
+                <Text style={[styles.setNumber, { color: setItem.completed ? 'white' : colors.text }]}>
+                  {setItem.set_number}
+                </Text>
+              </View>
+            </View>
+            
+            {setItem.completed ? (
+              <View style={styles.setDetails}>
+                <Text style={[styles.setDetail, { color: colors.text, fontWeight: '600' }]}>
+                  {setItem.reps} reps
+                </Text>
+                <Text style={[styles.setDetail, { color: colors.text }]}>
+                  {setItem.weight} kg
+                </Text>
+                {setItem.notes ? (
+                  <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
+                    {setItem.notes}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.setDetails}>
+                <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to log</Text>
+                
+                {/* Show previous performance data if available */}
+                {previousWorkoutData.has(item.routine_exercise_id) && 
+                 previousWorkoutData.get(item.routine_exercise_id)![setIndex] && (
+                  <Text style={[styles.previousPerformanceText, { color: colors.primary }]}>
+                    Last: {previousWorkoutData.get(item.routine_exercise_id)![setIndex].reps} × {previousWorkoutData.get(item.routine_exercise_id)![setIndex].weight}kg
+                  </Text>
+                )}
+              </View>
+            )}
+            
+            {setItem.completed && (
+              <View style={[styles.completedCheck, { backgroundColor: colors.success }]}>
+                <FontAwesome name="check" size={12} color="white" />
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      );
+    };
+
     return (
       <View style={[styles.exerciseItem, { backgroundColor: colors.card }]}>
         <View style={styles.exerciseHeader}>
@@ -790,8 +785,7 @@ export default function StartWorkoutScreen() {
           <FlatList
             data={item.sets_data}
             renderItem={({ item: setItem, index: setIndex }) => {
-              setSelectedExercise(index);
-              return renderSetItem({ item: setItem, index: setIndex });
+              return renderExerciseSetItem(setItem, setIndex);
             }}
             keyExtractor={(set) => `set-${set.set_number}`}
             horizontal
@@ -926,6 +920,17 @@ export default function StartWorkoutScreen() {
     
     // Navigate back to the previous screen
     router.back();
+  };
+
+  // Function to handle input changes and track which fields have been touched
+  const handleInputChange = (field: keyof TouchedFields, value: string) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+    
+    if (field === 'reps') {
+      setCurrentSet({...currentSet, reps: parseInt(value) || 0});
+    } else if (field === 'weight') {
+      setCurrentSet({...currentSet, weight: parseFloat(value) || 0});
+    }
   };
 
   if (isLoading) {
@@ -1068,10 +1073,10 @@ export default function StartWorkoutScreen() {
       )}
       
       <Modal
-        animationType="slide"
         transparent={true}
         visible={setModalVisible}
         onRequestClose={() => setSetModalVisible(false)}
+        animationType="slide"
       >
         <View style={styles.modalContainer}>
           <View style={[styles.modalContent, { 
@@ -1081,12 +1086,14 @@ export default function StartWorkoutScreen() {
           }]}>
             <View style={[styles.modalHeader, { borderBottomColor: 'rgba(150, 150, 150, 0.2)' }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {selectedExercise !== null ? exercises[selectedExercise].name : ''} - Set {currentSet.set_number}
+                {selectedExercise !== null && exercises[selectedExercise] 
+                  ? `${exercises[selectedExercise].name} - Set ${currentSet.set_number}` 
+                  : 'Log Set'}
               </Text>
               <TouchableOpacity 
                 onPress={() => setSetModalVisible(false)}
                 hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                style={styles.closeButton}
+                style={styles.closeButton} 
               >
                 <FontAwesome name="times" size={20} color={colors.text} />
               </TouchableOpacity>
@@ -1622,5 +1629,15 @@ const styles = StyleSheet.create({
   minimizeButton: {
     marginRight: 16,
     padding: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalView: {
+    width: '90%',
+    borderRadius: 20,
+    padding: 24,
+    maxHeight: '90%',
   },
 }); 
