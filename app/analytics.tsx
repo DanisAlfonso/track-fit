@@ -307,6 +307,7 @@ export default function WorkoutAnalyticsScreen() {
         <TouchableOpacity 
           style={[
             styles.tabButton, 
+            { borderColor: colors.border },
             selectedTab === 'overview' && {
               backgroundColor: colors.primary, 
               borderColor: colors.primary
@@ -316,6 +317,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
+            { color: colors.text },
             selectedTab === 'overview' && {color: '#fff'}
           ]}>
             Overview
@@ -325,6 +327,7 @@ export default function WorkoutAnalyticsScreen() {
         <TouchableOpacity 
           style={[
             styles.tabButton, 
+            { borderColor: colors.border },
             selectedTab === 'volume' && {
               backgroundColor: colors.primary, 
               borderColor: colors.primary
@@ -334,6 +337,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
+            { color: colors.text },
             selectedTab === 'volume' && {color: '#fff'}
           ]}>
             Volume
@@ -343,6 +347,7 @@ export default function WorkoutAnalyticsScreen() {
         <TouchableOpacity 
           style={[
             styles.tabButton, 
+            { borderColor: colors.border },
             selectedTab === 'muscles' && {
               backgroundColor: colors.primary, 
               borderColor: colors.primary
@@ -352,6 +357,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
+            { color: colors.text },
             selectedTab === 'muscles' && {color: '#fff'}
           ]}>
             Muscles
@@ -361,6 +367,7 @@ export default function WorkoutAnalyticsScreen() {
         <TouchableOpacity 
           style={[
             styles.tabButton, 
+            { borderColor: colors.border },
             selectedTab === 'exercises' && {
               backgroundColor: colors.primary, 
               borderColor: colors.primary
@@ -370,6 +377,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
+            { color: colors.text },
             selectedTab === 'exercises' && {color: '#fff'}
           ]}>
             Exercises
