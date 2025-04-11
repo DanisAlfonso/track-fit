@@ -19,6 +19,7 @@ type RoutineExercise = {
   name: string;
   sets: number;
   exercise_order: number;
+  exercise_id: number;
 };
 
 export default function RoutineDetailScreen() {
@@ -57,7 +58,7 @@ export default function RoutineDetailScreen() {
         
         // Get routine exercises
         const exerciseResults = await db.getAllAsync<RoutineExercise>(
-          `SELECT re.id, e.name, re.sets, re.order_num as exercise_order
+          `SELECT re.id, e.name, re.sets, re.order_num as exercise_order, e.id as exercise_id
            FROM routine_exercises re
            JOIN exercises e ON re.exercise_id = e.id
            WHERE re.routine_id = ?
@@ -237,7 +238,7 @@ export default function RoutineDetailScreen() {
                   </View>
                   <TouchableOpacity 
                     style={styles.exerciseButton}
-                    onPress={() => router.push(`/exercise/${exercise.id}`)}
+                    onPress={() => router.push(`/exercise/${exercise.exercise_id}`)}
                   >
                     <FontAwesome name="info-circle" size={18} color={colors.primary} />
                   </TouchableOpacity>
