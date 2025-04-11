@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const muscleGroups = [
   'Chest',
@@ -52,9 +53,24 @@ export default function CreateExerciseScreen() {
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const getCategoryColor = (cat: string): [string, string] => {
+    switch(cat) {
+      case 'Compound':
+        return ['#4E54C8', '#8F94FB']; // Purple gradient
+      case 'Isolation':
+        return ['#11998e', '#38ef7d']; // Green gradient
+      case 'Plyometric':
+        return ['#F2994A', '#F2C94C']; // Orange gradient
+      case 'Cardio':
+        return ['#FF416C', '#FF4B2B']; // Red gradient
+      default:
+        return [colors.primary, colors.primary]; // Default
+    }
+  };
+
   const handleSubmit = async () => {
     if (!name || !category || !primaryMuscle) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert('Missing Information', 'Please fill in all required fields (Exercise Name, Category, and Primary Muscle)');
       return;
     }
 
@@ -82,137 +98,211 @@ export default function CreateExerciseScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      <Stack.Screen 
-        options={{
-          title: 'Create Exercise',
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.text,
-        }}
-      />
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <Stack.Screen 
+          options={{
+            title: 'Create Custom Exercise',
+            headerShown: true,
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerTintColor: colors.text,
+            headerShadowVisible: false,
+          }}
+        />
 
-      <View style={styles.formContainer}>
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Exercise Name *</Text>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="Enter exercise name"
-            placeholderTextColor={colors.subtext}
-            value={name}
-            onChangeText={setName}
-          />
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Category *</Text>
-          <View style={styles.categoryContainer}>
-            {categories.map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.categoryButton,
-                  { backgroundColor: colors.card },
-                  category === cat && { backgroundColor: colors.primary }
-                ]}
-                onPress={() => setCategory(cat)}
-              >
-                <Text style={[
-                  styles.categoryText,
-                  { color: colors.text },
-                  category === cat && { color: 'white' }
-                ]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        <View style={styles.formContainer}>
+          <View style={styles.headerContainer}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>
+              Add Your Own Exercise
+            </Text>
+            <Text style={[styles.headerSubtitle, { color: colors.subtext }]}>
+              Create a custom exercise to add to your workouts
+            </Text>
           </View>
-        </View>
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Primary Muscle *</Text>
-          <View style={styles.muscleContainer}>
-            {muscleGroups.map((muscle) => (
-              <TouchableOpacity
-                key={muscle}
-                style={[
-                  styles.muscleButton,
-                  { backgroundColor: colors.card },
-                  primaryMuscle === muscle && { backgroundColor: colors.primary }
-                ]}
-                onPress={() => setPrimaryMuscle(muscle)}
-              >
-                <Text style={[
-                  styles.muscleText,
-                  { color: colors.text },
-                  primaryMuscle === muscle && { color: 'white' }
-                ]}>
-                  {muscle}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.formSection, { backgroundColor: colors.card }]}>
+            <View style={styles.formGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>Exercise Name</Text>
+                <Text style={[styles.required, { color: colors.primary }]}>*</Text>
+              </View>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: name ? colors.primary : colors.border }]}
+                placeholder="E.g., Barbell Curl, Mountain Climber"
+                placeholderTextColor={colors.subtext}
+                value={name}
+                onChangeText={setName}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>Category</Text>
+                <Text style={[styles.required, { color: colors.primary }]}>*</Text>
+              </View>
+              
+              <View style={styles.categoryContainer}>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.categoryButton,
+                      { borderColor: colors.border },
+                      category === cat && styles.selectedCategory
+                    ]}
+                    onPress={() => setCategory(cat)}
+                    activeOpacity={0.7}
+                  >
+                    {category === cat && (
+                      <LinearGradient
+                        colors={getCategoryColor(cat)}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.categoryGradient}
+                      />
+                    )}
+                    <View style={styles.categoryContent}>
+                      <Text style={[
+                        styles.categoryText,
+                        { color: category === cat ? 'white' : colors.text }
+                      ]}>
+                        {cat}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Secondary Muscles</Text>
-          <View style={styles.muscleContainer}>
-            {muscleGroups.map((muscle) => (
-              <TouchableOpacity
-                key={muscle}
-                style={[
-                  styles.muscleButton,
-                  { backgroundColor: colors.card },
-                  secondaryMuscles.includes(muscle) && { backgroundColor: colors.primary }
-                ]}
-                onPress={() => {
-                  const muscles = secondaryMuscles.split(',').filter(m => m);
-                  if (muscles.includes(muscle)) {
-                    setSecondaryMuscles(muscles.filter(m => m !== muscle).join(','));
-                  } else {
-                    setSecondaryMuscles([...muscles, muscle].join(','));
-                  }
-                }}
-              >
-                <Text style={[
-                  styles.muscleText,
-                  { color: colors.text },
-                  secondaryMuscles.includes(muscle) && { color: 'white' }
-                ]}>
-                  {muscle}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.formSection, { backgroundColor: colors.card }]}>
+            <View style={styles.formGroup}>
+              <View style={styles.labelContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>Primary Muscle</Text>
+                <Text style={[styles.required, { color: colors.primary }]}>*</Text>
+              </View>
+              <Text style={[styles.helperText, { color: colors.subtext }]}>
+                Select the main muscle group this exercise targets
+              </Text>
+              
+              <View style={styles.muscleContainer}>
+                {muscleGroups.map((muscle) => (
+                  <TouchableOpacity
+                    key={muscle}
+                    style={[
+                      styles.muscleButton,
+                      { backgroundColor: colors.background, borderColor: colors.border },
+                      primaryMuscle === muscle && { 
+                        backgroundColor: colors.primary, 
+                        borderColor: colors.primary 
+                      }
+                    ]}
+                    onPress={() => setPrimaryMuscle(muscle)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.muscleText,
+                      { color: colors.text },
+                      primaryMuscle === muscle && { color: 'white' }
+                    ]}>
+                      {muscle}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.formGroup}>
-          <Text style={[styles.label, { color: colors.text }]}>Description</Text>
-          <TextInput
-            style={[styles.textArea, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
-            placeholder="Enter exercise description"
-            placeholderTextColor={colors.subtext}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
+          <View style={[styles.formSection, { backgroundColor: colors.card }]}>
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Secondary Muscles</Text>
+              <Text style={[styles.helperText, { color: colors.subtext }]}>
+                Select any additional muscles this exercise works (optional)
+              </Text>
+              
+              <View style={styles.muscleContainer}>
+                {muscleGroups.map((muscle) => (
+                  <TouchableOpacity
+                    key={muscle}
+                    style={[
+                      styles.muscleButton,
+                      { backgroundColor: colors.background, borderColor: colors.border },
+                      secondaryMuscles.includes(muscle) && { 
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary
+                      }
+                    ]}
+                    onPress={() => {
+                      const muscles = secondaryMuscles.split(',').filter(m => m);
+                      if (muscles.includes(muscle)) {
+                        setSecondaryMuscles(muscles.filter(m => m !== muscle).join(','));
+                      } else {
+                        setSecondaryMuscles([...muscles, muscle].join(','));
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.muscleText,
+                      { color: colors.text },
+                      secondaryMuscles.includes(muscle) && { color: 'white' }
+                    ]}>
+                      {muscle}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
 
-        <TouchableOpacity
-          style={[styles.submitButton, { backgroundColor: colors.primary }]}
-          onPress={handleSubmit}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.submitButtonText}>
-            {isSubmitting ? 'Creating...' : 'Create Exercise'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <View style={[styles.formSection, { backgroundColor: colors.card }]}>
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Description</Text>
+              <Text style={[styles.helperText, { color: colors.subtext }]}>
+                Add instructions or notes about this exercise (optional)
+              </Text>
+              <TextInput
+                style={[styles.textArea, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                placeholder="Describe how to perform this exercise..."
+                placeholderTextColor={colors.subtext}
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.submitButton, { backgroundColor: colors.primary }]}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+            activeOpacity={0.8}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <>
+                <FontAwesome name="plus-circle" size={16} color="white" style={styles.submitIcon} />
+                <Text style={styles.submitButtonText}>
+                  Create Exercise
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -222,69 +312,137 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     padding: 16,
+    gap: 20,
+  },
+  headerContainer: {
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  headerSubtitle: {
+    fontSize: 15,
+    fontWeight: '400',
+  },
+  formSection: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   formGroup: {
     marginBottom: 20,
   },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
+  },
+  required: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  helperText: {
+    fontSize: 14,
+    marginBottom: 12,
+    opacity: 0.8,
   },
   input: {
-    height: 48,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    height: 50,
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
     borderWidth: 1,
   },
   textArea: {
     height: 120,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingTop: 12,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
     fontSize: 16,
     borderWidth: 1,
-    textAlignVertical: 'top',
   },
   categoryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
+    marginTop: 8,
   },
   categoryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    width: '47%',
+    height: 50,
+  },
+  categoryGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  categoryContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedCategory: {
+    borderWidth: 0,
   },
   categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
   },
   muscleContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
+    marginTop: 8,
   },
   muscleButton: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    borderRadius: 30,
+    marginBottom: 4,
+    borderWidth: 1,
   },
   muscleText: {
     fontSize: 14,
     fontWeight: '500',
   },
   submitButton: {
-    height: 48,
-    borderRadius: 8,
+    height: 56,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
+    flexDirection: 'row',
+    marginTop: 12,
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   submitButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  submitIcon: {
+    marginRight: 8,
   },
 }); 

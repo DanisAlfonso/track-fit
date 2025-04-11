@@ -257,25 +257,24 @@ export default function ExercisesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-        <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search exercises..."
-          placeholderTextColor={colors.subtext}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery('')}>
-            <FontAwesome name="times-circle" size={16} color={colors.subtext} style={styles.clearIcon} />
-          </Pressable>
-        )}
-      </View>
-
-      <View style={styles.filtersSection}>
-        <Text style={[styles.filtersTitle, { color: colors.text }]}>Filters</Text>
-        <View style={styles.filtersContainer}>
+      <View style={styles.headerContainer}>
+        <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
+          <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search exercises..."
+            placeholderTextColor={colors.subtext}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')}>
+              <FontAwesome name="times-circle" size={16} color={colors.subtext} style={styles.clearIcon} />
+            </Pressable>
+          )}
+        </View>
+        
+        <View style={styles.filterButtonsRow}>
           <TouchableOpacity
             style={[
               styles.favoriteFilterButton,
@@ -303,47 +302,51 @@ export default function ExercisesScreen() {
               Favorites
             </Text>
           </TouchableOpacity>
-
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={muscleGroups}
-            keyExtractor={(item) => item}
-            renderItem={renderMuscleGroupFilter}
-            contentContainerStyle={styles.muscleFiltersContainer}
-          />
+          
+          <View style={styles.muscleFilterWrapper}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={muscleGroups}
+              keyExtractor={(item) => item}
+              renderItem={renderMuscleGroupFilter}
+              contentContainerStyle={styles.muscleFiltersContainer}
+            />
+          </View>
         </View>
       </View>
 
-      <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
-        {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
-      </Text>
-
-      <FlatList
-        data={filteredExercises}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderExerciseItem}
-        contentContainerStyle={styles.exercisesList}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <FontAwesome name="search" size={50} color={colors.subtext} style={styles.emptyIcon} />
-            <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              No exercises found
-            </Text>
-            <Text style={[styles.emptySubtext, { color: colors.subtext }]}>
-              Try adjusting your filters or pull down to refresh
-            </Text>
-          </View>
-        }
-      />
+      <View style={styles.contentContainer}>
+        <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
+          {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
+        </Text>
+        
+        <FlatList
+          data={filteredExercises}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderExerciseItem}
+          contentContainerStyle={styles.exercisesList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <FontAwesome name="search" size={50} color={colors.subtext} style={styles.emptyIcon} />
+              <Text style={[styles.emptyText, { color: colors.subtext }]}>
+                No exercises found
+              </Text>
+              <Text style={[styles.emptySubtext, { color: colors.subtext }]}>
+                Try adjusting your filters or pull down to refresh
+              </Text>
+            </View>
+          }
+        />
+      </View>
 
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
@@ -359,15 +362,20 @@ export default function ExercisesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+  },
+  headerContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -375,7 +383,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   clearIcon: {
     padding: 4,
@@ -385,57 +393,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  filtersSection: {
-    marginBottom: 16,
-  },
-  filtersTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  filtersContainer: {
+  filterButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
   },
   favoriteFilterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
-    marginBottom: 12,
+    marginRight: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  muscleFilterWrapper: {
+    flex: 1,
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 20,
     marginRight: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 1,
+    elevation: 1,
   },
   muscleFiltersContainer: {
-    paddingBottom: 4,
+    paddingVertical: 2,
   },
   filterIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   filterText: {
     fontSize: 14,
     fontWeight: '500',
   },
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
   resultsCountText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    marginBottom: 12,
+    marginBottom: 8,
     marginLeft: 4,
   },
   exercisesList: {
