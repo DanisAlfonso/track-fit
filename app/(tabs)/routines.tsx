@@ -105,14 +105,8 @@ export default function RoutinesScreen() {
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Yet</Text>
             <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              Create your first workout routine to get started.
+              Tap the "New Routine" button above to create your first workout routine.
             </Text>
-            <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: colors.primary }]}
-              onPress={navigateToCreateRoutine}
-            >
-              <Text style={styles.createButtonText}>Create a Routine</Text>
-            </TouchableOpacity>
           </View>
         }
       />
