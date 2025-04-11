@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { StatusBar } from 'expo-status-bar';
@@ -628,6 +628,16 @@ export default function WorkoutDetailScreen() {
           
           {exercise.expanded && (
             <View style={styles.exerciseDetails}>
+              <View style={styles.exerciseActions}>
+                <TouchableOpacity
+                  style={[styles.historyButton, { backgroundColor: colors.card, borderColor: colors.primary }]}
+                  onPress={() => router.push(`/exercise/history/${exercise.exercise_id}`)}
+                >
+                  <FontAwesome name="history" size={16} color={colors.primary} style={styles.historyIcon} />
+                  <Text style={[styles.historyButtonText, { color: colors.primary }]}>View History</Text>
+                </TouchableOpacity>
+              </View>
+              
               {exercise.notes && (
                 <View style={styles.exerciseNotes}>
                   <Text style={[styles.exerciseNotesLabel, { color: colors.subtext }]}>
@@ -638,8 +648,6 @@ export default function WorkoutDetailScreen() {
                   </Text>
                 </View>
               )}
-              
-              {/* Temporarily remove the chart until we install the package */}
               
               <View style={styles.setsList}>
                 <View style={styles.setHeader}>
@@ -923,5 +931,25 @@ const styles = StyleSheet.create({
   setNotesText: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  exerciseActions: {
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  historyButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  historyIcon: {
+    marginRight: 6,
   },
 }); 

@@ -763,19 +763,29 @@ export default function StartWorkoutScreen() {
             </Text>
           </View>
           
-          {/* Mini progress bar */}
-          <View style={styles.miniProgressContainer}>
-            <View style={styles.miniProgressBackground}>
-              <View 
-                style={[
-                  styles.miniProgressFill, 
-                  { 
-                    width: `${progress}%`, 
-                    backgroundColor: progress === 100 ? colors.success : colors.primary 
-                  }
-                ]} 
-              />
+          <View style={styles.exerciseHeaderRight}>
+            {/* Mini progress bar */}
+            <View style={styles.miniProgressContainer}>
+              <View style={styles.miniProgressBackground}>
+                <View 
+                  style={[
+                    styles.miniProgressFill, 
+                    { 
+                      width: `${progress}%`, 
+                      backgroundColor: progress === 100 ? colors.success : colors.primary 
+                    }
+                  ]} 
+                />
+              </View>
             </View>
+            
+            <TouchableOpacity
+              style={[styles.exerciseHistoryButton, { borderColor: colors.primary }]}
+              onPress={() => router.push(`/exercise/history/${item.exercise_id}`)}
+            >
+              <FontAwesome name="history" size={14} color={colors.primary} style={styles.historyIcon} />
+              <Text style={[styles.historyButtonText, { color: colors.primary }]}>History</Text>
+            </TouchableOpacity>
           </View>
         </View>
         
@@ -1362,8 +1372,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  exerciseHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
   miniProgressContainer: {
-    marginTop: 4,
+    width: 80,
+    marginRight: 10,
   },
   miniProgressBackground: {
     height: 4,
@@ -1639,5 +1655,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 24,
     maxHeight: '90%',
+  },
+  exerciseHistoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginLeft: 8,
+  },
+  historyButtonText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  historyIcon: {
+    marginRight: 4,
   },
 }); 
