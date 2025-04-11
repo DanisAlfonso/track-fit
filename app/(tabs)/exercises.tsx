@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity, Alert, RefreshControl, Pressable } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase, getFavoritedExercises, resetExercisesTable } from '@/utils/database';
+import { getDatabase, getFavoritedExercises, resetExercisesTable, toggleFavorite } from '@/utils/database';
 import { useRouter, Stack } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type Exercise = {
   id: number;
@@ -120,28 +121,137 @@ export default function ExercisesScreen() {
     }
   }, []);
 
+  const getCategoryColor = (category: string): [string, string] => {
+    switch(category) {
+      case 'Compound':
+        return ['#4E54C8', '#8F94FB']; // Purple gradient
+      case 'Isolation':
+        return ['#11998e', '#38ef7d']; // Green gradient
+      case 'Plyometric':
+        return ['#F2994A', '#F2C94C']; // Orange gradient
+      case 'Cardio':
+        return ['#FF416C', '#FF4B2B']; // Red gradient
+      default:
+        return [colors.primary, colors.primary]; // Default
+    }
+  };
+
+  const getMuscleGroupIcon = (muscle: string): string => {
+    // Default icon
+    return 'dot-circle-o';
+  };
+
+  const handleToggleFavorite = async (exerciseId: number, event?: any) => {
+    event?.stopPropagation?.();
+    
+    try {
+      const isFavorited = await toggleFavorite(exerciseId);
+      
+      setFavoriteExerciseIds(prev => {
+        if (isFavorited) {
+          return [...prev, exerciseId];
+        } else {
+          return prev.filter(id => id !== exerciseId);
+        }
+      });
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      Alert.alert('Error', 'Failed to update favorite. Please try again.');
+    }
+  };
+
   const renderExerciseItem = ({ item }: { item: Exercise }) => (
     <TouchableOpacity 
       style={[styles.exerciseCard, { backgroundColor: colors.card }]}
       onPress={() => navigateToExerciseDetail(item.id)}
+      activeOpacity={0.7}
     >
-      <View style={styles.exerciseContent}>
-        <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
-        <Text style={[styles.exerciseDetails, { color: colors.subtext }]}>
-          {item.category} • {item.primary_muscle}
-        </Text>
-        {item.secondary_muscles && (
-          <Text style={[styles.secondaryMuscles, { color: colors.subtext }]}>
-            Also works: {item.secondary_muscles}
-          </Text>
-        )}
+      <View style={styles.exerciseCardInner}>
+        <View style={styles.exerciseCardHeader}>
+          <View style={styles.exerciseCategoryContainer}>
+            <LinearGradient
+              colors={getCategoryColor(item.category)}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.categoryBadge}
+            >
+              <Text style={styles.categoryText}>{item.category}</Text>
+            </LinearGradient>
+          </View>
+          <TouchableOpacity 
+            style={styles.favoriteButton}
+            onPress={(e) => handleToggleFavorite(item.id, e)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <FontAwesome 
+              name={favoriteExerciseIds.includes(item.id) ? "heart" : "heart-o"} 
+              size={22} 
+              color={favoriteExerciseIds.includes(item.id) ? colors.primary : colors.subtext} 
+            />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.exerciseContent}>
+          <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
+          
+          <View style={styles.muscleGroupsContainer}>
+            <View style={styles.primaryMuscleContainer}>
+              <FontAwesome 
+                name={getMuscleGroupIcon(item.primary_muscle)} 
+                size={14} 
+                color={colors.primary} 
+                style={styles.muscleIcon} 
+              />
+              <Text style={[styles.primaryMuscle, { color: colors.text }]}>
+                {item.primary_muscle}
+              </Text>
+            </View>
+            
+            {item.secondary_muscles && (
+              <View style={styles.secondaryMusclesContainer}>
+                <Text style={[styles.secondaryMusclesLabel, { color: colors.subtext }]}>
+                  Also works:
+                </Text>
+                <Text style={[styles.secondaryMuscles, { color: colors.subtext }]}>
+                  {item.secondary_muscles}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+        
+        <View style={styles.exerciseFooter}>
+          <TouchableOpacity style={styles.detailsButton} onPress={() => navigateToExerciseDetail(item.id)}>
+            <Text style={[styles.detailsButtonText, { color: colors.primary }]}>View Details</Text>
+            <FontAwesome name="chevron-right" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.exerciseActions}>
-        {favoriteExerciseIds.includes(item.id) && (
-          <FontAwesome name="heart" size={16} color={colors.primary} style={styles.favoriteIcon} />
-        )}
-        <FontAwesome name="chevron-right" size={16} color={colors.subtext} />
-      </View>
+    </TouchableOpacity>
+  );
+
+  const renderMuscleGroupFilter = ({ item }: { item: string }) => (
+    <TouchableOpacity
+      style={[
+        styles.filterButton,
+        selectedFilter === item || (item === 'All' && !selectedFilter)
+          ? { backgroundColor: colors.primary }
+          : { backgroundColor: colors.card }
+      ]}
+      onPress={() => setSelectedFilter(item === 'All' ? null : item)}
+      activeOpacity={0.7}
+    >
+      <Text
+        style={[
+          styles.filterText,
+          selectedFilter === item || (item === 'All' && !selectedFilter)
+            ? { color: 'white' }
+            : { color: colors.text }
+        ]}
+      >
+        {item}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -156,65 +266,58 @@ export default function ExercisesScreen() {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery('')}>
+            <FontAwesome name="times-circle" size={16} color={colors.subtext} style={styles.clearIcon} />
+          </Pressable>
+        )}
       </View>
 
-      <View style={styles.filtersContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            showFavoritesOnly
-              ? { backgroundColor: colors.primary }
-              : { backgroundColor: colors.card }
-          ]}
-          onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
-        >
-          <FontAwesome 
-            name="heart" 
-            size={14} 
-            color={showFavoritesOnly ? 'white' : colors.primary} 
-            style={styles.filterIcon} 
-          />
-          <Text
+      <View style={styles.filtersSection}>
+        <Text style={[styles.filtersTitle, { color: colors.text }]}>Filters</Text>
+        <View style={styles.filtersContainer}>
+          <TouchableOpacity
             style={[
-              styles.filterText,
+              styles.favoriteFilterButton,
               showFavoritesOnly
-                ? { color: 'white' }
-                : { color: colors.text }
+                ? { backgroundColor: colors.primary }
+                : { backgroundColor: colors.card }
             ]}
+            onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            activeOpacity={0.7}
           >
-            Favorites
-          </Text>
-        </TouchableOpacity>
-
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={muscleGroups}
-          keyExtractor={(item) => item}
-          renderItem={({ item }) => (
-            <TouchableOpacity
+            <FontAwesome 
+              name="heart" 
+              size={14} 
+              color={showFavoritesOnly ? 'white' : colors.primary} 
+              style={styles.filterIcon} 
+            />
+            <Text
               style={[
-                styles.filterButton,
-                selectedFilter === item || (item === 'All' && !selectedFilter)
-                  ? { backgroundColor: colors.primary }
-                  : { backgroundColor: colors.card }
+                styles.filterText,
+                showFavoritesOnly
+                  ? { color: 'white' }
+                  : { color: colors.text }
               ]}
-              onPress={() => setSelectedFilter(item === 'All' ? null : item)}
             >
-              <Text
-                style={[
-                  styles.filterText,
-                  selectedFilter === item || (item === 'All' && !selectedFilter)
-                    ? { color: 'white' }
-                    : { color: colors.text }
-                ]}
-              >
-                {item}
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
+              Favorites
+            </Text>
+          </TouchableOpacity>
+
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={muscleGroups}
+            keyExtractor={(item) => item}
+            renderItem={renderMuscleGroupFilter}
+            contentContainerStyle={styles.muscleFiltersContainer}
+          />
+        </View>
       </View>
+
+      <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
+        {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
+      </Text>
 
       <FlatList
         data={filteredExercises}
@@ -231,8 +334,12 @@ export default function ExercisesScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <FontAwesome name="search" size={50} color={colors.subtext} style={styles.emptyIcon} />
             <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              No exercises found. Try adjusting your filters or pull down to refresh.
+              No exercises found
+            </Text>
+            <Text style={[styles.emptySubtext, { color: colors.subtext }]}>
+              Try adjusting your filters or pull down to refresh
             </Text>
           </View>
         }
@@ -241,6 +348,7 @@ export default function ExercisesScreen() {
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => router.push('/exercise/create')}
+        activeOpacity={0.8}
       >
         <FontAwesome name="plus" size={24} color="white" />
       </TouchableOpacity>
@@ -256,97 +364,211 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
+  },
+  clearIcon: {
+    padding: 4,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
+    fontWeight: '500',
+  },
+  filtersSection: {
+    marginBottom: 16,
+  },
+  filtersTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   filtersContainer: {
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  favoriteFilterButton: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 20,
     marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  muscleFiltersContainer: {
+    paddingBottom: 4,
   },
   filterIcon: {
-    marginRight: 4,
+    marginRight: 8,
   },
   filterText: {
     fontSize: 14,
     fontWeight: '500',
   },
+  resultsCountText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 12,
+    marginLeft: 4,
+  },
   exercisesList: {
-    paddingBottom: 20,
+    paddingBottom: 80,
   },
   exerciseCard: {
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  exerciseCardInner: {
+    padding: 16,
+  },
+  exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+  },
+  exerciseCategoryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  categoryBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
   },
   exerciseContent: {
-    flex: 1,
+    marginBottom: 12,
   },
   exerciseName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  exerciseDetails: {
-    fontSize: 14,
+  muscleGroupsContainer: {
+    marginTop: 4,
+  },
+  primaryMuscleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  muscleIcon: {
+    marginRight: 6,
+  },
+  primaryMuscle: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  secondaryMusclesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  secondaryMusclesLabel: {
+    fontSize: 13,
+    marginRight: 4,
   },
   secondaryMuscles: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  exerciseFooter: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
     marginTop: 4,
+    paddingTop: 12,
+  },
+  detailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailsButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 4,
   },
   exerciseActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   favoriteIcon: {
-    marginRight: 12,
+    marginLeft: 8,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: 40,
+  },
+  emptyIcon: {
+    marginBottom: 16,
+    opacity: 0.6,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.8,
   },
   fab: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    right: 20,
+    bottom: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+  },
+  favoriteButton: {
+    padding: 5,
   },
 }); 
