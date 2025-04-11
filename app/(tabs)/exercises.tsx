@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase, getFavoritedExercises } from '@/utils/database';
-import { useRouter } from 'expo-router';
+import { getDatabase, getFavoritedExercises, resetExercisesTable } from '@/utils/database';
+import { useRouter, Stack } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 
@@ -29,6 +29,7 @@ export default function ExercisesScreen() {
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const muscleGroups = [
     'All',
@@ -105,6 +106,19 @@ export default function ExercisesScreen() {
   const navigateToExerciseDetail = (exerciseId: number) => {
     router.push(`/exercise/${exerciseId}`);
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadExercises();
+      await loadFavorites();
+    } catch (error) {
+      console.error("Error refreshing exercises:", error);
+      Alert.alert("Error", "Failed to refresh exercises. Please try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const renderExerciseItem = ({ item }: { item: Exercise }) => (
     <TouchableOpacity 
@@ -207,14 +221,29 @@ export default function ExercisesScreen() {
         keyExtractor={(item) => item.id.toString()}
         renderItem={renderExerciseItem}
         contentContainerStyle={styles.exercisesList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              No exercises found. Try adjusting your filters.
+              No exercises found. Try adjusting your filters or pull down to refresh.
             </Text>
           </View>
         }
       />
+
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/exercise/create')}
+      >
+        <FontAwesome name="plus" size={24} color="white" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -304,5 +333,20 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 }); 
