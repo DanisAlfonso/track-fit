@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -765,8 +766,12 @@ export default function StartWorkoutScreen() {
     };
 
     return (
-      <View style={[styles.exerciseItem, { backgroundColor: colors.card }]}>
-        <View style={styles.exerciseHeader}>
+      <View style={[styles.exerciseItem, { 
+        backgroundColor: colors.card,
+        borderLeftWidth: 4,
+        borderLeftColor: progress === 100 ? colors.success : colors.primary,
+      }]}>
+        <View style={[styles.exerciseHeader, { borderBottomColor: colors.border }]}>
           <View style={styles.exerciseTitleArea}>
             <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
             <Text style={[styles.exerciseSets, { color: completedSets === totalSets ? colors.success : colors.subtext }]}>
@@ -800,7 +805,7 @@ export default function StartWorkoutScreen() {
           </View>
         </View>
         
-        <View style={styles.setsContainer}>
+        <View style={[styles.setsContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
           <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets</Text>
           
           <FlatList
@@ -818,20 +823,36 @@ export default function StartWorkoutScreen() {
           {workoutStarted && (
             <View style={styles.setsManagementContainer}>
               <TouchableOpacity
-                style={[styles.setManagementButton, { backgroundColor: colors.primary }]}
+                style={styles.setManagementButton}
                 onPress={() => addSet(index)}
+                activeOpacity={0.8}
               >
-                <FontAwesome name="plus" size={14} color="#fff" style={styles.setManagementIcon} />
-                <Text style={styles.setManagementButtonText}>Add Set</Text>
+                <LinearGradient
+                  colors={[colors.primary, colors.primary + 'E6']}
+                  style={styles.setManagementGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <FontAwesome5 name="plus" size={14} color="#fff" style={styles.setManagementIcon} />
+                  <Text style={styles.setManagementButtonText}>Add Set</Text>
+                </LinearGradient>
               </TouchableOpacity>
               
               {item.sets_data.length > 1 && (
                 <TouchableOpacity
-                  style={[styles.setManagementButton, { backgroundColor: colors.error + 'DD' }]}
+                  style={styles.setManagementButton}
                   onPress={() => removeSet(index)}
+                  activeOpacity={0.8}
                 >
-                  <FontAwesome name="minus" size={14} color="#fff" style={styles.setManagementIcon} />
-                  <Text style={styles.setManagementButtonText}>Remove Set</Text>
+                  <LinearGradient
+                    colors={[colors.error + 'DD', colors.error]}
+                    style={styles.setManagementGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <FontAwesome5 name="minus" size={14} color="#fff" style={styles.setManagementIcon} />
+                    <Text style={styles.setManagementButtonText}>Remove Set</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
             </View>
@@ -1104,20 +1125,33 @@ export default function StartWorkoutScreen() {
             contentContainerStyle={styles.exerciseList}
           />
           
-          <TouchableOpacity 
-            style={[styles.finishButton, { backgroundColor: colors.success }]}
-            onPress={finishWorkout}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <>
-                <FontAwesome name="check-circle" size={20} color="white" style={styles.finishButtonIcon} />
-                <Text style={styles.finishButtonText}>Finish Workout</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <View style={[styles.finishButtonContainer, { 
+            backgroundColor: theme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
+            borderTopColor: colors.border
+          }]}>
+            <TouchableOpacity 
+              style={styles.finishButton}
+              onPress={finishWorkout}
+              disabled={isSaving}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[colors.success, colors.success === Colors.light.success ? '#3a9d3d' : '#3a9d3d']}
+                style={styles.finishButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <>
+                    <FontAwesome5 name="check-circle" size={20} color="white" style={styles.finishButtonIcon} />
+                    <Text style={styles.finishButtonText}>Finish Workout</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </>
       )}
       
@@ -1379,7 +1413,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   exerciseHeader: {
-    marginBottom: 16,
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    paddingBottom: 16,
   },
   exerciseTitleArea: {
     marginBottom: 8,
@@ -1414,6 +1450,8 @@ const styles = StyleSheet.create({
   },
   setsContainer: {
     marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
   },
   setsLabel: {
     fontSize: 16,
@@ -1421,34 +1459,34 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   setsList: {
-    marginBottom: 16,
+    marginBottom: 8,
   },
   setsListContent: {
     paddingRight: 16,
   },
   setItem: {
-    borderRadius: 12,
-    marginRight: 12,
-    width: 110,
-    height: 100,
+    borderRadius: 10,
+    marginRight: 10,
+    width: 100,
+    height: 85,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
     overflow: 'hidden',
   },
   setContent: {
     flex: 1,
-    padding: 12,
+    padding: 10,
     justifyContent: 'space-between',
   },
   setText: {
     fontWeight: 'bold',
-    fontSize: 14,
+    fontSize: 13,
   },
   setDetail: {
-    fontSize: 14,
+    fontSize: 13,
     marginBottom: 2,
   },
   tapToLog: {
@@ -1469,21 +1507,26 @@ const styles = StyleSheet.create({
   setsManagementContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 8,
   },
   setManagementButton: {
-    padding: 10,
-    paddingHorizontal: 14,
-    borderRadius: 8,
+    flex: 1,
+    marginHorizontal: 6,
+    borderRadius: 12,
+    overflow: 'hidden', 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  setManagementGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    marginHorizontal: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
-    elevation: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
   },
   setManagementIcon: {
     marginRight: 6,
@@ -1507,31 +1550,6 @@ const styles = StyleSheet.create({
     padding: 12,
     minHeight: 40,
     fontSize: 15,
-  },
-  finishButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 18,
-    borderRadius: 12,
-    margin: 16,
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  finishButtonIcon: {
-    marginRight: 8,
-  },
-  finishButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   modalContainer: {
     flex: 1,
@@ -1675,5 +1693,38 @@ const styles = StyleSheet.create({
   },
   historyIcon: {
     marginRight: 4,
+  },
+  finishButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  finishButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  finishButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  finishButtonIcon: {
+    marginRight: 8,
+  },
+  finishButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 }); 
