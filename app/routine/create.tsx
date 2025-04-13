@@ -422,6 +422,36 @@ export default function CreateRoutineScreen() {
                         </View>
                       )}
                     </View>
+                    
+                    <View style={styles.exerciseActions}>
+                      <TouchableOpacity 
+                        style={[
+                          styles.exerciseActionButton, 
+                          { 
+                            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                            backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+                          }
+                        ]}
+                        onPress={() => router.push(`/exercise/${exercise.id}`)}
+                      >
+                        <FontAwesome name="info-circle" size={14} color={colors.primary} />
+                        <Text style={[styles.exerciseActionText, { color: colors.primary }]}>Details</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[
+                          styles.exerciseActionButton, 
+                          { 
+                            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                            backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+                          }
+                        ]}
+                        onPress={() => router.push(`/exercise/history/${exercise.id}`)}
+                      >
+                        <FontAwesome name="history" size={14} color={colors.secondary} />
+                        <Text style={[styles.exerciseActionText, { color: colors.secondary }]}>History</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View style={[
                     styles.addExerciseButton, 
@@ -689,5 +719,23 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    marginTop: 8,
+    gap: 8,
+  },
+  exerciseActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  exerciseActionText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
   },
 }); 
