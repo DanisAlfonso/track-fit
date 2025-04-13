@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -6,9 +7,11 @@ import {
   ScrollView, 
   ActivityIndicator, 
   TouchableOpacity,
-  useWindowDimensions
+  useWindowDimensions,
+  Platform,
+  Animated
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { FontAwesome } from '@expo/vector-icons';
@@ -41,6 +44,33 @@ type SetData = {
   weight: number;
 };
 
+// Define a safe chart rendering component
+interface SafeChartProps {
+  children: React.ReactNode;
+  fallback: React.ReactNode;
+}
+
+const SafeChart = ({ children, fallback }: SafeChartProps) => {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    // Reset on new render attempt
+    setHasError(false);
+  }, [children]);
+
+  if (hasError) {
+    return fallback;
+  }
+
+  try {
+    return children;
+  } catch (error) {
+    console.error('Error rendering chart:', error);
+    setHasError(true);
+    return fallback;
+  }
+};
+
 export default function ExerciseHistoryScreen() {
   const { id } = useLocalSearchParams();
   const exerciseId = typeof id === 'string' ? parseInt(id, 10) : 0;
@@ -48,15 +78,26 @@ export default function ExerciseHistoryScreen() {
   const theme = colorScheme ?? 'light';
   const colors = Colors[theme];
   const { width } = useWindowDimensions();
+  const router = useRouter();
   
   const [loading, setLoading] = useState(true);
   const [exerciseName, setExerciseName] = useState('');
   const [historyData, setHistoryData] = useState<ExerciseHistoryEntry[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'chart'>('list');
   
+  const [toggleAnimation] = useState(new Animated.Value(viewMode === 'list' ? 0 : 1));
+  
   useEffect(() => {
     loadExerciseHistory();
   }, [exerciseId]);
+  
+  useEffect(() => {
+    Animated.timing(toggleAnimation, {
+      toValue: viewMode === 'list' ? 0 : 1,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+  }, [viewMode]);
   
   const loadExerciseHistory = async () => {
     if (!exerciseId) return;
@@ -131,93 +172,135 @@ export default function ExerciseHistoryScreen() {
     // Reverse the data to show chronological progression
     const chartData = [...historyData].reverse();
     
+    // Minimum data check
+    if (chartData.length < 2) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome name="bar-chart" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            Not Enough Data
+          </Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>
+            Complete at least 2 workouts with this exercise to see your progress charts.
+          </Text>
+        </View>
+      );
+    }
+
+    // Create a simple fallback chart display
+    const fallbackChart = (
+      <View style={[styles.fallbackChart, { backgroundColor: colors.card }]}>
+        <FontAwesome name="area-chart" size={32} color={colors.primary} style={{ opacity: 0.5 }} />
+        <Text style={[styles.fallbackText, { color: colors.text }]}>
+          {Platform.OS === 'android' ? 'Chart visualization unavailable' : 'Unable to display chart'}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setViewMode('list')}
+          style={[styles.fallbackButton, { borderColor: colors.primary }]}
+        >
+          <Text style={[styles.fallbackButtonText, { color: colors.primary }]}>View as List</Text>
+        </TouchableOpacity>
+      </View>
+    );
+    
     return (
       <View style={styles.chartContainer}>
         <Text style={[styles.chartTitle, { color: colors.text }]}>Volume Progression</Text>
-        <LineChart
-          data={{
-            labels: chartData.map(entry => entry.date.substring(0, 6)),
-            datasets: [
-              {
-                data: chartData.map(entry => entry.totalVolume),
-                color: () => colors.primary,
-                strokeWidth: 2
-              }
-            ]
-          }}
-          width={width - 32}
-          height={220}
-          chartConfig={{
-            backgroundColor: colors.card,
-            backgroundGradientFrom: colors.card,
-            backgroundGradientTo: colors.card,
-            decimalPlaces: 0,
-            color: () => colors.primary,
-            labelColor: () => colors.text,
-            style: {
-              borderRadius: 16
-            },
-            propsForDots: {
-              r: '5',
-              strokeWidth: '2',
-              stroke: colors.primary
-            }
-          }}
-          bezier
-          style={{
-            borderRadius: 16,
-            padding: 16,
-            backgroundColor: colors.card,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        />
+        
+        <SafeChart fallback={fallbackChart}>
+          <LineChart
+            data={{
+              labels: chartData.map(entry => entry.date.substring(0, 6)),
+              datasets: [
+                {
+                  data: chartData.map(entry => entry.totalVolume),
+                  color: () => colors.primary,
+                  strokeWidth: 3
+                }
+              ]
+            }}
+            width={width - 32}
+            height={220}
+            chartConfig={{
+              backgroundColor: colors.card,
+              backgroundGradientFrom: colors.card,
+              backgroundGradientTo: colors.card,
+              decimalPlaces: 0,
+              color: () => colors.primary,
+              labelColor: () => colors.subtext,
+              style: {
+                borderRadius: 16
+              },
+              propsForDots: {
+                r: '6',
+                strokeWidth: '2',
+                stroke: colors.card
+              },
+              propsForBackgroundLines: {
+                strokeDasharray: '',
+                stroke: colors.border || '#E1E1E1',
+                strokeWidth: 1
+              },
+              formatYLabel: (value) => parseInt(value).toLocaleString()
+            }}
+            bezier
+            style={{
+              borderRadius: 16,
+              paddingRight: 0,
+              backgroundColor: colors.card,
+              elevation: 2,
+            }}
+          />
+        </SafeChart>
         
         <Text style={[styles.chartTitle, { color: colors.text, marginTop: 20 }]}>Max Weight Progression</Text>
-        <LineChart
-          data={{
-            labels: chartData.map(entry => entry.date.substring(0, 6)),
-            datasets: [
-              {
-                data: chartData.map(entry => entry.maxWeight),
-                color: () => colors.primary,
-                strokeWidth: 2
+        
+        <SafeChart fallback={fallbackChart}>
+          <LineChart
+            data={{
+              labels: chartData.map(entry => entry.date.substring(0, 6)),
+              datasets: [
+                {
+                  data: chartData.map(entry => entry.maxWeight),
+                  color: () => colors.primary,
+                  strokeWidth: 3
+                }
+              ]
+            }}
+            width={width - 32}
+            height={220}
+            chartConfig={{
+              backgroundColor: colors.card,
+              backgroundGradientFrom: colors.card,
+              backgroundGradientTo: colors.card,
+              decimalPlaces: 1,
+              color: () => colors.primary,
+              labelColor: () => colors.subtext,
+              style: {
+                borderRadius: 16
+              },
+              propsForDots: {
+                r: '6',
+                strokeWidth: '2',
+                stroke: colors.card
+              },
+              propsForBackgroundLines: {
+                strokeDasharray: '',
+                stroke: colors.border || '#E1E1E1',
+                strokeWidth: 1
               }
-            ]
-          }}
-          width={width - 32}
-          height={220}
-          chartConfig={{
-            backgroundColor: colors.card,
-            backgroundGradientFrom: colors.card,
-            backgroundGradientTo: colors.card,
-            decimalPlaces: 1,
-            color: () => colors.primary,
-            labelColor: () => colors.text,
-            style: {
-              borderRadius: 16
-            },
-            propsForDots: {
-              r: '5',
-              strokeWidth: '2',
-              stroke: colors.primary
-            }
-          }}
-          bezier
-          style={{
-            borderRadius: 16,
-            padding: 16,
-            backgroundColor: colors.card,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
-        />
+            }}
+            bezier
+            style={{
+              borderRadius: 16,
+              paddingRight: 0,
+              backgroundColor: colors.card,
+              elevation: 2,
+            }}
+          />
+        </SafeChart>
       </View>
     );
   };
@@ -226,9 +309,14 @@ export default function ExerciseHistoryScreen() {
     if (historyData.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <FontAwesome name="history" size={50} color={colors.subtext} />
-          <Text style={[styles.emptyText, { color: colors.text }]}>
-            No workout history found for this exercise
+          <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome name="history" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No History Yet
+          </Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>
+            Complete workouts with this exercise to track your progress over time.
           </Text>
         </View>
       );
@@ -292,6 +380,17 @@ export default function ExerciseHistoryScreen() {
     ));
   };
   
+  // Add safe navigation function
+  const handleGoBack = () => {
+    try {
+      router.back();
+    } catch (error) {
+      console.error('Error navigating back:', error);
+      // Fallback navigation to exercises tab if router.back() fails
+      router.replace('/(tabs)/exercises');
+    }
+  };
+  
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -317,54 +416,75 @@ export default function ExerciseHistoryScreen() {
           headerStyle: {
             backgroundColor: colors.background,
           },
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 18,
+          },
+          headerShadowVisible: false,
           headerTintColor: colors.text,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={handleGoBack}
+              style={styles.backButton}
+            >
+              <FontAwesome name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+          ),
         }}
       />
       
-      <View style={styles.viewToggle}>
-        <TouchableOpacity 
-          style={[
-            styles.toggleButton, 
-            viewMode === 'list' && [styles.activeToggle, { backgroundColor: colors.primary }]
-          ]}
-          onPress={() => setViewMode('list')}
-        >
-          <FontAwesome 
-            name="list" 
-            size={16} 
-            color={viewMode === 'list' ? '#fff' : colors.text} 
-          />
-          <Text 
+      <View style={styles.viewToggleContainer}>
+        <View style={[styles.viewToggle, { backgroundColor: colors.card }]}>
+          <Animated.View 
             style={[
-              styles.toggleText, 
-              { color: viewMode === 'list' ? '#fff' : colors.text }
-            ]}
-          >
-            List
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.toggleButton, 
-            viewMode === 'chart' && [styles.activeToggle, { backgroundColor: colors.primary }]
-          ]}
-          onPress={() => setViewMode('chart')}
-        >
-          <FontAwesome 
-            name="line-chart" 
-            size={16} 
-            color={viewMode === 'chart' ? '#fff' : colors.text} 
+              styles.toggleActiveBackground, 
+              { 
+                backgroundColor: colors.primary,
+                left: toggleAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['2%', '52%']
+                })
+              }
+            ]} 
           />
-          <Text 
-            style={[
-              styles.toggleText, 
-              { color: viewMode === 'chart' ? '#fff' : colors.text }
-            ]}
+          <TouchableOpacity 
+            style={styles.toggleButton}
+            onPress={() => setViewMode('list')}
           >
-            Charts
-          </Text>
-        </TouchableOpacity>
+            <FontAwesome 
+              name="list" 
+              size={16} 
+              color={viewMode === 'list' ? '#fff' : colors.text} 
+            />
+            <Text 
+              style={[
+                styles.toggleText, 
+                { color: viewMode === 'list' ? '#fff' : colors.text }
+              ]}
+            >
+              List
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.toggleButton}
+            onPress={() => setViewMode('chart')}
+          >
+            <FontAwesome 
+              name="line-chart" 
+              size={16} 
+              color={viewMode === 'chart' ? '#fff' : colors.text} 
+            />
+            <Text 
+              style={[
+                styles.toggleText, 
+                { color: viewMode === 'chart' ? '#fff' : colors.text }
+              ]}
+            >
+              Charts
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -391,10 +511,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 40,
   },
+  emptyIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
   emptyText: {
     fontSize: 16,
-    marginTop: 16,
     textAlign: 'center',
+    lineHeight: 22,
   },
   historyCard: {
     borderRadius: 12,
@@ -451,11 +584,23 @@ const styles = StyleSheet.create({
   setText: {
     fontSize: 14,
   },
+  viewToggleContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   viewToggle: {
     flexDirection: 'row',
-    borderRadius: 8,
-    margin: 16,
+    borderRadius: 12,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  toggleActiveBackground: {
+    position: 'absolute',
+    width: '46%',
+    height: '84%',
+    borderRadius: 10,
+    top: '8%',
+    zIndex: 0,
   },
   toggleButton: {
     flex: 1,
@@ -463,14 +608,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 12,
+    zIndex: 1,
   },
   toggleText: {
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
-  },
-  activeToggle: {
-    borderRadius: 8,
   },
   chartContainer: {
     alignItems: 'center',
@@ -490,5 +633,33 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  fallbackChart: {
+    width: '100%',
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  fallbackText: {
+    marginTop: 12,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  fallbackButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  fallbackButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  backButton: {
+    padding: 8,
   },
 }); 
