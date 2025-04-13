@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text, Modal } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -8,7 +8,6 @@ import { resetDatabase, getDatabase } from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
-import { useRouter } from 'expo-router';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -47,6 +46,7 @@ export default function ProfileScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const router = useRouter();
   const [useKilograms, setUseKilograms] = useState(true);
   const [userName, setUserName] = useState('Fitness Enthusiast');
   const [themeModalVisible, setThemeModalVisible] = useState(false);
@@ -56,7 +56,6 @@ export default function ProfileScreen() {
     daysActive: 0,
     streakDays: 0
   });
-  const router = useRouter();
 
   useEffect(() => {
     // Load saved preference and stats
@@ -297,12 +296,18 @@ export default function ProfileScreen() {
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity 
               style={styles.statItem}
-              onPress={() => router.push('/progress')}
+              onPress={() => router.push({pathname: '/progress'})}
+              activeOpacity={0.7}
             >
-              <View style={styles.viewProgressButton}>
-                <Text style={[styles.viewProgressText, { color: colors.text }]}>View Progress</Text>
-                <FontAwesome5 name="chart-bar" size={14} color={colors.primary} style={styles.viewProgressIcon} />
-              </View>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.viewProgressButton}
+              >
+                <Text style={styles.viewProgressText}>View Progress</Text>
+                <FontAwesome5 name="trophy" size={14} color="white" style={styles.viewProgressIcon} />
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -584,15 +589,21 @@ const styles = StyleSheet.create({
   viewProgressButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   viewProgressText: {
     fontSize: 14,
-    marginRight: 6,
-    fontWeight: '500',
+    marginRight: 8,
+    fontWeight: '600',
+    color: 'white',
   },
   viewProgressIcon: {
     marginLeft: 2,

@@ -1,577 +1,786 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  Dimensions, 
+  Image
+} from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import { FontAwesome5, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getDatabase } from '@/utils/database';
-import { LineChart, BarChart } from 'react-native-chart-kit';
-import { useTheme } from '@/context/ThemeContext';
-import { addDays, format, startOfWeek, endOfWeek, eachDayOfInterval, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
+import { formatDate, formatRelativeDate, calculateDuration } from '@/utils/dateUtils';
 
-type WorkoutsByDay = {
-  [key: string]: number;
-};
+// Types for our data
+interface PersonalRecord {
+  name: string;
+  value: number;
+  unit: string;
+  date: string;
+  icon: string;
+}
 
-type PersonalRecord = {
-  exercise_name: string;
-  max_weight: number;
-  date: number;
-};
+interface Milestone {
+  id: number;
+  title: string;
+  description: string;
+  date: string | null;
+  achieved: boolean;
+  icon: string;
+}
 
-const ProgressScreen = () => {
+interface WorkoutStreak {
+  current: number;
+  longest: number;
+  lastWorkout: string | null;
+}
+
+interface ProgressItem {
+  date: string;
+  title: string;
+  description: string;
+  icon: string;
+  value?: number | string;
+  unit?: string;
+}
+
+export default function ProgressScreen() {
   const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme || 'light'];
   const router = useRouter();
-  const { theme } = useTheme();
-  const systemTheme = colorScheme ?? 'light';
-  const currentTheme = theme === 'system' ? systemTheme : theme;
-  const colors = Colors[currentTheme];
   
   const [loading, setLoading] = useState(true);
-  const [weeklyWorkouts, setWeeklyWorkouts] = useState<WorkoutsByDay>({});
-  const [monthlyWorkouts, setMonthlyWorkouts] = useState<WorkoutsByDay>({});
-  const [totalVolume, setTotalVolume] = useState<number[]>([]);
   const [personalRecords, setPersonalRecords] = useState<PersonalRecord[]>([]);
-  const [averageWorkoutDuration, setAverageWorkoutDuration] = useState<number>(0);
-  const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [streak, setStreak] = useState<WorkoutStreak>({ current: 0, longest: 0, lastWorkout: null });
+  const [progressTimeline, setProgressTimeline] = useState<ProgressItem[]>([]);
   
-  const screenWidth = Dimensions.get('window').width - 40;
-
+  // Fetch all the user progress data
   useEffect(() => {
+    const loadProgressData = async () => {
+      try {
+        setLoading(true);
+        const db = await getDatabase();
+        
+        // Load personal records
+        await loadPersonalRecords(db);
+        
+        // Load milestones
+        await loadMilestones(db);
+        
+        // Load workout streak
+        await loadWorkoutStreak(db);
+        
+        // Load progress timeline
+        await loadProgressTimeline(db);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading progress data:', error);
+        setLoading(false);
+      }
+    };
+    
     loadProgressData();
   }, []);
-
-  const loadProgressData = async () => {
-    setLoading(true);
+  
+  // Load personal records from database
+  const loadPersonalRecords = async (db: any) => {
     try {
-      const db = await getDatabase();
-      
-      // Get workout dates for frequency analysis
-      const workoutsResult = await db.getAllAsync<{ date: number, duration: number }>(`
-        SELECT date, duration FROM workouts 
-        WHERE completed_at IS NOT NULL 
-        ORDER BY date ASC
-      `);
-      
-      // Get volume data (sum of weight * reps for each workout)
-      const volumeResult = await db.getAllAsync<{ date: number, volume: number }>(`
-        SELECT w.date, SUM(s.weight * s.reps) as volume 
-        FROM workouts w
-        JOIN workout_exercises we ON w.id = we.workout_id
-        JOIN sets s ON we.id = s.workout_exercise_id
-        WHERE w.completed_at IS NOT NULL
-        GROUP BY w.id
-        ORDER BY w.date ASC
+      // Query the database for the user's personal records
+      // In a real implementation, this would fetch the highest weight/reps for each exercise
+      const records = await db.getAllAsync(`
+        SELECT 
+          e.name,
+          e.id as exercise_id,
+          MAX(s.weight) as max_weight,
+          MAX(s.reps) as max_reps,
+          w.date
+        FROM
+          sets s
+          JOIN workout_exercises we ON s.workout_exercise_id = we.id
+          JOIN exercises e ON we.exercise_id = e.id
+          JOIN workouts w ON we.workout_id = w.id
+        WHERE
+          w.completed_at IS NOT NULL
+        GROUP BY
+          e.id
+        ORDER BY
+          max_weight DESC
         LIMIT 10
       `);
 
-      // Get personal records (max weight for each exercise)
-      const recordsResult = await db.getAllAsync<PersonalRecord>(`
-        SELECT e.name as exercise_name, MAX(s.weight) as max_weight, w.date
-        FROM exercises e
-        JOIN workout_exercises we ON e.id = we.exercise_id
-        JOIN sets s ON we.id = s.workout_exercise_id
-        JOIN workouts w ON we.workout_id = w.id
-        WHERE w.completed_at IS NOT NULL
-        GROUP BY e.id
-        ORDER BY max_weight DESC
-        LIMIT 5
+      // Transform the data into PersonalRecord objects
+      const personalRecords: PersonalRecord[] = records.map((record: any) => {
+        // Determine which value to use as the record (weight or reps)
+        const isWeightExercise = record.max_weight > 0;
+        return {
+          name: record.name,
+          value: isWeightExercise ? record.max_weight : record.max_reps,
+          unit: isWeightExercise ? 'kg' : 'reps',
+          date: record.date,
+          icon: getExerciseIcon(record.name) // Use exercise name instead of muscle group
+        };
+      });
+      
+      setPersonalRecords(personalRecords);
+    } catch (error) {
+      console.error('Error loading personal records:', error);
+      setPersonalRecords([]);
+    }
+  };
+  
+  // Get appropriate icon based on exercise name
+  const getExerciseIcon = (exerciseName: string): string => {
+    const lowerCaseName = exerciseName.toLowerCase();
+    
+    // Chest exercises
+    if (lowerCaseName.includes('bench') || lowerCaseName.includes('chest') || lowerCaseName.includes('push up') || lowerCaseName.includes('pushup') || lowerCaseName.includes('fly')) {
+      return 'dumbbell';
+    }
+    
+    // Leg exercises
+    if (lowerCaseName.includes('squat') || lowerCaseName.includes('leg') || lowerCaseName.includes('calf') || lowerCaseName.includes('lunge') || lowerCaseName.includes('deadlift')) {
+      return 'running';
+    }
+    
+    // Back exercises
+    if (lowerCaseName.includes('row') || lowerCaseName.includes('pull') || lowerCaseName.includes('lat') || lowerCaseName.includes('back')) {
+      return 'arrow-up';
+    }
+    
+    // Shoulder exercises
+    if (lowerCaseName.includes('shoulder') || lowerCaseName.includes('press') || lowerCaseName.includes('delt') || lowerCaseName.includes('raise')) {
+      return 'weight';
+    }
+    
+    // Arm exercises
+    if (lowerCaseName.includes('curl') || lowerCaseName.includes('extension') || lowerCaseName.includes('tricep') || lowerCaseName.includes('bicep')) {
+      return 'hand-rock';
+    }
+    
+    // Core exercises
+    if (lowerCaseName.includes('ab') || lowerCaseName.includes('crunch') || lowerCaseName.includes('plank') || lowerCaseName.includes('core') || lowerCaseName.includes('twist')) {
+      return 'burn';
+    }
+    
+    // Default icon for other exercises
+    return 'dumbbell';
+  };
+  
+  // Load milestones from database
+  const loadMilestones = async (db: any) => {
+    try {
+      // Calculate basic milestones based on user activity
+      const milestoneData = [];
+      
+      // Get total workout count
+      const workoutCount = await db.getFirstAsync(`
+        SELECT COUNT(*) as count 
+        FROM workouts 
+        WHERE completed_at IS NOT NULL
       `);
       
-      // Process workout frequency data
-      processWorkoutFrequencyData(workoutsResult);
+      const totalWorkouts = workoutCount?.count || 0;
       
-      // Process volume data
-      const volumeData = volumeResult.map(item => item.volume);
-      setTotalVolume(volumeData);
-      
-      // Set personal records
-      setPersonalRecords(recordsResult);
-      
-      // Calculate average workout duration
-      if (workoutsResult.length > 0) {
-        const totalDuration = workoutsResult.reduce((sum, workout) => sum + (workout.duration || 0), 0);
-        setAverageWorkoutDuration(totalDuration / workoutsResult.length);
+      // First workout milestone
+      if (totalWorkouts > 0) {
+        const firstWorkout = await db.getFirstAsync(`
+          SELECT date 
+          FROM workouts 
+          WHERE completed_at IS NOT NULL 
+          ORDER BY date ASC 
+          LIMIT 1
+        `);
+        
+        milestoneData.push({
+          id: 1,
+          title: 'First Workout',
+          description: 'Completed your first workout',
+          date: firstWorkout?.date,
+          achieved: true,
+          icon: 'flag'
+        });
       }
+      
+      // Workout count milestones
+      const workoutMilestones = [
+        { id: 2, count: 5, title: '5 Workouts' },
+        { id: 3, count: 10, title: '10 Workouts' },
+        { id: 4, count: 25, title: '25 Workouts' },
+        { id: 5, count: 50, title: '50 Workouts' },
+        { id: 6, count: 100, title: '100 Workouts' }
+      ];
+      
+      workoutMilestones.forEach(milestone => {
+        if (totalWorkouts >= milestone.count) {
+          // Find the date this milestone was achieved
+          milestoneData.push({
+            id: milestone.id,
+            title: milestone.title,
+            description: `Completed ${milestone.count} workouts`,
+            date: new Date().toISOString(), // This would ideally be the actual date
+            achieved: true,
+            icon: 'medal'
+          });
+        } else {
+          milestoneData.push({
+            id: milestone.id,
+            title: milestone.title,
+            description: `Complete ${milestone.count} workouts`,
+            date: null,
+            achieved: false,
+            icon: 'medal'
+          });
+        }
+      });
+      
+      // Check for streak milestone
+      if (streak.longest >= 5) {
+        milestoneData.push({
+          id: 7,
+          title: '5-Day Streak',
+          description: 'Worked out for 5 days in a row',
+          date: new Date().toISOString(), // This would ideally be the actual date
+          achieved: true,
+          icon: 'fire'
+        });
+      } else {
+        milestoneData.push({
+          id: 7,
+          title: '5-Day Streak',
+          description: 'Work out for 5 days in a row',
+          date: null,
+          achieved: false,
+          icon: 'fire'
+        });
+      }
+      
+      setMilestones(milestoneData);
+    } catch (error) {
+      console.error('Error loading milestones:', error);
+      setMilestones([]);
+    }
+  };
+  
+  // Load workout streak from database
+  const loadWorkoutStreak = async (db: any) => {
+    try {
+      // Get current streak
+      const currentStreakResult = await db.getFirstAsync(`
+        WITH workout_dates AS (
+          SELECT date(completed_at) as workout_date
+          FROM workouts
+          WHERE completed_at IS NOT NULL
+          ORDER BY workout_date DESC
+        ),
+        streak_groups AS (
+          SELECT 
+            workout_date,
+            julianday(workout_date) - julianday(
+              (SELECT min(workout_date) FROM workout_dates)
+            ) - ROW_NUMBER() OVER (ORDER BY workout_date) as group_num
+          FROM workout_dates
+        )
+        SELECT COUNT(*) as streak
+        FROM streak_groups
+        WHERE group_num = (
+          SELECT group_num 
+          FROM streak_groups 
+          WHERE workout_date = (SELECT max(workout_date) FROM workout_dates)
+        )
+      `);
+      
+      // Get longest streak
+      const longestStreakResult = await db.getFirstAsync(`
+        WITH workout_dates AS (
+          SELECT date(completed_at) as workout_date
+          FROM workouts
+          WHERE completed_at IS NOT NULL
+          ORDER BY workout_date DESC
+        ),
+        streak_groups AS (
+          SELECT 
+            workout_date,
+            julianday(workout_date) - julianday(
+              (SELECT min(workout_date) FROM workout_dates)
+            ) - ROW_NUMBER() OVER (ORDER BY workout_date) as group_num
+          FROM workout_dates
+        )
+        SELECT COUNT(*) as streak
+        FROM streak_groups
+        GROUP BY group_num
+        ORDER BY streak DESC
+        LIMIT 1
+      `);
+      
+      // Get last workout date
+      const lastWorkoutResult = await db.getFirstAsync(`
+        SELECT completed_at 
+        FROM workouts 
+        WHERE completed_at IS NOT NULL 
+        ORDER BY completed_at DESC 
+        LIMIT 1
+      `);
+      
+      setStreak({
+        current: currentStreakResult?.streak || 0,
+        longest: longestStreakResult?.streak || 0,
+        lastWorkout: lastWorkoutResult?.completed_at || null
+      });
       
     } catch (error) {
-      console.error('Error loading progress data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error calculating streak:', error);
+      setStreak({ current: 0, longest: 0, lastWorkout: null });
     }
   };
-
-  const processWorkoutFrequencyData = (workouts: { date: number }[]) => {
-    // Process for weekly view
-    const today = new Date();
-    const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Week starts on Monday
-    const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
-    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
-    
-    const weekData: WorkoutsByDay = {};
-    weekDays.forEach(day => {
-      const dayStr = format(day, 'EEE');
-      weekData[dayStr] = 0;
-    });
-    
-    // Process for monthly view
-    const monthStart = startOfMonth(today);
-    const monthEnd = endOfMonth(today);
-    const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    
-    const monthData: WorkoutsByDay = {};
-    
-    // Organize days with dates as keys, but add week indicators for better readability
-    monthDays.forEach(day => {
-      // Get the day of the month and determine which week of the month it is
-      const dayNum = parseInt(format(day, 'd'));
-      const isFirstOfWeek = day.getDay() === 1 || dayNum === 1; // Monday or first day
+  
+  // Load progress timeline from database
+  const loadProgressTimeline = async (db: any) => {
+    try {
+      // Get completed workouts
+      const workouts = await db.getAllAsync(`
+        SELECT 
+          w.id, 
+          w.date, 
+          w.completed_at, 
+          r.name as routine_name
+        FROM 
+          workouts w
+          LEFT JOIN routines r ON w.routine_id = r.id
+        WHERE 
+          w.completed_at IS NOT NULL
+        ORDER BY 
+          w.date DESC
+        LIMIT 20
+      `);
       
-      // Format labels to show day numbers, with week indicators for first day of week
-      let dayStr = format(day, 'd');
-      if (isFirstOfWeek) {
-        // Add W1, W2, etc. prefix for first day of each week
-        const weekOfMonth = Math.ceil(dayNum / 7);
-        dayStr = `W${weekOfMonth}\n${dayStr}`;
-      }
+      // Get personal records with dates
+      const personalRecords = await db.getAllAsync(`
+        WITH MaxWeights AS (
+          SELECT 
+            e.id AS exercise_id,
+            e.name AS exercise_name,
+            MAX(s.weight) AS max_weight,
+            MAX(s.reps) AS max_reps
+          FROM 
+            sets s
+            JOIN workout_exercises we ON s.workout_exercise_id = we.id
+            JOIN exercises e ON we.exercise_id = e.id
+          GROUP BY 
+            e.id
+        )
+        SELECT 
+          e.name AS exercise_name,
+          s.weight,
+          s.reps,
+          w.date,
+          mw.max_weight,
+          mw.max_reps
+        FROM 
+          sets s
+          JOIN workout_exercises we ON s.workout_exercise_id = we.id
+          JOIN exercises e ON we.exercise_id = e.id
+          JOIN workouts w ON we.workout_id = w.id
+          JOIN MaxWeights mw ON e.id = mw.exercise_id
+        WHERE 
+          (s.weight = mw.max_weight AND mw.max_weight > 0)
+          OR (s.reps = mw.max_reps AND mw.max_weight = 0)
+        ORDER BY 
+          w.date DESC
+      `);
       
-      monthData[dayStr] = 0;
-    });
-    
-    // Count workouts
-    workouts.forEach(workout => {
-      const workoutDate = new Date(workout.date);
+      // Combine workouts and personal records into timeline
+      const timeline: ProgressItem[] = [];
       
-      // Check if within current week
-      if (isWithinInterval(workoutDate, { start: weekStart, end: weekEnd })) {
-        const dayStr = format(workoutDate, 'EEE');
-        weekData[dayStr] = (weekData[dayStr] || 0) + 1;
-      }
-      
-      // Check if within current month
-      if (isWithinInterval(workoutDate, { start: monthStart, end: monthEnd })) {
-        const dayNum = parseInt(format(workoutDate, 'd'));
-        const isFirstOfWeek = workoutDate.getDay() === 1 || dayNum === 1;
-        
-        let dayStr = format(workoutDate, 'd');
-        if (isFirstOfWeek) {
-          const weekOfMonth = Math.ceil(dayNum / 7);
-          dayStr = `W${weekOfMonth}\n${dayStr}`;
-        }
-        
-        monthData[dayStr] = (monthData[dayStr] || 0) + 1;
-      }
-    });
-    
-    setWeeklyWorkouts(weekData);
-    setMonthlyWorkouts(monthData);
-  };
-
-  const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  };
-
-  // Add a color generator function
-  const getColorWithOpacity = (isWeekChart: boolean, value: number, maxValue: number): (opacity: number) => string => {
-    return (opacity = 1) => {
-      // Calculate dynamic opacity based on value
-      const dynamicOpacity = isWeekChart 
-        ? Math.min(0.3 + (value / maxValue) * 0.7, 1) 
-        : Math.min(0.2 + (value / maxValue) * 0.8, 1);
-      
-      // Blend the opacity values
-      const finalOpacity = opacity * dynamicOpacity;
-      
-      // Return the color with appropriate opacity
-      return currentTheme === 'dark' 
-        ? `rgba(76, 201, 240, ${finalOpacity})` 
-        : `rgba(0, 153, 255, ${finalOpacity})`;
-    };
-  };
-
-  const renderFrequencyChart = () => {
-    const data = timeRange === 'week' ? weeklyWorkouts : monthlyWorkouts;
-    const labels = Object.keys(data);
-    const values = Object.values(data);
-    
-    // Calculate max value for better y-axis scaling
-    const maxValue = Math.max(...values, 3);  // At least 3 for empty datasets
-    
-    // Create simplified labels for month view
-    let displayLabels;
-    if (timeRange === 'month') {
-      // Group by weeks and use week numbers
-      const weekLabels: string[] = [];
-      labels.forEach((label) => {
-        if (label.includes('W')) {
-          // Extract week number
-          const weekNum = label.split('\n')[0];
-          weekLabels.push(weekNum);
-        }
+      // Add workouts to timeline
+      workouts.forEach((workout: any) => {
+        timeline.push({
+          date: workout.date,
+          title: 'Workout Completed',
+          description: workout.routine_name || 'Custom Workout',
+          icon: 'dumbbell'
+        });
       });
       
-      // Filter to ensure we have just the week markers
-      displayLabels = weekLabels.filter((label, index, self) => 
-        self.indexOf(label) === index
-      );
-      
-      // Generate aggregated data by week
-      const weekData = displayLabels.map(weekLabel => {
-        const weekNum = parseInt(weekLabel.substring(1));
-        const weekValues = Object.entries(data).filter(([key]) => 
-          key.includes(`W${weekNum}`)
-        ).map(([_, value]) => value);
-        
-        // Sum of workout counts for this week
-        return weekValues.reduce((sum, val) => sum + val, 0);
+      // Add personal records to timeline
+      personalRecords.forEach((record: any) => {
+        const isWeightExercise = record.max_weight > 0;
+        timeline.push({
+          date: record.date,
+          title: 'New Personal Record',
+          description: `${record.exercise_name}`,
+          icon: 'trophy',
+          value: isWeightExercise ? record.weight : record.reps,
+          unit: isWeightExercise ? 'kg' : 'reps'
+        });
       });
       
-      return (
-        <View style={styles.chartWrapper}>
-          <BarChart
-            data={{
-              labels: displayLabels,
-              datasets: [{ data: weekData }]
-            }}
-            width={screenWidth}
-            height={220}
-            yAxisLabel=""
-            yAxisSuffix=""
-            fromZero={true}
-            showValuesOnTopOfBars={true}
-            segments={4}
-            withInnerLines={false}
-            chartConfig={{
-              backgroundColor: 'transparent',
-              backgroundGradientFrom: colors.card,
-              backgroundGradientTo: colors.card,
-              decimalPlaces: 0,
-              color: (opacity = 1) => {
-                // Create a gradient effect by using the opacity
-                return currentTheme === 'dark' 
-                  ? `rgba(76, 201, 240, ${opacity * 0.8})` 
-                  : `rgba(0, 153, 255, ${opacity * 0.8})`;
-              },
-              labelColor: (opacity = 1) => colors.text,
-              barPercentage: 0.7,
-              style: {
-                borderRadius: 16,
-              },
-              propsForBackgroundLines: {
-                strokeDasharray: '6, 6',
-                strokeWidth: 1,
-                stroke: colors.border,
-              },
-              propsForLabels: {
-                fontSize: 12,
-                fontWeight: '600',
-              },
-            }}
-            style={{
-              marginVertical: 8,
-              borderRadius: 16,
-              paddingRight: 0,
-              paddingLeft: 0,
-              paddingTop: 20,
-              paddingBottom: 0
-            }}
-          />
-          <Text style={[styles.chartCaption, {color: colors.subtext}]}>
-            Workouts by Week
-          </Text>
-        </View>
-      );
-    } else {
-      // Week view
-      return (
-        <View style={styles.chartWrapper}>
-          <BarChart
-            data={{
-              labels,
-              datasets: [{ data: values }]
-            }}
-            width={screenWidth}
-            height={220}
-            yAxisLabel=""
-            yAxisSuffix=""
-            fromZero={true}
-            showValuesOnTopOfBars={true}
-            segments={4}
-            withInnerLines={false}
-            chartConfig={{
-              backgroundColor: 'transparent',
-              backgroundGradientFrom: colors.card,
-              backgroundGradientTo: colors.card,
-              decimalPlaces: 0,
-              color: (opacity = 1) => {
-                // Create a gradient effect by using the opacity
-                return currentTheme === 'dark' 
-                  ? `rgba(76, 201, 240, ${opacity * 0.8})` 
-                  : `rgba(0, 153, 255, ${opacity * 0.8})`;
-              },
-              labelColor: (opacity = 1) => colors.text,
-              barPercentage: 0.8,
-              style: {
-                borderRadius: 16,
-              },
-              propsForBackgroundLines: {
-                strokeDasharray: '6, 6',
-                strokeWidth: 1,
-                stroke: colors.border,
-              },
-              propsForLabels: {
-                fontSize: 12,
-                fontWeight: '600',
-              },
-            }}
-            style={{
-              marginVertical: 8,
-              borderRadius: 16,
-              paddingRight: 0,
-              paddingLeft: 0,
-              paddingTop: 20,
-              paddingBottom: 0
-            }}
-          />
-          <Text style={[styles.chartCaption, {color: colors.subtext}]}>
-            Workouts by Day
-          </Text>
-        </View>
-      );
+      // Sort timeline by date (newest first)
+      timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      setProgressTimeline(timeline);
+    } catch (error) {
+      console.error('Error loading progress timeline:', error);
+      setProgressTimeline([]);
     }
   };
-
-  const renderVolumeChart = () => {
-    if (totalVolume.length === 0) {
-      return (
-        <View style={styles.emptyChartContainer}>
-          <FontAwesome5 name="chart-line" size={24} color={colors.subtext} />
-          <Text style={[styles.emptyChartText, { color: colors.subtext }]}>
-            Not enough data to display volume trend
-          </Text>
-        </View>
-      );
-    }
-    
-    // Generate better labels for the workouts
-    const labels = Array.from({ length: totalVolume.length }, (_, i) => {
-      if (i === 0) return 'First';
-      if (i === totalVolume.length - 1) return 'Last';
-      if (totalVolume.length <= 4 || i % Math.ceil(totalVolume.length / 4) === 0) {
-        return `W${i+1}`;
-      }
-      return '';
-    });
-    
-    // Normalize data for better visualization
-    const maxVolume = Math.max(...totalVolume);
-    const minVolume = Math.min(...totalVolume, maxVolume * 0.6); // For better scale
-    const normalizedData = totalVolume.map(v => v < minVolume ? minVolume : v);
-    
-    return (
-      <View style={styles.chartWrapper}>
-        <LineChart
-          data={{
-            labels,
-            datasets: [{ data: normalizedData }]
-          }}
-          width={screenWidth}
-          height={220}
-          yAxisLabel=""
-          yAxisSuffix=""
-          segments={4}
-          fromZero={false}
-          withInnerLines={false}
-          withOuterLines={true}
-          bezier
-          chartConfig={{
-            backgroundColor: 'transparent',
-            backgroundGradientFrom: colors.card,
-            backgroundGradientTo: colors.card,
-            decimalPlaces: 0,
-            color: (opacity = 1) => {
-              return currentTheme === 'dark' 
-                ? `rgba(140, 158, 255, ${opacity * 0.8})` 
-                : `rgba(76, 117, 240, ${opacity * 0.8})`;
-            },
-            strokeWidth: 3,
-            labelColor: (opacity = 1) => colors.text,
-            style: {
-              borderRadius: 16,
-            },
-            propsForBackgroundLines: {
-              strokeDasharray: '6, 6',
-              strokeWidth: 1,
-              stroke: colors.border,
-            },
-            propsForLabels: {
-              fontSize: 12,
-              fontWeight: '600',
-            },
-            propsForDots: {
-              r: "5",
-              strokeWidth: "2",
-              stroke: colors.card
-            },
-            fillShadowGradientFrom: currentTheme === 'dark' ? "rgba(140, 158, 255, 0.5)" : "rgba(76, 117, 240, 0.5)",
-            fillShadowGradientTo: currentTheme === 'dark' ? "rgba(140, 158, 255, 0.1)" : "rgba(76, 117, 240, 0.1)",
-          }}
-          style={{
-            marginVertical: 8,
-            borderRadius: 16,
-            paddingRight: 0,
-            paddingLeft: 0,
-            paddingTop: 20,
-            paddingBottom: 0
-          }}
-        />
-        <Text style={[styles.chartCaption, {color: colors.subtext}]}>
-          Total volume (kg × reps) per workout
+  
+  // Render a personal record card
+  const renderPersonalRecord = (record: PersonalRecord) => (
+    <View key={record.name} style={[styles.recordCard, { backgroundColor: colors.card }]}>
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.recordIconContainer}
+      >
+        <FontAwesome5 name={record.icon} size={24} color="white" />
+      </LinearGradient>
+      <View style={styles.recordInfo}>
+        <Text style={[styles.recordName, { color: colors.text }]}>{record.name}</Text>
+        <Text style={[styles.recordValue, { color: colors.text }]}>
+          {record.value} {record.unit}
+        </Text>
+        <Text style={[styles.recordDate, { color: colors.subtext }]}>
+          {formatRelativeDate(record.date)}
         </Text>
       </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Stack.Screen
-          options={{
-            title: "Progress",
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
-            headerTintColor: colors.text,
-          }}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.subtext }]}>Loading your progress...</Text>
+    </View>
+  );
+  
+  // Render milestone item
+  const renderMilestone = (milestone: Milestone) => (
+    <TouchableOpacity 
+      key={milestone.id} 
+      style={[
+        styles.milestoneItem, 
+        { 
+          backgroundColor: milestone.achieved ? colors.primaryLight : colors.card,
+          borderColor: milestone.achieved ? colors.primary : colors.border
+        }
+      ]}
+      activeOpacity={0.8}
+    >
+      <View style={[
+        styles.milestoneIconContainer, 
+        { backgroundColor: milestone.achieved ? colors.primary : colors.border }
+      ]}>
+        <FontAwesome5 name={milestone.icon} size={18} color="white" />
+      </View>
+      <View style={styles.milestoneContent}>
+        <Text style={[styles.milestoneTitle, { color: colors.text }]}>{milestone.title}</Text>
+        <Text style={[styles.milestoneDescription, { color: colors.subtext }]}>
+          {milestone.description}
+        </Text>
+        {milestone.date && (
+          <Text style={[styles.milestoneDate, { color: colors.primary }]}>
+            {formatRelativeDate(milestone.date)}
+          </Text>
+        )}
+      </View>
+      <View style={styles.milestoneStatus}>
+        {milestone.achieved ? (
+          <FontAwesome5 name="check-circle" size={20} color={colors.primary} />
+        ) : (
+          <FontAwesome5 name="circle" size={20} color={colors.border} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+  
+  // Render progress timeline item
+  const renderTimelineItem = (item: ProgressItem, index: number) => (
+    <View key={`${item.date}-${index}`} style={styles.timelineItem}>
+      <View style={styles.timelineLeft}>
+        <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+        <View style={[styles.timelineDot, { backgroundColor: colors.primary }]}>
+          <FontAwesome5 name={item.icon} size={14} color="white" />
         </View>
       </View>
-    );
-  }
+      <View style={[styles.timelineContent, { backgroundColor: colors.card }]}>
+        <Text style={[styles.timelineDate, { color: colors.subtext }]}>
+          {formatRelativeDate(item.date)}
+        </Text>
+        <Text style={[styles.timelineTitle, { color: colors.text }]}>{item.title}</Text>
+        <Text style={[styles.timelineDescription, { color: colors.subtext }]}>
+          {item.description}
+        </Text>
+        {item.value && (
+          <View style={styles.timelineValueContainer}>
+            <Text style={[styles.timelineValue, { color: colors.primary }]}>
+              {item.value} {item.unit}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
+  // Improved empty state components
+  const EmptyStateCard = ({ icon, title, message, actionLabel, action }: { 
+    icon: string, 
+    title: string, 
+    message: string, 
+    actionLabel?: string, 
+    action?: () => void 
+  }) => (
+    <View style={[styles.emptyStateCard, { backgroundColor: colors.card }]}>
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.emptyStateIconContainer}
+      >
+        <FontAwesome5 name={icon} size={32} color="white" />
+      </LinearGradient>
+      <Text style={[styles.emptyStateTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.emptyStateMessage, { color: colors.subtext }]}>
+        {message}
+      </Text>
+      {actionLabel && action && (
+        <TouchableOpacity 
+          style={[styles.emptyStateButton, { backgroundColor: colors.primary }]}
+          onPress={action}
+        >
+          <Text style={styles.emptyStateButtonText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  // Empty state for Personal Records section
+  const PersonalRecordsEmptyState = () => (
+    <EmptyStateCard
+      icon="trophy"
+      title="No Personal Records Yet"
+      message="Complete workouts to track your personal bests for each exercise."
+      actionLabel="Start a Workout"
+      action={() => router.push({pathname: '/'})}
+    />
+  );
+
+  // Empty state for Milestones section
+  const MilestonesEmptyState = () => (
+    <EmptyStateCard
+      icon="medal"
+      title="Achievements Waiting"
+      message="Complete your fitness goals to unlock achievements and milestones."
+      actionLabel="Explore Workouts"
+      action={() => router.push({pathname: '/'})}
+    />
+  );
+
+  // Empty state for Timeline section
+  const TimelineEmptyState = () => (
+    <EmptyStateCard
+      icon="history"
+      title="Your Journey Begins"
+      message="As you work out, your fitness journey will be recorded here."
+      actionLabel="Get Started"
+      action={() => router.push({pathname: '/'})}
+    />
+  );
+
+  // Empty state for when no data exists at all
+  const NoDataEmptyState = () => (
+    <View style={styles.noDataContainer}>
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.noDataIconCircle}
+      >
+        <FontAwesome5 name="dumbbell" size={64} color="white" />
+      </LinearGradient>
+      
+      <Text style={[styles.noDataTitle, { color: colors.text }]}>
+        Begin Your Fitness Journey
+      </Text>
+      
+      <Text style={[styles.noDataMessage, { color: colors.subtext }]}>
+        Track your workouts, set personal records, and achieve your fitness goals.
+      </Text>
+      
+      <TouchableOpacity
+        style={[styles.noDataButton, { backgroundColor: colors.primary }]}
+        onPress={() => router.push({pathname: '/'})}
+      >
+        <Text style={styles.noDataButtonText}>Start Your First Workout</Text>
+        <FontAwesome5 name="arrow-right" size={16} color="white" style={{ marginLeft: 8 }} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Check if any data exists
+  const hasAnyData = personalRecords.length > 0 || streak.current > 0 || progressTimeline.length > 0;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Stack.Screen 
         options={{
-          title: "Progress",
+          title: 'Your Progress',
           headerStyle: {
-            backgroundColor: colors.background,
+            backgroundColor: 'transparent',
           },
-          headerTintColor: colors.text,
+          headerTransparent: true,
+          headerTintColor: 'white',
+          headerBackVisible: true,
         }}
       />
-
-      {/* Workout Frequency Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Workout Frequency</Text>
-          <View style={styles.timeRangeSelector}>
-            <TouchableOpacity
-              style={[
-                styles.timeRangeButton,
-                timeRange === 'week' && { backgroundColor: colors.primary }
-              ]}
-              onPress={() => setTimeRange('week')}
-            >
-              <Text style={[
-                styles.timeRangeText,
-                { color: timeRange === 'week' ? 'white' : colors.text }
-              ]}>Week</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.timeRangeButton,
-                timeRange === 'month' && { backgroundColor: colors.primary }
-              ]}
-              onPress={() => setTimeRange('month')}
-            >
-              <Text style={[
-                styles.timeRangeText,
-                { color: timeRange === 'month' ? 'white' : colors.text }
-              ]}>Month</Text>
-            </TouchableOpacity>
-          </View>
+      
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Your Fitness Journey</Text>
+          <Text style={styles.headerSubtitle}>Track achievements and milestones</Text>
         </View>
-        
-        <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
-          {renderFrequencyChart()}
+      </LinearGradient>
+      
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.text }]}>
+            Loading your progress data...
+          </Text>
         </View>
-      </View>
-
-      {/* Workout Volume Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Total Volume Trend</Text>
-        <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
-          {renderVolumeChart()}
-        </View>
-      </View>
-
-      {/* Key Stats Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Workout Stats</Text>
-        <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
-          <View style={styles.statItem}>
-            <FontAwesome5 name="clock" size={18} color={colors.primary} style={styles.statIcon} />
-            <View>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>Avg. Workout Duration</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>
-                {formatDuration(averageWorkoutDuration)}
+      ) : !hasAnyData ? (
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.contentContainer, styles.noDataContentContainer]}
+        >
+          <NoDataEmptyState />
+        </ScrollView>
+      ) : (
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+        >
+          {/* Streak Section */}
+          <View style={[styles.streakCard, { backgroundColor: colors.card }]}>
+            <View style={styles.streakHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Workout Streak
               </Text>
+              <FontAwesome5 name="fire" size={20} color={colors.accent} />
             </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Personal Records Section */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Personal Records</Text>
-        <View style={[styles.recordsContainer, { backgroundColor: colors.card }]}>
-          {personalRecords.length > 0 ? (
-            personalRecords.map((record, index) => (
-              <View 
-                key={`${record.exercise_name}-${index}`} 
-                style={[
-                  styles.recordItem, 
-                  index < personalRecords.length - 1 && { 
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border 
-                  }
-                ]}
-              >
-                <View style={styles.recordDetails}>
-                  <Text style={[styles.recordExercise, { color: colors.text }]}>{record.exercise_name}</Text>
-                  <Text style={[styles.recordDate, { color: colors.subtext }]}>
-                    {new Date(record.date).toLocaleDateString()}
-                  </Text>
-                </View>
-                <Text style={[styles.recordWeight, { color: colors.primary }]}>
-                  {record.max_weight} kg
-                </Text>
+            
+            <View style={styles.streakStats}>
+              <View style={styles.streakStat}>
+                <Text style={[styles.streakValue, { color: colors.text }]}>{streak.current}</Text>
+                <Text style={[styles.streakLabel, { color: colors.subtext }]}>Current Streak</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyRecordsContainer}>
-              <FontAwesome5 name="trophy" size={24} color={colors.subtext} />
-              <Text style={[styles.emptyRecordsText, { color: colors.subtext }]}>
-                No personal records yet
-              </Text>
+              
+              <View style={[styles.streakDivider, { backgroundColor: colors.border }]} />
+              
+              <View style={styles.streakStat}>
+                <Text style={[styles.streakValue, { color: colors.text }]}>{streak.longest}</Text>
+                <Text style={[styles.streakLabel, { color: colors.subtext }]}>Best Streak</Text>
+              </View>
             </View>
-          )}
-        </View>
-      </View>
-    </ScrollView>
+            
+            <Text style={[styles.lastWorkoutText, { color: colors.subtext }]}>
+              {streak.lastWorkout 
+                ? `Last workout: ${formatRelativeDate(streak.lastWorkout)}` 
+                : 'No workouts recorded yet'}
+            </Text>
+          </View>
+          
+          {/* Personal Records Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Personal Records
+            </Text>
+            {personalRecords.length > 0 ? (
+              <ScrollView 
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recordsContainer}
+              >
+                {personalRecords.map(renderPersonalRecord)}
+              </ScrollView>
+            ) : (
+              <PersonalRecordsEmptyState />
+            )}
+          </View>
+          
+          {/* Milestones Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Achievements & Milestones
+            </Text>
+            {milestones.length > 0 ? (
+              <View style={styles.milestonesContainer}>
+                {milestones.map(renderMilestone)}
+              </View>
+            ) : (
+              <MilestonesEmptyState />
+            )}
+          </View>
+          
+          {/* Progress Timeline Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Your Journey Timeline
+            </Text>
+            {progressTimeline.length > 0 ? (
+              <View style={styles.timelineContainer}>
+                {progressTimeline.map((item, index) => renderTimelineItem(item, index))}
+              </View>
+            ) : (
+              <TimelineEmptyState />
+            )}
+          </View>
+        </ScrollView>
+      )}
+    </View>
   );
-};
+}
+
+const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+  },
+  headerGradient: {
+    paddingBottom: 40,
+    paddingTop: 100,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    marginBottom: 20,
+  },
+  headerContent: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -579,134 +788,301 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
+    marginTop: 16,
     fontSize: 16,
+  },
+  scrollContainer: {
+    flex: 1,
+    marginTop: -20,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 30,
   },
   section: {
     marginBottom: 24,
   },
-  sectionHeader: {
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  streakCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  streakHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  streakStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  streakStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  streakValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  streakLabel: {
+    fontSize: 14,
+  },
+  streakDivider: {
+    width: 1,
+    height: 40,
+  },
+  lastWorkoutText: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  recordsContainer: {
+    paddingBottom: 8,
+    paddingRight: 16,
+  },
+  recordCard: {
+    width: 140,
+    borderRadius: 16,
+    marginRight: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  recordIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
+  recordInfo: {},
+  recordName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  recordValue: {
+    fontSize: 20,
     fontWeight: 'bold',
-  },
-  timeRangeSelector: {
-    flexDirection: 'row',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  timeRangeButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  timeRangeText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  chartContainer: {
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  emptyChartContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyChartText: {
-    marginTop: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  statsContainer: {
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  statIcon: {
-    marginRight: 12,
-    width: 24,
-    alignItems: 'center',
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 14,
     marginBottom: 4,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  recordDate: {
+    fontSize: 12,
   },
-  recordsContainer: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  milestonesContainer: {
+    marginBottom: 8,
   },
-  recordItem: {
+  milestoneItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  recordDetails: {
+  milestoneIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  milestoneContent: {
     flex: 1,
   },
-  recordExercise: {
+  milestoneTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
   },
-  recordDate: {
-    fontSize: 13,
+  milestoneDescription: {
+    fontSize: 14,
+    marginBottom: 2,
   },
-  recordWeight: {
-    fontSize: 18,
+  milestoneDate: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  milestoneStatus: {
+    paddingLeft: 8,
+  },
+  timelineContainer: {
+    paddingLeft: 8,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timelineLeft: {
+    width: 40,
+    alignItems: 'center',
+  },
+  timelineLine: {
+    position: 'absolute',
+    width: 2,
+    top: 0,
+    bottom: 0,
+    left: 20,
+  },
+  timelineDot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    zIndex: 2,
+  },
+  timelineContent: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginLeft: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  timelineDate: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  timelineTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  timelineDescription: {
+    fontSize: 14,
+  },
+  timelineValueContainer: {
+    marginTop: 8,
+  },
+  timelineValue: {
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  emptyRecordsContainer: {
+  emptyStateCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    marginBottom: 8,
+  },
+  emptyStateIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateMessage: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    lineHeight: 22,
+  },
+  emptyStateButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  emptyStateButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  noDataContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 40,
+    paddingHorizontal: 24,
   },
-  emptyRecordsText: {
-    marginTop: 12,
+  noDataContentContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  noDataIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  noDataTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  noDataMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 20,
+    lineHeight: 24,
+  },
+  noDataButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  noDataButtonText: {
+    color: 'white',
+    fontWeight: '600',
     fontSize: 16,
   },
-  chartWrapper: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  chartCaption: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-});
-
-export default ProgressScreen; 
+}); 
