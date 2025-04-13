@@ -7,6 +7,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useWorkout } from '@/context/WorkoutContext';
+import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/settings';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -83,6 +84,37 @@ export default function StartWorkoutScreen() {
   const [touchedFields, setTouchedFields] = useState<TouchedFields>({ reps: false, weight: false });
   const [previousWorkoutData, setPreviousWorkoutData] = useState<Map<number, { reps: number, weight: number }[]>>(new Map());
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
+
+  // Load user's weight unit preference
+  useEffect(() => {
+    const loadWeightUnitPreference = async () => {
+      const unit = await getWeightUnitPreference();
+      setWeightUnit(unit);
+    };
+    
+    loadWeightUnitPreference();
+  }, []);
+
+  // Format weight based on user preference
+  const formatWeight = (weight: number): string => {
+    if (weightUnit === 'lb') {
+      // Display in pounds, converting from kg (stored value)
+      return `${kgToLb(weight).toFixed(1)} lb`;
+    }
+    // Display in kg
+    return `${weight} kg`;
+  };
+
+  // Convert input weight based on unit
+  const getStoredWeight = (inputWeight: number): number => {
+    // Always store weights in kg in the database
+    if (weightUnit === 'lb') {
+      // Convert from pounds to kg for storage
+      return lbToKg(inputWeight);
+    }
+    return inputWeight;
+  };
 
   // Animation pulse for timer
   useEffect(() => {
@@ -529,7 +561,7 @@ export default function StartWorkoutScreen() {
     }
     
     if (currentSet.weight === 0) {
-      Alert.alert('Invalid Input', 'Please enter a weight value greater than 0 kg.');
+      Alert.alert('Invalid Input', `Please enter a weight value greater than 0 ${weightUnit}.`);
       return;
     }
     
@@ -540,9 +572,13 @@ export default function StartWorkoutScreen() {
     const setIndex = exercise.sets_data.findIndex(s => s.set_number === currentSet.set_number);
     if (setIndex === -1) return;
     
+    // Store the weight in kg in the database, regardless of display preference
+    const convertedWeight = getStoredWeight(currentSet.weight);
+    
     // Update the set
     exercise.sets_data[setIndex] = {
       ...currentSet,
+      weight: convertedWeight, // Store in kg
       completed: true
     };
     
@@ -697,56 +733,31 @@ export default function StartWorkoutScreen() {
             }
           ]}
           onPress={() => {
-            console.log(`Opening set modal for exercise: ${item.name} (index: ${index}), set: ${setIndex + 1}`);
-            openSetModal(index, setIndex);
+            if (workoutStarted) {
+              openSetModal(index, setIndex);
+            }
           }}
           disabled={!workoutStarted}
           activeOpacity={0.7}
         >
-          <View style={styles.setItemContent}>
-            <View style={styles.setNumberContainer}>
-              <View style={[
-                styles.setNumberBadge, 
-                { backgroundColor: setItem.completed ? colors.success : colors.primary + '33' }
-              ]}>
-                <Text style={[styles.setNumber, { color: setItem.completed ? 'white' : colors.text }]}>
-                  {setItem.set_number}
-                </Text>
-              </View>
-            </View>
-            
+          <View style={styles.setContent}>
+            <Text style={[styles.setText, { color: colors.text }]}>
+              SET {setItem.set_number}
+            </Text>
             {setItem.completed ? (
-              <View style={styles.setDetails}>
+              <>
                 <Text style={[styles.setDetail, { color: colors.text, fontWeight: '600' }]}>
                   {setItem.reps} reps
                 </Text>
                 <Text style={[styles.setDetail, { color: colors.text }]}>
-                  {setItem.weight} kg
+                  {weightUnit === 'lb' ? `${kgToLb(setItem.weight).toFixed(1)} lb` : `${setItem.weight} kg`}
                 </Text>
-                {setItem.notes ? (
-                  <Text style={[styles.setNotes, { color: colors.subtext }]} numberOfLines={1}>
-                    {setItem.notes}
-                  </Text>
-                ) : null}
-              </View>
+                <FontAwesome name="check" size={14} color={colors.success} style={styles.completedIcon} />
+              </>
             ) : (
-              <View style={styles.setDetails}>
-                <Text style={[styles.setDetail, { color: colors.subtext }]}>Tap to log</Text>
-                
-                {/* Show previous performance data if available */}
-                {previousWorkoutData.has(item.routine_exercise_id) && 
-                 previousWorkoutData.get(item.routine_exercise_id)![setIndex] && (
-                  <Text style={[styles.previousPerformanceText, { color: colors.primary }]}>
-                    Last: {previousWorkoutData.get(item.routine_exercise_id)![setIndex].reps} × {previousWorkoutData.get(item.routine_exercise_id)![setIndex].weight}kg
-                  </Text>
-                )}
-              </View>
-            )}
-            
-            {setItem.completed && (
-              <View style={[styles.completedCheck, { backgroundColor: colors.success }]}>
-                <FontAwesome name="check" size={12} color="white" />
-              </View>
+              <Text style={[styles.tapToLog, { color: colors.primary }]}>
+                Tap to log
+              </Text>
             )}
           </View>
         </TouchableOpacity>
@@ -943,6 +954,34 @@ export default function StartWorkoutScreen() {
     }
   };
 
+  // Update the display of previous performance
+  const displayPreviousPerformance = () => {
+    if (selectedExercise === null || 
+        !previousWorkoutData.has(exercises[selectedExercise].routine_exercise_id) || 
+        !previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex]) {
+      return null;
+    }
+    
+    const prevSetData = previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex];
+    const displayWeight = weightUnit === 'lb' ? 
+      `${kgToLb(prevSetData.weight).toFixed(1)} lb` : 
+      `${prevSetData.weight} kg`;
+    
+    return (
+      <View style={[styles.previousPerformanceCard, { backgroundColor: colors.primary + '15' }]}>
+        <Text style={[styles.previousPerformanceTitle, { color: colors.subtext }]}>
+          Previous Performance
+        </Text>
+        <Text style={[styles.previousPerformanceData, { color: colors.text }]}>
+          {prevSetData.reps} reps × {displayWeight}
+        </Text>
+        <Text style={[styles.previousPerformanceHint, { color: colors.subtext }]}>
+          Try to match or exceed your previous performance!
+        </Text>
+      </View>
+    );
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1083,20 +1122,16 @@ export default function StartWorkoutScreen() {
       )}
       
       <Modal
+        animationType="slide"
         transparent={true}
         visible={setModalVisible}
         onRequestClose={() => setSetModalVisible(false)}
-        animationType="slide"
       >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { 
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-            borderWidth: Platform.OS === 'ios' ? 0 : 1,
-          }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: 'rgba(150, 150, 150, 0.2)' }]}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {selectedExercise !== null && exercises[selectedExercise] 
+                {selectedExercise !== null 
                   ? `${exercises[selectedExercise].name} - Set ${currentSet.set_number}` 
                   : 'Log Set'}
               </Text>
@@ -1110,21 +1145,7 @@ export default function StartWorkoutScreen() {
             </View>
             
             {/* Show previous performance data if available */}
-            {selectedExercise !== null && 
-             previousWorkoutData.has(exercises[selectedExercise].routine_exercise_id) && 
-             previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex] && (
-              <View style={[styles.previousPerformanceCard, { backgroundColor: colors.primary + '15' }]}>
-                <Text style={[styles.previousPerformanceTitle, { color: colors.subtext }]}>
-                  Previous Performance
-                </Text>
-                <Text style={[styles.previousPerformanceData, { color: colors.text }]}>
-                  {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex].reps} reps × {previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex].weight} kg
-                </Text>
-                <Text style={[styles.previousPerformanceHint, { color: colors.subtext }]}>
-                  Try to match or exceed your previous performance!
-                </Text>
-              </View>
-            )}
+            {displayPreviousPerformance()}
             
             <View style={styles.inputGroup}>
               <View style={styles.inputLabelContainer}>
@@ -1155,7 +1176,7 @@ export default function StartWorkoutScreen() {
             
             <View style={styles.inputGroup}>
               <View style={styles.inputLabelContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Weight (kg)</Text>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Weight ({weightUnit})</Text>
                 <Text style={[styles.requiredIndicator, { color: colors.error }]}>*</Text>
               </View>
               <TextInput
@@ -1170,7 +1191,7 @@ export default function StartWorkoutScreen() {
                 keyboardType="decimal-pad"
                 value={currentSet.weight === 0 ? '' : currentSet.weight.toString()}
                 onChangeText={(text) => handleInputChange('weight', text)}
-                placeholder="Enter weight"
+                placeholder={`Enter weight in ${weightUnit}`}
                 placeholderTextColor={colors.subtext}
               />
               {touchedFields.weight && currentSet.weight === 0 && (
@@ -1417,40 +1438,25 @@ const styles = StyleSheet.create({
     elevation: 1,
     overflow: 'hidden',
   },
-  setItemContent: {
+  setContent: {
     flex: 1,
     padding: 12,
     justifyContent: 'space-between',
   },
-  setNumberContainer: {
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  setNumberBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  setNumber: {
+  setText: {
     fontWeight: 'bold',
     fontSize: 14,
-  },
-  setDetails: {
-    flex: 1,
-    justifyContent: 'center',
   },
   setDetail: {
     fontSize: 14,
     marginBottom: 2,
   },
-  setNotes: {
+  tapToLog: {
     fontSize: 12,
     marginTop: 4,
     fontStyle: 'italic',
   },
-  completedCheck: {
+  completedIcon: {
     position: 'absolute',
     top: 8,
     right: 8,
@@ -1535,6 +1541,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
+    maxWidth: 450,
     borderRadius: 20,
     padding: 24,
     shadowColor: '#000',
@@ -1649,12 +1656,9 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalView: {
-    width: '90%',
-    borderRadius: 20,
-    padding: 24,
-    maxHeight: '90%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   exerciseHistoryButton: {
     flexDirection: 'row',
