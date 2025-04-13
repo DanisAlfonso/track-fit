@@ -87,6 +87,16 @@ export default function ExerciseHistoryScreen() {
   
   const [toggleAnimation] = useState(new Animated.Value(viewMode === 'list' ? 0 : 1));
   
+  // Add animation states at the component level
+  const [emptyStateAnim] = useState({
+    icon: new Animated.Value(0),
+    text: new Animated.Value(0),
+    button: new Animated.Value(0)
+  });
+  
+  // Add a state for available routines
+  const [availableRoutines, setAvailableRoutines] = useState<{id: number, name: string}[]>([]);
+  
   useEffect(() => {
     loadExerciseHistory();
   }, [exerciseId]);
@@ -99,8 +109,39 @@ export default function ExerciseHistoryScreen() {
     }).start();
   }, [viewMode]);
   
+  useEffect(() => {
+    if (viewMode === 'chart' && historyData.length < 2) {
+      // Reset animations
+      emptyStateAnim.icon.setValue(0);
+      emptyStateAnim.text.setValue(0);
+      emptyStateAnim.button.setValue(0);
+      
+      // Run sequential animations
+      Animated.sequence([
+        Animated.timing(emptyStateAnim.icon, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true
+        }),
+        Animated.timing(emptyStateAnim.text, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true
+        }),
+        Animated.timing(emptyStateAnim.button, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true
+        })
+      ]).start();
+    }
+  }, [viewMode, historyData.length]);
+  
   const loadExerciseHistory = async () => {
-    if (!exerciseId) return;
+    if (!exerciseId) {
+      setLoading(false);
+      return;
+    }
     
     try {
       setLoading(true);
@@ -115,6 +156,12 @@ export default function ExerciseHistoryScreen() {
       if (exercise) {
         setExerciseName(exercise.name);
       }
+      
+      // Get available routines
+      const routines = await db.getAllAsync<{id: number, name: string}>(
+        'SELECT id, name FROM routines ORDER BY created_at DESC'
+      );
+      setAvailableRoutines(routines);
       
       // Get workouts containing this exercise
       const workoutExercises = await db.getAllAsync<WorkoutExercise>(
@@ -166,29 +213,419 @@ export default function ExerciseHistoryScreen() {
     }
   };
   
+  const renderNoDataState = () => {
+    if (availableRoutines.length === 0) {
+      // No routines available
+      return (
+        <View style={styles.emptyStateContainer}>
+          <Animated.View 
+            style={[
+              styles.emptyIconBg, 
+              { 
+                backgroundColor: `${colors.primary}20`,
+                transform: [
+                  { scale: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1]
+                  })},
+                  { translateY: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0]
+                  })}
+                ],
+                opacity: emptyStateAnim.icon.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                })
+              }
+            ]}
+          >
+            <FontAwesome name="line-chart" size={40} color={colors.primary} />
+          </Animated.View>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateTitle, 
+              { 
+                color: colors.text,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [15, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            No Routines Yet
+          </Animated.Text>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateText, 
+              { 
+                color: colors.subtext,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            Create a routine first to start tracking your progress with this exercise.
+          </Animated.Text>
+          
+          <Animated.View 
+            style={[
+              styles.startButtonContainer,
+              { 
+                opacity: emptyStateAnim.button.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.button.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/routine/create')}
+            >
+              <FontAwesome name="plus-circle" size={16} color="#ffffff" style={styles.startButtonIcon} />
+              <Text style={styles.startButtonText}>Create Routine</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      );
+    } else if (availableRoutines.length === 1) {
+      // One routine available - direct start
+      return (
+        <View style={styles.emptyStateContainer}>
+          <Animated.View 
+            style={[
+              styles.emptyIconBg, 
+              { 
+                backgroundColor: `${colors.primary}20`,
+                transform: [
+                  { scale: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1]
+                  })},
+                  { translateY: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0]
+                  })}
+                ],
+                opacity: emptyStateAnim.icon.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                })
+              }
+            ]}
+          >
+            <FontAwesome name="line-chart" size={40} color={colors.primary} />
+          </Animated.View>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateTitle, 
+              { 
+                color: colors.text,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [15, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            No Progress Data Yet
+          </Animated.Text>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateText, 
+              { 
+                color: colors.subtext,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            Complete a workout with this exercise to start tracking your progress.
+          </Animated.Text>
+          
+          <Animated.View 
+            style={[
+              styles.startButtonContainer,
+              { 
+                opacity: emptyStateAnim.button.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.button.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                // Navigate to the specific routine first, then let user start workout from there
+                router.push(`/routine/${availableRoutines[0].id}`);
+              }}
+            >
+              <FontAwesome name="play-circle" size={16} color="#ffffff" style={styles.startButtonIcon} />
+              <Text style={styles.startButtonText}>View Routine</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      );
+    } else {
+      // Multiple routines - show choose routine button
+      return (
+        <View style={styles.emptyStateContainer}>
+          <Animated.View 
+            style={[
+              styles.emptyIconBg, 
+              { 
+                backgroundColor: `${colors.primary}20`,
+                transform: [
+                  { scale: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1]
+                  })},
+                  { translateY: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0]
+                  })}
+                ],
+                opacity: emptyStateAnim.icon.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                })
+              }
+            ]}
+          >
+            <FontAwesome name="line-chart" size={40} color={colors.primary} />
+          </Animated.View>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateTitle, 
+              { 
+                color: colors.text,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [15, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            No Progress Data Yet
+          </Animated.Text>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateText, 
+              { 
+                color: colors.subtext,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            Complete a workout with this exercise to start tracking your progress.
+          </Animated.Text>
+          
+          <Animated.View 
+            style={[
+              styles.startButtonContainer,
+              { 
+                opacity: emptyStateAnim.button.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.button.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/(tabs)/routines')}
+            >
+              <FontAwesome name="list-ul" size={16} color="#ffffff" style={styles.startButtonIcon} />
+              <Text style={styles.startButtonText}>View Routines</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      );
+    }
+  };
+  
   const renderChartData = () => {
-    if (historyData.length === 0) return null;
+    if (historyData.length === 0) {
+      return renderNoDataState();
+    }
     
     // Reverse the data to show chronological progression
     const chartData = [...historyData].reverse();
     
-    // Minimum data check
+    // Update the "More Data Needed" state with animations
     if (chartData.length < 2) {
       return (
-        <View style={styles.emptyContainer}>
-          <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
-            <FontAwesome name="bar-chart" size={28} color={colors.primary} style={{ opacity: 0.6 }} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>
-            Not Enough Data
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.subtext }]}>
-            Complete at least 2 workouts with this exercise to see your progress charts.
-          </Text>
+        <View style={styles.emptyStateContainer}>
+          <Animated.View 
+            style={[
+              styles.emptyIconBg, 
+              { 
+                backgroundColor: `${colors.primary}15`,
+                transform: [
+                  { scale: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1]
+                  })},
+                  { translateY: emptyStateAnim.icon.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0]
+                  })}
+                ],
+                opacity: emptyStateAnim.icon.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                })
+              }
+            ]}
+          >
+            <FontAwesome name="bar-chart" size={40} color={colors.primary} />
+          </Animated.View>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateTitle, 
+              { 
+                color: colors.text,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [15, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            More Data Needed
+          </Animated.Text>
+          
+          <Animated.Text 
+            style={[
+              styles.emptyStateText, 
+              { 
+                color: colors.subtext,
+                opacity: emptyStateAnim.text.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.text.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            Complete at least one more workout with this exercise to see your progress charts.
+          </Animated.Text>
+          
+          <Animated.View 
+            style={[
+              styles.dataPreviewContainer,
+              { 
+                opacity: emptyStateAnim.button.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1]
+                }),
+                transform: [{ 
+                  translateY: emptyStateAnim.button.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <View style={[styles.dataPreviewCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.dataPreviewLabel, { color: colors.subtext }]}>
+                Last Workout
+              </Text>
+              <Text style={[styles.dataPreviewValue, { color: colors.text }]}>
+                {chartData[0].date}
+              </Text>
+              <Text style={[styles.dataPreviewInfo, { color: colors.primary }]}>
+                {chartData[0].totalVolume.toLocaleString()} volume • {chartData[0].maxWeight} kg max
+              </Text>
+            </View>
+          </Animated.View>
         </View>
       );
     }
-
+    
     // Create a simple fallback chart display
     const fallbackChart = (
       <View style={[styles.fallbackChart, { backgroundColor: colors.card }]}>
@@ -661,5 +1098,76 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    height: 400,
+  },
+  emptyIconBg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+    paddingHorizontal: 16,
+  },
+  startButtonContainer: {
+    marginTop: 8,
+  },
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  startButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  startButtonIcon: {
+    marginRight: 8,
+  },
+  dataPreviewContainer: {
+    width: '100%',
+    paddingHorizontal: 24,
+    marginTop: 8,
+  },
+  dataPreviewCard: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  dataPreviewLabel: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  dataPreviewValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  dataPreviewInfo: {
+    fontSize: 14,
   },
 }); 
