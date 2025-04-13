@@ -8,6 +8,7 @@ import { resetDatabase, getDatabase } from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { useRouter } from 'expo-router';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -55,6 +56,7 @@ export default function ProfileScreen() {
     daysActive: 0,
     streakDays: 0
   });
+  const router = useRouter();
 
   useEffect(() => {
     // Load saved preference and stats
@@ -295,7 +297,7 @@ export default function ProfileScreen() {
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity 
               style={styles.statItem}
-              onPress={() => Alert.alert('Coming Soon', 'Progress charts will be available in a future update.')}
+              onPress={() => router.push('/progress')}
             >
               <View style={styles.viewProgressButton}>
                 <Text style={[styles.viewProgressText, { color: colors.text }]}>View Progress</Text>
