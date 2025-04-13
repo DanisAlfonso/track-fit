@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text, Modal } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text, Modal, ActivityIndicator, Linking, Share } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -46,7 +46,6 @@ export default function ProfileScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
-  const router = useRouter();
   const [useKilograms, setUseKilograms] = useState(true);
   const [userName, setUserName] = useState('Fitness Enthusiast');
   const [themeModalVisible, setThemeModalVisible] = useState(false);
@@ -296,18 +295,12 @@ export default function ProfileScreen() {
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity 
               style={styles.statItem}
-              onPress={() => router.push({pathname: '/progress'})}
-              activeOpacity={0.7}
+              onPress={() => Alert.alert('Coming Soon', 'Progress charts will be available in a future update.')}
             >
-              <LinearGradient
-                colors={[colors.primary, colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.viewProgressButton}
-              >
-                <Text style={styles.viewProgressText}>View Progress</Text>
-                <FontAwesome5 name="trophy" size={14} color="white" style={styles.viewProgressIcon} />
-              </LinearGradient>
+              <View style={styles.viewProgressButton}>
+                <Text style={[styles.viewProgressText, { color: colors.text }]}>View Progress</Text>
+                <FontAwesome5 name="chart-bar" size={14} color={colors.primary} style={styles.viewProgressIcon} />
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -478,6 +471,97 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://github.com/DanisAlfonso/TrackFit')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="github" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Open Source</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  View project on GitHub
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="external-link-alt" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('mailto:danisalfonso.dev@gmail.com')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="envelope" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Contact Support</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  danis
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=com.danisalfonso.trackfit')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="star" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Rate the App</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Like TrackFit? Leave a review
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={() => {
+              const message = "Check out TrackFit, a great workout tracker app I've been using: https://play.google.com/store/apps/details?id=com.danisalfonso.trackfit";
+              Share.share({
+                message,
+                title: "Share TrackFit"
+              });
+            }}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="share-alt" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Share with Friends</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Spread the word about TrackFit
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.settingItem}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://opensource.org/licenses/MIT')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="file-contract" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>License</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  MIT License
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -589,21 +673,15 @@ const styles = StyleSheet.create({
   viewProgressButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
   },
   viewProgressText: {
     fontSize: 14,
-    marginRight: 8,
-    fontWeight: '600',
-    color: 'white',
+    marginRight: 6,
+    fontWeight: '500',
   },
   viewProgressIcon: {
     marginLeft: 2,
