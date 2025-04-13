@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text, Modal } from 'react-native';
 import { Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -7,6 +7,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { resetDatabase, getDatabase } from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -41,10 +42,13 @@ export const lbToKg = (lb: number): number => {
 
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme, setTheme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   const [useKilograms, setUseKilograms] = useState(true);
   const [userName, setUserName] = useState('Fitness Enthusiast');
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [workoutStats, setWorkoutStats] = useState({
     totalWorkouts: 0,
     totalExercises: 0,
@@ -151,6 +155,83 @@ export default function ProfileScreen() {
     ));
   };
 
+  // Theme selector modal
+  const ThemeSelectionModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={themeModalVisible}
+      onRequestClose={() => setThemeModalVisible(false)}
+    >
+      <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Theme</Text>
+          
+          <TouchableOpacity
+            style={[
+              styles.themeOption,
+              { borderBottomColor: colors.border, borderBottomWidth: 1 }
+            ]}
+            onPress={() => {
+              setTheme('light');
+              setThemeModalVisible(false);
+            }}
+          >
+            <View style={styles.themeOptionLabel}>
+              <FontAwesome5 name="sun" size={20} color={colors.primary} style={styles.themeIcon} />
+              <Text style={[styles.themeText, { color: colors.text }]}>Light</Text>
+            </View>
+            {theme === 'light' && (
+              <FontAwesome5 name="check" size={16} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.themeOption,
+              { borderBottomColor: colors.border, borderBottomWidth: 1 }
+            ]}
+            onPress={() => {
+              setTheme('dark');
+              setThemeModalVisible(false);
+            }}
+          >
+            <View style={styles.themeOptionLabel}>
+              <FontAwesome5 name="moon" size={20} color={colors.primary} style={styles.themeIcon} />
+              <Text style={[styles.themeText, { color: colors.text }]}>Dark</Text>
+            </View>
+            {theme === 'dark' && (
+              <FontAwesome5 name="check" size={16} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.themeOption}
+            onPress={() => {
+              setTheme('system');
+              setThemeModalVisible(false);
+            }}
+          >
+            <View style={styles.themeOptionLabel}>
+              <FontAwesome5 name="mobile-alt" size={20} color={colors.primary} style={styles.themeIcon} />
+              <Text style={[styles.themeText, { color: colors.text }]}>Use System Settings</Text>
+            </View>
+            {theme === 'system' && (
+              <FontAwesome5 name="check" size={16} color={colors.primary} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.closeButton, { backgroundColor: colors.primary }]}
+            onPress={() => setThemeModalVisible(false)}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
@@ -162,6 +243,8 @@ export default function ProfileScreen() {
           headerTintColor: colors.text,
         }}
       />
+      
+      {ThemeSelectionModal()}
       
       {/* Profile Header with Gradient Background */}
       <LinearGradient
@@ -293,7 +376,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
+            onPress={() => setThemeModalVisible(true)}
           >
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="palette" size={18} color={colors.primary} style={styles.settingIcon} />
@@ -304,7 +387,36 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
-            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+            <View style={styles.themeSelector}>
+              <Text style={[styles.themeValue, { color: colors.text }]}>
+                {theme === 'system' 
+                  ? 'System' 
+                  : theme === 'dark' 
+                    ? 'Dark' 
+                    : 'Light'}
+              </Text>
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} style={{ marginLeft: 8 }} />
+            </View>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={() => Alert.alert('Coming Soon', 'Language options will be available in a future update.')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="language" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Language</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Change app language
+                </Text>
+              </View>
+            </View>
+            <View style={styles.comingSoonContainer}>
+              <Text style={[styles.comingSoonLabel, { color: colors.accent }]}>Coming Soon</Text>
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} style={{ marginLeft: 8 }} />
+            </View>
           </TouchableOpacity>
         </View>
         
@@ -566,5 +678,73 @@ const styles = StyleSheet.create({
   dangerButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  }
+  },
+  comingSoonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  comingSoonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  themeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+  },
+  themeOptionLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themeIcon: {
+    marginRight: 16,
+    width: 24,
+    textAlign: 'center',
+  },
+  themeText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  closeButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  themeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themeValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
 }); 

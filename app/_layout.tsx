@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -8,6 +8,7 @@ import { useColorScheme, Alert, View } from 'react-native';
 import { initDatabase, insertDefaultExercises, resetDatabase } from '../utils/database';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
+import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -57,18 +58,27 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  return (
+    <ThemeProvider>
+      <ThemedNavigator />
+    </ThemeProvider>
+  );
+}
+
+function ThemedNavigator() {
+  const { currentTheme } = useTheme();
+  const navTheme = currentTheme === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
     <WorkoutProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavigationThemeProvider value={navTheme}>
         <View style={{ flex: 1 }}>
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           </Stack>
           <ActiveWorkoutIndicator />
         </View>
-      </ThemeProvider>
+      </NavigationThemeProvider>
     </WorkoutProvider>
   );
 }

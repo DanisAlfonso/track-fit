@@ -6,6 +6,7 @@ import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '@/context/ThemeContext';
 
 type Workout = {
   id: number;
@@ -19,8 +20,10 @@ type Workout = {
 export default function WorkoutsTab() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [isLoading, setIsLoading] = useState(true);

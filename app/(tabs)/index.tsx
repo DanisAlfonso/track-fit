@@ -7,6 +7,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format } from 'date-fns';
+import { useTheme } from '@/context/ThemeContext';
 
 type Routine = {
   id: number;
@@ -33,8 +34,10 @@ type WorkoutStats = {
 export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);

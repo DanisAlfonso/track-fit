@@ -8,6 +8,7 @@ import { getDatabase } from '@/utils/database';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 type Routine = {
   id: number;
@@ -20,8 +21,10 @@ type Routine = {
 export default function RoutinesScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);

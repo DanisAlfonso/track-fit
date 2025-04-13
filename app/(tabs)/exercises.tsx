@@ -8,6 +8,7 @@ import { useRouter, Stack } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 type Exercise = {
   id: number;
@@ -20,8 +21,10 @@ type Exercise = {
 
 export default function ExercisesScreen() {
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   const router = useRouter();
 
   const [exercises, setExercises] = useState<Exercise[]>([]);

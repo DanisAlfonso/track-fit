@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
 
 import Colors from '@/constants/Colors';
+import { useTheme } from '@/context/ThemeContext';
 
 /**
  * You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
@@ -16,8 +17,10 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   return (
     <Tabs
