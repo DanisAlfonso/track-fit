@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
+  Alert, 
+  ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Platform
+} from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -43,7 +55,7 @@ export default function CreateRoutineScreen() {
     if (searchQuery) {
       const filtered = exercises.filter(exercise => 
         exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        exercise.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase())
+        (exercise.primary_muscle && exercise.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase()))
       );
       setFilteredExercises(filtered);
     } else {
@@ -137,55 +149,36 @@ export default function CreateRoutineScreen() {
     }
   };
 
-  const renderExerciseItem = ({ item }: { item: Exercise }) => (
-    <TouchableOpacity 
-      style={[styles.exerciseItem, { backgroundColor: colors.card }]}
-      onPress={() => addExerciseToRoutine(item)}
-    >
-      <View style={styles.exerciseInfo}>
-        <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
-        <Text style={[styles.exerciseDetails, { color: colors.subtext }]}>
-          {item.category} • {item.primary_muscle}
-        </Text>
-      </View>
-      <FontAwesome name="plus-circle" size={20} color={colors.primary} />
-    </TouchableOpacity>
-  );
-
-  const renderSelectedExerciseItem = ({ item, index }: { item: RoutineExercise, index: number }) => (
-    <View style={[styles.selectedExerciseItem, { backgroundColor: colors.card }]}>
-      <View style={styles.selectedExerciseInfo}>
-        <Text style={[styles.selectedExerciseName, { color: colors.text }]}>{item.name}</Text>
-        <View style={styles.setsContainer}>
-          <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets:</Text>
-          <View style={styles.setsControls}>
-            <TouchableOpacity 
-              style={[styles.setsButton, { backgroundColor: colors.background }]}
-              onPress={() => updateExerciseSets(index, item.sets - 1)}
-            >
-              <FontAwesome name="minus" size={12} color={colors.text} />
-            </TouchableOpacity>
-            <Text style={[styles.setsValue, { color: colors.text }]}>{item.sets}</Text>
-            <TouchableOpacity 
-              style={[styles.setsButton, { backgroundColor: colors.background }]}
-              onPress={() => updateExerciseSets(index, item.sets + 1)}
-            >
-              <FontAwesome name="plus" size={12} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      <TouchableOpacity 
-        style={styles.removeButton}
-        onPress={() => removeExerciseFromRoutine(index)}
-      >
-        <FontAwesome name="trash" size={16} color={colors.error} />
-      </TouchableOpacity>
-    </View>
-  );
+  const getMuscleColor = (muscle?: string) => {
+    if (!muscle) return colors.primary;
+    
+    // Map of muscle groups to colors
+    const muscleColors: Record<string, string> = {
+      'chest': '#FF6B6B',
+      'back': '#48BEFF',
+      'shoulders': '#9F7AEA',
+      'biceps': '#4CAF50',
+      'triceps': '#FF9800',
+      'legs': '#FFC107',
+      'quadriceps': '#8BC34A',
+      'hamstrings': '#CDDC39',
+      'calves': '#FFEB3B',
+      'glutes': '#FFC107',
+      'abs': '#00BCD4',
+      'core': '#00BCD4',
+      'forearms': '#795548',
+      'traps': '#9C27B0',
+    };
+    
+    return muscleColors[muscle.toLowerCase()] || colors.primary;
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    >
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
@@ -195,9 +188,10 @@ export default function CreateRoutineScreen() {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
+          headerShadowVisible: false,
           headerRight: () => (
             <TouchableOpacity 
-              style={styles.saveButton}
+              style={[styles.saveButton, { opacity: isLoading ? 0.7 : 1 }]}
               onPress={saveRoutine}
               disabled={isLoading}
             >
@@ -211,11 +205,18 @@ export default function CreateRoutineScreen() {
         }}
       />
       
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Routine Details</Text>
           
-          <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.inputContainer, { 
+            backgroundColor: colors.card,
+            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+          }]}>
             <Text style={[styles.inputLabel, { color: colors.subtext }]}>Name</Text>
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -226,7 +227,10 @@ export default function CreateRoutineScreen() {
             />
           </View>
           
-          <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.inputContainer, { 
+            backgroundColor: colors.card,
+            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+          }]}>
             <Text style={[styles.inputLabel, { color: colors.subtext }]}>Description (Optional)</Text>
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -236,25 +240,87 @@ export default function CreateRoutineScreen() {
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
+              textAlignVertical="top"
             />
           </View>
         </View>
         
         <View style={styles.formSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Selected Exercises</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Selected Exercises</Text>
+            <Text style={[styles.sectionCount, { color: colors.primary }]}>
+              {selectedExercises.length} {selectedExercises.length === 1 ? 'exercise' : 'exercises'}
+            </Text>
+          </View>
           
           {selectedExercises.length === 0 ? (
-            <View style={[styles.emptyContainer, { backgroundColor: colors.card }]}>
-              <FontAwesome name="list" size={24} color={colors.subtext} style={styles.emptyIcon} />
+            <View style={[styles.emptyContainer, { 
+              backgroundColor: colors.card,
+              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            }]}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: `${colors.primary}20` }]}>
+                <FontAwesome name="list" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                No Exercises Added
+              </Text>
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                No exercises added yet. Select exercises from the list below.
+                Select exercises from the list below to build your routine.
               </Text>
             </View>
           ) : (
             <View style={styles.selectedExercisesList}>
               {selectedExercises.map((exercise, index) => (
-                <View key={index}>
-                  {renderSelectedExerciseItem({ item: exercise, index })}
+                <View key={index} style={styles.selectedExerciseWrapper}>
+                  <View style={styles.selectedExerciseOrderContainer}>
+                    <View style={[styles.selectedExerciseOrder, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.selectedExerciseOrderText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.dragHandle}>
+                      <FontAwesome name="bars" size={16} color={colors.subtext} />
+                    </View>
+                  </View>
+                  
+                  <View style={[styles.selectedExerciseItem, { 
+                    backgroundColor: colors.card,
+                    borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                  }]}>
+                    <View style={styles.selectedExerciseInfo}>
+                      <Text style={[styles.selectedExerciseName, { color: colors.text }]}>
+                        {exercise.name}
+                      </Text>
+                      <View style={styles.setsContainer}>
+                        <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets:</Text>
+                        <View style={styles.setsControls}>
+                          <TouchableOpacity 
+                            style={[styles.setsButton, { 
+                              backgroundColor: colors.background,
+                              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                            }]}
+                            onPress={() => updateExerciseSets(index, exercise.sets - 1)}
+                          >
+                            <FontAwesome name="minus" size={12} color={colors.text} />
+                          </TouchableOpacity>
+                          <Text style={[styles.setsValue, { color: colors.text }]}>{exercise.sets}</Text>
+                          <TouchableOpacity 
+                            style={[styles.setsButton, { 
+                              backgroundColor: colors.background,
+                              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                            }]}
+                            onPress={() => updateExerciseSets(index, exercise.sets + 1)}
+                          >
+                            <FontAwesome name="plus" size={12} color={colors.text} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                    <TouchableOpacity 
+                      style={[styles.removeButton, { backgroundColor: `${colors.error}15` }]}
+                      onPress={() => removeExerciseFromRoutine(index)}
+                    >
+                      <FontAwesome name="trash" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </View>
@@ -264,27 +330,127 @@ export default function CreateRoutineScreen() {
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Exercises</Text>
           
-          <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-            <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
+          <View style={[styles.searchContainer, { 
+            backgroundColor: colors.card,
+            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+          }]}>
+            <FontAwesome name="search" size={16} color={colors.primary} style={styles.searchIcon} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search exercises..."
+              placeholder="Search by name or muscle group..."
               placeholderTextColor={colors.subtext}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity 
+                style={styles.clearSearch}
+                onPress={() => setSearchQuery('')}
+              >
+                <FontAwesome name="times-circle" size={16} color={colors.subtext} />
+              </TouchableOpacity>
+            )}
           </View>
           
           <View style={styles.exercisesList}>
-            {filteredExercises.map((exercise) => (
-              <View key={exercise.id}>
-                {renderExerciseItem({ item: exercise })}
+            {filteredExercises.map((exercise) => {
+              // Check if this exercise is already selected
+              const isSelected = selectedExercises.some(selected => selected.id === exercise.id);
+              
+              return (
+                <TouchableOpacity 
+                  key={exercise.id}
+                  style={[
+                    styles.exerciseItem, 
+                    { 
+                      backgroundColor: colors.card,
+                      borderLeftColor: getMuscleColor(exercise.primary_muscle),
+                      borderColor: isSelected 
+                        ? colors.primary
+                        : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                      opacity: isSelected ? 0.8 : 1,
+                    }
+                  ]}
+                  onPress={() => {
+                    if (!isSelected) {
+                      addExerciseToRoutine(exercise);
+                    } else {
+                      // Find the index in the selected exercises and remove it
+                      const index = selectedExercises.findIndex(item => item.id === exercise.id);
+                      if (index !== -1) {
+                        removeExerciseFromRoutine(index);
+                      }
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.exerciseInfo}>
+                    <Text style={[styles.exerciseName, { color: colors.text }]}>
+                      {exercise.name}
+                    </Text>
+                    <View style={styles.exerciseTagsContainer}>
+                      {exercise.primary_muscle && (
+                        <View style={[styles.exerciseTag, { 
+                          backgroundColor: `${getMuscleColor(exercise.primary_muscle)}20` 
+                        }]}>
+                          <Text style={[styles.exerciseTagText, { 
+                            color: getMuscleColor(exercise.primary_muscle) 
+                          }]}>
+                            {exercise.primary_muscle}
+                          </Text>
+                        </View>
+                      )}
+                      {exercise.category && (
+                        <View style={[styles.exerciseTag, { 
+                          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                          borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+                        }]}>
+                          <Text style={[styles.exerciseTagText, { color: colors.subtext }]}>
+                            {exercise.category}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      {isSelected && (
+                        <View style={[styles.exerciseTag, { 
+                          backgroundColor: `${colors.primary}15`,
+                          borderColor: colors.primary,
+                        }]}>
+                          <Text style={[styles.exerciseTagText, { color: colors.primary }]}>
+                            Added
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={[
+                    styles.addExerciseButton, 
+                    { 
+                      backgroundColor: isSelected ? `${colors.error}15` : `${colors.primary}15`,
+                    }
+                  ]}>
+                    <FontAwesome 
+                      name={isSelected ? "minus" : "plus"} 
+                      size={16} 
+                      color={isSelected ? colors.error : colors.primary} 
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            
+            {filteredExercises.length === 0 && (
+              <View style={[styles.emptySearchContainer, { backgroundColor: colors.card }]}>
+                <FontAwesome name="search" size={24} color={colors.subtext} style={{ opacity: 0.5 }} />
+                <Text style={[styles.emptySearchText, { color: colors.subtext }]}>
+                  {searchQuery ? 'No exercises match your search' : 'No exercises found'}
+                </Text>
               </View>
-            ))}
+            )}
           </View>
         </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -294,84 +460,155 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   formSection: {
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 12,
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   inputContainer: {
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
   },
   inputLabel: {
     fontSize: 14,
-    marginBottom: 4,
+    marginBottom: 8,
+    fontWeight: '500',
   },
   input: {
     fontSize: 16,
     padding: 0,
+    lineHeight: 22,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 12,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderWidth: 1,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 12,
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
+    paddingVertical: 4,
+  },
+  clearSearch: {
+    padding: 4,
   },
   exercisesList: {
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 12,
   },
   exerciseItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderLeftWidth: 4,
   },
   exerciseInfo: {
     flex: 1,
   },
   exerciseName: {
     fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 2,
+    fontWeight: '600',
+    marginBottom: 8,
   },
-  exerciseDetails: {
-    fontSize: 14,
+  exerciseTagsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  exerciseTag: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  exerciseTagText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  addExerciseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   selectedExercisesList: {
-    marginBottom: 12,
+    marginBottom: 16,
+    gap: 12,
+  },
+  selectedExerciseWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  selectedExerciseOrderContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginRight: 12,
+    gap: 8,
+  },
+  selectedExerciseOrder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedExerciseOrderText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  dragHandle: {
+    padding: 4,
   },
   selectedExerciseItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    flex: 1,
+    borderWidth: 1,
   },
   selectedExerciseInfo: {
     flex: 1,
   },
   selectedExerciseName: {
     fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   setsContainer: {
     flexDirection: 'row',
@@ -379,42 +616,71 @@ const styles = StyleSheet.create({
   },
   setsLabel: {
     fontSize: 14,
-    marginRight: 8,
+    marginRight: 12,
+    fontWeight: '500',
   },
   setsControls: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   setsButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 4,
+    borderWidth: 1,
   },
   setsValue: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     marginHorizontal: 8,
     minWidth: 20,
     textAlign: 'center',
   },
   removeButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    borderRadius: 8,
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  emptyIcon: {
-    marginBottom: 12,
+  emptyIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
+    maxWidth: '80%',
+    lineHeight: 20,
+  },
+  emptySearchContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    borderRadius: 16,
+  },
+  emptySearchText: {
+    fontSize: 16,
+    marginTop: 12,
   },
   saveButton: {
     paddingHorizontal: 16,
