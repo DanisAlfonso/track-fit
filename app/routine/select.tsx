@@ -1,12 +1,10 @@
-import { useState } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { FontAwesome5, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 
 type Routine = {
@@ -14,10 +12,10 @@ type Routine = {
   name: string;
   description: string | null;
   created_at: number;
-  exerciseCount?: number;
+  exerciseCount: number;
 };
 
-export default function RoutinesScreen() {
+export default function SelectRoutineScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
@@ -26,15 +24,13 @@ export default function RoutinesScreen() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadRoutines();
-    }, [])
-  );
+  useEffect(() => {
+    loadRoutines();
+  }, []);
 
   const loadRoutines = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const db = await getDatabase();
       const results = await db.getAllAsync<Routine>(`
         SELECT r.id, r.name, r.description, r.created_at, 
@@ -43,7 +39,9 @@ export default function RoutinesScreen() {
         ORDER BY r.created_at DESC
       `);
       
-      setRoutines(results);
+      // Filter out routines with no exercises
+      const validRoutines = results.filter(routine => routine.exerciseCount > 0);
+      setRoutines(validRoutines);
     } catch (error) {
       console.error('Error loading routines:', error);
     } finally {
@@ -51,22 +49,17 @@ export default function RoutinesScreen() {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
-  };
-
-  const navigateToCreateRoutine = () => {
-    router.push('/routine/create');
-  };
-
-  const navigateToRoutineDetail = (routineId: number) => {
-    router.push(`/routine/${routineId}`);
+  const selectRoutine = (routineId: number) => {
+    router.push({
+      pathname: "/workout/start",
+      params: { routineId }
+    });
   };
 
   const renderRoutineItem = ({ item }: { item: Routine }) => (
     <TouchableOpacity 
       style={[styles.routineCard, { backgroundColor: colors.card }]}
-      onPress={() => navigateToRoutineDetail(item.id)}
+      onPress={() => selectRoutine(item.id)}
       activeOpacity={0.7}
     >
       <View style={styles.routineIconContainer}>
@@ -91,39 +84,33 @@ export default function RoutinesScreen() {
               {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
             </Text>
           </View>
-          <View style={styles.routineMetaItem}>
-            <FontAwesome5 name="calendar-alt" size={12} color={colors.subtext} style={styles.metaIcon} />
-            <Text style={[styles.routineMeta, { color: colors.subtext }]}>
-              {formatDate(item.created_at)}
-            </Text>
-          </View>
         </View>
       </View>
       <View style={styles.chevronContainer}>
-        <Ionicons name="chevron-forward" size={20} color={colors.subtext} />
+        <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
       </View>
     </TouchableOpacity>
   );
 
+  const navigateToCreateRoutine = () => {
+    router.push('/routine/create');
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>My Routines</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={navigateToCreateRoutine}
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.addButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <FontAwesome5 name="plus" size={14} color="white" />
-            <Text style={styles.addButtonText}>New Routine</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
+      <Stack.Screen 
+        options={{
+          title: "Select Routine",
+          headerTintColor: colors.text,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+        }}
+      />
+
+      <Text style={[styles.subtitle, { color: colors.subtext }]}>
+        Select a routine to start your workout
+      </Text>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -140,11 +127,11 @@ export default function RoutinesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
-                <FontAwesome5 name="dumbbell" size={32} color={colors.primary} />
+                <FontAwesome5 name="clipboard-list" size={32} color={colors.primary} />
               </View>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Yet</Text>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Available</Text>
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                Create your first workout routine to get started
+                You need to create a routine with exercises before starting a workout
               </Text>
               <TouchableOpacity
                 style={styles.emptyCreateButton}
@@ -172,32 +159,19 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  subtitle: {
+    fontSize: 16,
     marginBottom: 24,
-    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  addButton: {
-    overflow: 'hidden',
-    borderRadius: 12,
-  },
-  addButtonGradient: {
-    flexDirection: 'row',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
   },
-  addButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    marginLeft: 8,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
   },
   routinesList: {
     paddingBottom: 20,
@@ -255,15 +229,6 @@ const styles = StyleSheet.create({
   },
   chevronContainer: {
     marginLeft: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
   },
   emptyContainer: {
     alignItems: 'center',

@@ -1,82 +1,418 @@
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
+import { getDatabase } from '@/utils/database';
+import { LinearGradient } from 'expo-linear-gradient';
+import { format } from 'date-fns';
+
+type Routine = {
+  id: number;
+  name: string;
+  exerciseCount: number;
+};
+
+type RecentWorkout = {
+  id: number;
+  date: number;
+  routine_name: string;
+  duration: number;
+  exercise_count: number;
+};
+
+type WorkoutStats = {
+  total_workouts: number;
+  total_duration: number;
+  this_week: number;
+  last_workout_date: number | null;
+  streak: number;
+};
 
 export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
   const colors = Colors[theme];
+  
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
+  const [stats, setStats] = useState<WorkoutStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const features = [
-    {
-      icon: 'dumbbell',
-      title: 'Exercises',
-      description: 'Browse through a comprehensive collection of exercises',
-      route: '/exercises',
-    },
-    {
-      icon: 'calendar',
-      title: 'Routines',
-      description: 'Create and manage your workout routines',
-      route: '/routines',
-    },
-    {
-      icon: 'bar-chart',
-      title: 'Track Workouts',
-      description: 'Record your workouts and track your progress',
-      route: '/workouts',
-    },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const db = await getDatabase();
+      
+      // Load routines
+      const routinesResults = await db.getAllAsync<Routine>(`
+        SELECT r.id, r.name, 
+        (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exerciseCount
+        FROM routines r
+        ORDER BY r.created_at DESC
+      `);
+      setRoutines(routinesResults);
+      
+      // Load recent workouts
+      const recentWorkoutsResults = await db.getAllAsync<RecentWorkout>(`
+        SELECT w.id, w.date, r.name as routine_name, w.duration,
+        (SELECT COUNT(DISTINCT we.exercise_id) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count
+        FROM workouts w
+        JOIN routines r ON w.routine_id = r.id
+        WHERE w.completed_at IS NOT NULL
+        ORDER BY w.date DESC
+        LIMIT 3
+      `);
+      setRecentWorkouts(recentWorkoutsResults);
+      
+      // Load workout stats
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      const statsResult = await db.getFirstAsync<WorkoutStats>(`
+        SELECT 
+          COUNT(*) as total_workouts,
+          SUM(duration) as total_duration,
+          (SELECT COUNT(*) FROM workouts WHERE date >= ? AND completed_at IS NOT NULL) as this_week,
+          (SELECT MAX(date) FROM workouts WHERE completed_at IS NOT NULL) as last_workout_date,
+          0 as streak
+        FROM workouts
+        WHERE completed_at IS NOT NULL
+      `, [startOfWeek.getTime()]);
+      
+      // Calculate streak (simplified version - assumes consecutive days)
+      if (statsResult && statsResult.last_workout_date) {
+        let streak = 0;
+        const lastWorkoutDate = new Date(statsResult.last_workout_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Check if last workout was yesterday or today
+        const lastWorkoutDay = lastWorkoutDate.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        
+        if (lastWorkoutDay >= yesterday.getTime()) {
+          // Start counting streak
+          let currentDate = new Date(lastWorkoutDate);
+          let keepCounting = true;
+          
+          while (keepCounting) {
+            const workoutOnDate = await db.getFirstAsync(`
+              SELECT 1 FROM workouts 
+              WHERE date >= ? AND date < ? AND completed_at IS NOT NULL
+              LIMIT 1
+            `, [
+              currentDate.setHours(0, 0, 0, 0),
+              currentDate.setHours(23, 59, 59, 999)
+            ]);
+            
+            if (workoutOnDate) {
+              streak++;
+              currentDate = new Date(currentDate);
+              currentDate.setDate(currentDate.getDate() - 1);
+            } else {
+              keepCounting = false;
+            }
+          }
+        }
+        
+        statsResult.streak = streak;
+      }
+      
+      setStats(statsResult);
+    } catch (error) {
+      console.error('Error loading home data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToCreateRoutine = () => {
+    router.push('/routine/create');
+  };
+
+  const handleStartWorkout = () => {
+    if (loading) {
+      return;
+    }
+    
+    if (routines.length === 0) {
+      Alert.alert(
+        'No Routines Available',
+        'You need to create a routine before starting a workout.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Create Routine', onPress: navigateToCreateRoutine }
+        ]
+      );
+      return;
+    }
+
+    if (routines.length === 1) {
+      const routine = routines[0];
+      if (routine.exerciseCount === 0) {
+        Alert.alert(
+          'Empty Routine',
+          `The routine "${routine.name}" doesn't have any exercises. Please add exercises to it first.`,
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${routine.id}`) }
+          ]
+        );
+        return;
+      }
+      
+      router.push({
+        pathname: '/workout/start',
+        params: { routineId: routine.id }
+      });
+    } else {
+      router.push('/routine/select');
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  };
+
+  const formatDate = (timestamp: number): string => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return format(date, 'MMM d');
+    }
+  };
+
+  const navigateToWorkout = (workoutId: number) => {
+    router.push(`/workout/${workoutId}`);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.subtext }]}>Loading your dashboard...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>TrackFit</Text>
         <Text style={[styles.subtitle, { color: colors.subtext }]}>Your Fitness Journey</Text>
       </View>
 
-      <View style={styles.featuresContainer}>
-        {features.map((feature, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[styles.featureCard, { backgroundColor: colors.card }]}
-            onPress={() => router.push(feature.route as any)}
-          >
-            <View style={[styles.iconContainer, { backgroundColor: colors.primary }]}>
-              <FontAwesome name={feature.icon as any} size={24} color="white" />
-            </View>
-            <View style={styles.featureContent}>
-              <Text style={[styles.featureTitle, { color: colors.text }]}>{feature.title}</Text>
-              <Text style={[styles.featureDescription, { color: colors.subtext }]}>
-                {feature.description}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
+      {/* Quick Actions */}
       <View style={styles.quickActionsContainer}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
         <View style={styles.quickActionsRow}>
           <TouchableOpacity
-            style={[styles.quickActionButton, { backgroundColor: colors.accent }]}
-            onPress={() => router.push('/routines/create' as any)}
+            style={styles.quickActionButton}
+            onPress={navigateToCreateRoutine}
+            activeOpacity={0.8}
           >
-            <FontAwesome name="plus" size={16} color="white" />
-            <Text style={styles.quickActionText}>New Routine</Text>
+            <LinearGradient
+              colors={[colors.accent, colors.secondary]}
+              style={styles.quickActionGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <FontAwesome5 name="plus" size={16} color="white" />
+              <Text style={styles.quickActionText}>New Routine</Text>
+            </LinearGradient>
           </TouchableOpacity>
+          
           <TouchableOpacity
-            style={[styles.quickActionButton, { backgroundColor: colors.secondary }]}
-            onPress={() => router.push('/workouts/start' as any)}
+            style={styles.quickActionButton}
+            onPress={handleStartWorkout}
+            activeOpacity={0.8}
           >
-            <FontAwesome name="play" size={16} color="white" />
-            <Text style={styles.quickActionText}>Start Workout</Text>
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.quickActionGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <FontAwesome5 name="play" size={14} color="white" />
+              <Text style={styles.quickActionText}>Start Workout</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Workout Stats */}
+      <View style={styles.statsContainer}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Progress</Text>
+        
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+              <FontAwesome5 name="calendar-check" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.total_workouts || 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Workouts</Text>
+          </View>
+          
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+              <FontAwesome5 name="clock" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {stats?.total_duration ? formatDuration(stats.total_duration) : '0m'}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Time</Text>
+          </View>
+          
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+              <FontAwesome5 name="calendar-week" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.this_week || 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>This Week</Text>
+          </View>
+          
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
+              <FontAwesome5 name="fire" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.streak || 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.subtext }]}>Day Streak</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Recent Workouts */}
+      <View style={styles.recentWorkoutsContainer}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Workouts</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/workouts')}>
+            <Text style={[styles.seeAllLink, { color: colors.primary }]}>See All</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {recentWorkouts.length > 0 ? (
+          recentWorkouts.map((workout, index) => (
+            <TouchableOpacity 
+              key={workout.id}
+              style={[styles.workoutCard, { backgroundColor: colors.card }]}
+              onPress={() => navigateToWorkout(workout.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.workoutDateContainer, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.workoutDate, { color: colors.primary }]}>
+                  {formatDate(workout.date)}
+                </Text>
+              </View>
+              <View style={styles.workoutContent}>
+                <Text style={[styles.workoutName, { color: colors.text }]}>{workout.routine_name}</Text>
+                <View style={styles.workoutMeta}>
+                  <View style={styles.workoutMetaItem}>
+                    <FontAwesome5 name="dumbbell" size={12} color={colors.subtext} style={styles.metaIcon} />
+                    <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
+                      {workout.exercise_count} exercises
+                    </Text>
+                  </View>
+                  <View style={styles.workoutMetaItem}>
+                    <FontAwesome5 name="clock" size={12} color={colors.subtext} style={styles.metaIcon} />
+                    <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
+                      {formatDuration(workout.duration)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+            </TouchableOpacity>
+          ))
+        ) : (
+          <View style={[styles.emptyWorkoutsContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Workouts Yet</Text>
+            <Text style={[styles.emptyText, { color: colors.subtext }]}>
+              Time to start your fitness journey
+            </Text>
+            <TouchableOpacity 
+              style={styles.startWorkoutButton} 
+              onPress={handleStartWorkout}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.startWorkoutGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.startWorkoutText}>Start First Workout</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Suggested Workouts */}
+      {routines.length > 0 && (
+        <View style={styles.suggestedContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Suggested Workouts</Text>
+          
+          {routines.slice(0, 2).map((routine) => (
+            <TouchableOpacity 
+              key={routine.id}
+              style={[styles.suggestedCard, { backgroundColor: colors.card }]}
+              onPress={() => {
+                if (routine.exerciseCount > 0) {
+                  router.push({
+                    pathname: '/workout/start',
+                    params: { routineId: routine.id }
+                  });
+                } else {
+                  Alert.alert(
+                    'Empty Routine',
+                    `This routine doesn't have any exercises. Please add exercises to it first.`,
+                    [
+                      { text: 'OK', style: 'cancel' },
+                      { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${routine.id}`) }
+                    ]
+                  );
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.suggestedContent}>
+                <Text style={[styles.suggestedName, { color: colors.text }]}>{routine.name}</Text>
+                <Text style={[styles.suggestedCount, { color: colors.subtext }]}>
+                  {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <View style={styles.startButtonContainer}>
+                <LinearGradient
+                  colors={[colors.primary, colors.secondary]}
+                  style={styles.startButton}
+                >
+                  <FontAwesome5 name="play" size={14} color="white" />
+                </LinearGradient>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -87,8 +423,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   header: {
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 8,
+    marginBottom: 24,
     alignItems: 'center',
   },
   title: {
@@ -99,63 +435,209 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 4,
   },
-  featuresContainer: {
-    marginBottom: 30,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  featureContent: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 14,
-  },
   quickActionsContainer: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   quickActionButton: {
+    width: '48%',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  quickActionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
   quickActionText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginLeft: 8,
+    fontSize: 15,
+  },
+  statsContainer: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  seeAllLink: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    width: '48%',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 13,
+  },
+  recentWorkoutsContainer: {
+    marginBottom: 24,
+  },
+  workoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  workoutDateContainer: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginRight: 14,
+  },
+  workoutDate: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  workoutContent: {
+    flex: 1,
+  },
+  workoutName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  workoutMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  workoutMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  metaIcon: {
+    marginRight: 4,
+  },
+  workoutMetaText: {
+    fontSize: 13,
+  },
+  suggestedContainer: {
+    marginBottom: 30,
+  },
+  suggestedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  suggestedContent: {
+    flex: 1,
+  },
+  suggestedName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  suggestedCount: {
+    fontSize: 13,
+  },
+  startButtonContainer: {
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  startButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyWorkoutsContainer: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  startWorkoutButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '80%',
+  },
+  startWorkoutGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startWorkoutText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+  },
+  activityIndicator: {
+    marginRight: 8,
   },
 });
