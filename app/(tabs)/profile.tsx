@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerGradient: {
-    paddingBottom: 30,
+    paddingBottom: 40,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     marginBottom: 20,
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   statsCardsContainer: {
     paddingHorizontal: 16,
-    marginTop: -10,
+    marginTop: -30,
     marginBottom: 16,
   },
   statsCard: {

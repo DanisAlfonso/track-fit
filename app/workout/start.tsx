@@ -8,7 +8,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useWorkout } from '@/context/WorkoutContext';
-import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/settings';
+import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/profile';
 
 type Exercise = {
   routine_exercise_id: number;
