@@ -80,6 +80,10 @@ export default function ExerciseDetailScreen() {
     }
   };
 
+  const navigateToRoutines = () => {
+    router.push('/(tabs)/routines');
+  };
+
   const confirmDelete = () => {
     Alert.alert(
       "Delete Exercise",
@@ -299,15 +303,7 @@ export default function ExerciseDetailScreen() {
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity 
             style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={() => {/* Navigate to start workout with this exercise */}}
-          >
-            <FontAwesome name="play" size={16} color="white" />
-            <Text style={styles.actionButtonText}>Start Workout</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-            onPress={() => {/* Navigate to add to routine */}}
+            onPress={navigateToRoutines}
           >
             <FontAwesome name="plus" size={16} color="white" />
             <Text style={styles.actionButtonText}>Add to Routine</Text>
@@ -383,7 +379,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -457,21 +453,23 @@ const styles = StyleSheet.create({
   },
   actionButtonsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 16,
+    marginBottom: 24,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 8,
-    flex: 0.48,
+    width: '100%',
   },
   actionButtonText: {
     color: 'white',
     fontWeight: 'bold',
     marginLeft: 8,
+    fontSize: 16,
   },
   loadingText: {
     textAlign: 'center',

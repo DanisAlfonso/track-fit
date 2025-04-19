@@ -147,21 +147,8 @@ export default function RoutinesScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Yet</Text>
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                Create your first workout routine to get started
+                Click the "New Routine" button in the top right to create your first workout routine
               </Text>
-              <TouchableOpacity
-                style={styles.emptyCreateButton}
-                onPress={navigateToCreateRoutine}
-              >
-                <LinearGradient
-                  colors={[colors.primary, colors.secondary]}
-                  style={styles.emptyCreateButtonGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.emptyCreateButtonText}>Create Routine</Text>
-                </LinearGradient>
-              </TouchableOpacity>
             </View>
           }
         />
@@ -292,22 +279,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 22,
-  },
-  emptyCreateButton: {
-    overflow: 'hidden',
-    borderRadius: 12,
-    width: '70%',
-  },
-  emptyCreateButtonGradient: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  emptyCreateButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
   },
 }); 
