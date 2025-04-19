@@ -15,6 +15,7 @@ type Routine = {
   description: string | null;
   created_at: number;
   exerciseCount?: number;
+  scheduledDays?: string; // Comma-separated list of scheduled days
 };
 
 export default function RoutinesScreen() {
@@ -39,8 +40,25 @@ export default function RoutinesScreen() {
     try {
       const db = await getDatabase();
       const results = await db.getAllAsync<Routine>(`
-        SELECT r.id, r.name, r.description, r.created_at, 
-        (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exerciseCount
+        SELECT 
+          r.id, 
+          r.name, 
+          r.description, 
+          r.created_at, 
+          (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exerciseCount,
+          (
+            SELECT GROUP_CONCAT(CASE ws.day_of_week 
+              WHEN 0 THEN 'Sun'
+              WHEN 1 THEN 'Mon'
+              WHEN 2 THEN 'Tue'
+              WHEN 3 THEN 'Wed'
+              WHEN 4 THEN 'Thu'
+              WHEN 5 THEN 'Fri'
+              WHEN 6 THEN 'Sat'
+            END, ', ')
+            FROM weekly_schedule ws
+            WHERE ws.routine_id = r.id
+          ) as scheduledDays
         FROM routines r
         ORDER BY r.created_at DESC
       `);
@@ -100,6 +118,15 @@ export default function RoutinesScreen() {
             </Text>
           </View>
         </View>
+        
+        {item.scheduledDays && (
+          <View style={[styles.scheduledDaysContainer, { borderTopColor: colors.border }]}>
+            <FontAwesome5 name="calendar-week" size={14} color={colors.primary} style={styles.metaIcon} />
+            <Text style={[styles.scheduledDaysText, { color: colors.primary }]}>
+              Scheduled: {item.scheduledDays}
+            </Text>
+          </View>
+        )}
       </View>
       <View style={styles.chevronContainer}>
         <Ionicons name="chevron-forward" size={24} color={colors.subtext} />
@@ -332,5 +359,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 30,
     lineHeight: 22,
+  },
+  scheduledDaysContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+  },
+  scheduledDaysText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
