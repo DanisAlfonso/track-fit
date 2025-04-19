@@ -33,8 +33,79 @@ export const migrateDatabase = async (): Promise<void> => {
       );
       console.log('Migration completed successfully');
     }
+
+    // Check if weekly_schedule table needs to be modified for multiple routines per day
+    try {
+      // Try to insert two routines for the same day to see if it fails
+      // If it succeeds, we don't need to modify the schema
+      // If it fails with a UNIQUE constraint error, we need to modify the schema
+      const testDay = 999; // Use a high number unlikely to be used
+      const testRoutineId1 = -1;
+      const testRoutineId2 = -2;
+      
+      // First delete any test entries if they exist
+      await database.runAsync(
+        'DELETE FROM weekly_schedule WHERE day_of_week = ?',
+        [testDay]
+      );
+      
+      // Try to insert two test entries
+      await database.runAsync(
+        'INSERT INTO weekly_schedule (day_of_week, routine_id, created_at) VALUES (?, ?, ?)',
+        [testDay, testRoutineId1, Date.now()]
+      );
+      
+      try {
+        await database.runAsync(
+          'INSERT INTO weekly_schedule (day_of_week, routine_id, created_at) VALUES (?, ?, ?)',
+          [testDay, testRoutineId2, Date.now()]
+        );
+        
+        // If we get here, the schema already supports multiple routines per day
+        console.log('Weekly schedule schema already supports multiple routines per day');
+      } catch (error) {
+        // If we get a UNIQUE constraint error, we need to modify the schema
+        if (error instanceof Error && error.toString().includes('UNIQUE constraint failed')) {
+          console.log('Modifying weekly_schedule schema to support multiple routines per day...');
+          
+          // Create a new table with the correct schema
+          await database.execAsync(`
+            CREATE TABLE weekly_schedule_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              day_of_week INTEGER NOT NULL,
+              routine_id INTEGER NOT NULL,
+              created_at INTEGER NOT NULL,
+              FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE,
+              UNIQUE (day_of_week, routine_id)
+            );
+          `);
+          
+          // Copy data from old table to new table
+          await database.execAsync(`
+            INSERT INTO weekly_schedule_new (id, day_of_week, routine_id, created_at)
+            SELECT id, day_of_week, routine_id, created_at FROM weekly_schedule;
+          `);
+          
+          // Drop old table and rename new table
+          await database.execAsync(`
+            DROP TABLE weekly_schedule;
+            ALTER TABLE weekly_schedule_new RENAME TO weekly_schedule;
+          `);
+          
+          console.log('Weekly schedule migration completed successfully');
+        }
+      } finally {
+        // Clean up test entries
+        await database.runAsync(
+          'DELETE FROM weekly_schedule WHERE day_of_week = ?',
+          [testDay]
+        );
+      }
+    } catch (error) {
+      console.error('Error migrating weekly_schedule:', error instanceof Error ? error.message : String(error));
+    }
   } catch (error) {
-    console.error('Error migrating database:', error);
+    console.error('Error migrating database:', error instanceof Error ? error.message : String(error));
     throw error;
   }
 };
@@ -122,7 +193,7 @@ export const initDatabase = async (): Promise<void> => {
         routine_id INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE,
-        UNIQUE(day_of_week) -- Ensure only one routine per day
+        UNIQUE (day_of_week, routine_id)
       );
     `);
   } catch (error) {

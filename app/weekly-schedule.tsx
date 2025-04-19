@@ -18,12 +18,16 @@ import Colors from '@/constants/Colors';
 import { useTheme } from '@/context/ThemeContext';
 import { Calendar, DateData } from 'react-native-calendars';
 
+type RoutineInfo = {
+  id: number;
+  name: string;
+  exercise_count: number;
+};
+
 type RoutineAssignment = {
   day_of_week: number;
   day_name: string;
-  routine_id: number | null;
-  routine_name: string | null;
-  exercise_count: number;
+  routines: RoutineInfo[];
 };
 
 type Routine = {
@@ -136,18 +140,32 @@ export default function WeeklyScheduleScreen() {
         (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exercise_count
         FROM weekly_schedule ws
         JOIN routines r ON ws.routine_id = r.id
-        ORDER BY ws.day_of_week
+        ORDER BY ws.day_of_week, ws.created_at
       `);
+
+      // Group routines by day of week
+      const routinesByDay: Record<number, RoutineInfo[]> = {};
+      
+      // Initialize all days with empty arrays
+      for (let i = 0; i < 7; i++) {
+        routinesByDay[i] = [];
+      }
+      
+      // Group routines by day
+      scheduleResults.forEach(result => {
+        routinesByDay[result.day_of_week].push({
+          id: result.routine_id,
+          name: result.routine_name,
+          exercise_count: result.exercise_count
+        });
+      });
 
       // Create a full week schedule with all days
       const fullSchedule: RoutineAssignment[] = dayNames.map((name, index) => {
-        const scheduled = scheduleResults.find(s => s.day_of_week === index);
         return {
           day_of_week: index,
           day_name: name,
-          routine_id: scheduled?.routine_id || null,
-          routine_name: scheduled?.routine_name || null,
-          exercise_count: scheduled?.exercise_count || 0
+          routines: routinesByDay[index] || []
         };
       });
 
@@ -170,16 +188,21 @@ export default function WeeklyScheduleScreen() {
       const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const routineForDay = weekSchedule.find(s => s.day_of_week === dayOfWeek);
       
-      if (routineForDay && routineForDay.routine_id) {
+      if (routineForDay && routineForDay.routines.length > 0 && routineForDay.routines[0]) {
         const dateString = date.toISOString().split('T')[0];
         
-        // Get the routine index to determine its color (for consistency with weekly grid)
-        const routineIndex = weekSchedule
-          .filter(d => d.routine_id !== null)
-          .map(d => d.routine_name)
-          .indexOf(routineForDay.routine_name);
+        // Get a list of valid routines with names
+        const validRoutines = weekSchedule
+          .filter(d => d.routines.length > 0 && d.routines[0])
+          .map(d => d.routines[0].name)
+          .filter(Boolean);
         
-        const routineColor = getLegendColor(routineIndex, colors);
+        // Find the index of this routine's name in the list
+        const routineIndex = routineForDay.routines[0].name ? 
+          validRoutines.indexOf(routineForDay.routines[0].name) :
+          0;
+        
+        const routineColor = getLegendColor(routineIndex >= 0 ? routineIndex : 0, colors);
         
         markers[dateString] = {
           // Create a more informative marker with custom styling
@@ -228,11 +251,16 @@ export default function WeeklyScheduleScreen() {
 
   const handleDayPress = (day: number) => {
     setSelectedDay(day);
-    setRoutineSelectVisible(true);
     
     // Pre-select the current routine for this day if it exists
     const daySchedule = weekSchedule.find(s => s.day_of_week === day);
-    setSelectedRoutine(daySchedule?.routine_id || null);
+    if (daySchedule?.routines && daySchedule.routines.length > 0) {
+      setSelectedRoutine(daySchedule.routines[0].id);
+    } else {
+      setSelectedRoutine(null);
+    }
+    
+    setRoutineSelectVisible(true);
   };
 
   const handleRoutineSelect = async (routineId: number | null) => {
@@ -243,26 +271,26 @@ export default function WeeklyScheduleScreen() {
       const db = await getDatabase();
       
       if (routineId === null) {
-        // Remove routine assignment
+        // Clear all routines for this day
         await db.runAsync(
           'DELETE FROM weekly_schedule WHERE day_of_week = ?',
           [selectedDay]
         );
       } else {
-        // Check if this day already has a routine assigned
+        // Check if this routine is already assigned to this day
         const existing = await db.getFirstAsync(
-          'SELECT id FROM weekly_schedule WHERE day_of_week = ?', 
-          [selectedDay]
+          'SELECT id FROM weekly_schedule WHERE day_of_week = ? AND routine_id = ?', 
+          [selectedDay, routineId]
         );
         
         if (existing) {
-          // Update existing assignment
+          // If already assigned, remove it (toggle behavior)
           await db.runAsync(
-            'UPDATE weekly_schedule SET routine_id = ?, created_at = ? WHERE day_of_week = ?',
-            [routineId, Date.now(), selectedDay]
+            'DELETE FROM weekly_schedule WHERE day_of_week = ? AND routine_id = ?',
+            [selectedDay, routineId]
           );
         } else {
-          // Create new assignment
+          // Add new routine assignment
           await db.runAsync(
             'INSERT INTO weekly_schedule (day_of_week, routine_id, created_at) VALUES (?, ?, ?)',
             [selectedDay, routineId, Date.now()]
@@ -272,9 +300,13 @@ export default function WeeklyScheduleScreen() {
       
       // Reload schedule
       await loadWeekSchedule();
-      setRoutineSelectVisible(false);
-      setSelectedDay(null);
-      setSelectedRoutine(null);
+      
+      // Only close the modal if "Clear Day" was selected
+      if (routineId === null) {
+        setRoutineSelectVisible(false);
+        setSelectedDay(null);
+        setSelectedRoutine(null);
+      }
     } catch (error) {
       console.error('Error updating schedule:', error);
       Alert.alert('Error', 'Failed to update schedule');
@@ -312,7 +344,9 @@ export default function WeeklyScheduleScreen() {
 
   const renderDayCard = (day: RoutineAssignment) => {
     const isToday = new Date().getDay() === day.day_of_week;
-    const hasRoutine = day.routine_id !== null;
+    const hasRoutines = day.routines.length > 0;
+    const totalExercises = day.routines.reduce((sum, routine) => 
+      sum + (routine?.exercise_count || 0), 0);
 
     return (
       <TouchableOpacity
@@ -337,28 +371,42 @@ export default function WeeklyScheduleScreen() {
           )}
         </View>
 
-        {hasRoutine ? (
-          <View style={styles.routineContainer}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.routineBadge}
-            >
-              <FontAwesome5 name="dumbbell" size={14} color="white" style={styles.routineIcon} />
-              <Text style={styles.routineName}>{day.routine_name}</Text>
-            </LinearGradient>
-            <Text style={[styles.exerciseCount, { color: colors.subtext }]}>
-              {day.exercise_count} exercise{day.exercise_count !== 1 ? 's' : ''}
-            </Text>
+        {hasRoutines ? (
+          <View style={styles.multiRoutineContainer}>
+            <View style={styles.routinesSummary}>
+              <View style={[styles.totalExercisesBadge, { backgroundColor: '#E6F7FF' }]}>
+                <FontAwesome5 name="dumbbell" size={12} color="#0099FF" style={styles.summaryIcon} />
+                <Text style={[styles.totalExercisesText, { color: '#0099FF' }]}>
+                  {totalExercises} exercise{totalExercises !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <Text style={[styles.routineCount, { color: colors.subtext }]}>
+                {day.routines.length} routine{day.routines.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            
+            <View style={styles.dayRoutineList}>
+              {day.routines.map((routine, index) => 
+                routine && routine.name ? (
+                  <View 
+                    key={routine.id} 
+                    style={[
+                      styles.routineChip, 
+                      { backgroundColor: getLegendColor(index % 7, colors) }
+                    ]}
+                  >
+                    <Text style={styles.routineChipText} numberOfLines={1}>{routine.name}</Text>
+                  </View>
+                ) : null
+              )}
+            </View>
           </View>
         ) : (
           <View style={styles.noRoutineContainer}>
             <Text style={[styles.noRoutineText, { color: colors.subtext }]}>No workout planned</Text>
-            <View style={[styles.addButton, { borderColor: colors.primary }]}>
-              <FontAwesome5 name="plus" size={12} color={colors.primary} />
-              <Text style={[styles.addButtonText, { color: colors.primary }]}>Add</Text>
-            </View>
+            <TouchableOpacity>
+              <Text style={[styles.addRoutineText, { color: colors.primary }]}>Add</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -366,11 +414,11 @@ export default function WeeklyScheduleScreen() {
           <FontAwesome5 
             name="edit" 
             size={14} 
-            color={colors.primary} 
+            color="#0099FF" 
             style={styles.editIcon} 
           />
-          <Text style={[styles.tapToEdit, { color: colors.primary }]}>
-            {hasRoutine ? 'Change' : 'Assign'} routine
+          <Text style={[styles.tapToEdit, { color: "#0099FF" }]}>
+            {hasRoutines ? 'Manage' : 'Manage'} routines
           </Text>
         </View>
       </TouchableOpacity>
@@ -381,13 +429,20 @@ export default function WeeklyScheduleScreen() {
   const renderRoutineSelection = () => {
     if (!routineSelectVisible) return null;
 
+    // Get the current routines for the selected day
+    const selectedDayData = weekSchedule.find(day => day.day_of_week === selectedDay);
+    const selectedRoutineIds = selectedDayData ? selectedDayData.routines.map(r => r.id) : [];
+
     return (
       <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <View style={[styles.routineSelectModal, { backgroundColor: colors.card }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>
-            Select Routine for {dayNames[selectedDay || 0]}
+            Select Routines for {dayNames[selectedDay || 0]}
           </Text>
-          
+          <Text style={[styles.modalSubtitle, { color: colors.subtext }]}>
+            Tap routines to select/deselect
+          </Text>
+            
           <ScrollView 
             style={styles.routineList}
             contentContainerStyle={styles.routineListContent}
@@ -409,50 +464,54 @@ export default function WeeklyScheduleScreen() {
                     Rest Day
                   </Text>
                   <Text style={[styles.routineOptionDescription, { color: colors.subtext }]}>
-                    No workout planned
+                    Clear all routines from this day
                   </Text>
                 </View>
               </View>
-              {selectedRoutine === null && (
-                <FontAwesome5 name="check-circle" size={20} color={colors.primary} />
-              )}
             </TouchableOpacity>
 
-            {routines.map(routine => (
-              <TouchableOpacity
-                key={routine.id}
-                style={[
-                  styles.routineOption,
-                  { borderBottomColor: colors.border, borderBottomWidth: 1 }
-                ]}
-                onPress={() => handleRoutineSelect(routine.id)}
-              >
-                <View style={styles.routineOptionContent}>
-                  <LinearGradient
-                    colors={[colors.primary, colors.secondary]}
-                    style={styles.routineIconGradient}
-                  >
-                    <FontAwesome5 name="dumbbell" size={16} color="white" />
-                  </LinearGradient>
-                  <View>
-                    <Text style={[styles.routineOptionName, { color: colors.text }]}>
-                      {routine.name}
-                    </Text>
-                    <Text style={[styles.routineOptionDescription, { color: colors.subtext }]}>
-                      {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
-                    </Text>
+            {routines.map((routine, index) => {
+              const isSelected = selectedRoutineIds.includes(routine.id);
+              return (
+                <TouchableOpacity
+                  key={routine.id}
+                  style={[
+                    styles.routineOption,
+                    { 
+                      borderBottomColor: colors.border, 
+                      borderBottomWidth: 1,
+                      backgroundColor: isSelected ? `${colors.primary}15` : 'transparent'
+                    }
+                  ]}
+                  onPress={() => handleRoutineSelect(routine.id)}
+                >
+                  <View style={styles.routineOptionContent}>
+                    <LinearGradient
+                      colors={[colors.primary, colors.secondary]}
+                      style={styles.routineIconGradient}
+                    >
+                      <FontAwesome5 name="dumbbell" size={16} color="white" />
+                    </LinearGradient>
+                    <View>
+                      <Text style={[styles.routineOptionName, { color: colors.text }]}>
+                        {routine.name}
+                      </Text>
+                      <Text style={[styles.routineOptionDescription, { color: colors.subtext }]}>
+                        {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                {selectedRoutine === routine.id && (
-                  <FontAwesome5 name="check-circle" size={20} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-            ))}
+                  {isSelected && (
+                    <FontAwesome5 name="check-circle" size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
           
           <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton, { borderColor: colors.border }]}
+              style={[styles.modalButton, styles.cancelButton, { borderColor: colors.border, backgroundColor: '#F2F2F2' }]}
               onPress={() => {
                 setRoutineSelectVisible(false);
                 setSelectedDay(null);
@@ -460,6 +519,17 @@ export default function WeeklyScheduleScreen() {
               }}
             >
               <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.modalButton, styles.doneButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setRoutineSelectVisible(false);
+                setSelectedDay(null);
+                setSelectedRoutine(null);
+              }}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -490,14 +560,18 @@ export default function WeeklyScheduleScreen() {
 
   // Render a summary grid showing the entire week at once
   const renderWeeklyGrid = () => {
+    // Get a list of valid routines with names
+    const validRoutines = weekSchedule
+      .filter(day => day.routines.length > 0 && day.routines[0]?.name)
+      .map(day => day.routines[0].name)
+      .filter(Boolean);
+      
     return (
       <View style={[styles.weeklyGridContainer, { backgroundColor: colors.card }]}>
         <Text style={[styles.weeklyGridTitle, { color: colors.text }]}>Weekly Training Split</Text>
         
         <View style={styles.gridLegendContainer}>
-          {weekSchedule
-            .filter(day => day.routine_id !== null)
-            .map(day => day.routine_name)
+          {validRoutines
             .filter((routineName, index, self) => self.indexOf(routineName) === index) // Get unique routine names
             .map((routineName, index) => (
               <View key={index} style={styles.legendItem}>
@@ -516,12 +590,13 @@ export default function WeeklyScheduleScreen() {
         
         <View style={styles.weekGrid}>
           {weekSchedule.map((day, index) => {
-            const hasRoutine = day.routine_id !== null;
+            const hasRoutine = day.routines.length > 0 && day.routines[0]?.name;
             const isToday = new Date().getDay() === day.day_of_week;
-            const routineIndex = weekSchedule
-              .filter(d => d.routine_id !== null)
-              .map(d => d.routine_name)
-              .indexOf(day.routine_name);
+            
+            let routineIndex = -1;
+            if (hasRoutine && day.routines[0]?.name) {
+              routineIndex = validRoutines.indexOf(day.routines[0].name);
+            }
             
             return (
               <TouchableOpacity 
@@ -529,7 +604,7 @@ export default function WeeklyScheduleScreen() {
                 style={[
                   styles.dayGridCell,
                   { 
-                    backgroundColor: hasRoutine 
+                    backgroundColor: hasRoutine && routineIndex >= 0
                       ? getLegendColor(routineIndex, colors) 
                       : 'transparent',
                     borderColor: isToday ? colors.primary : colors.border
@@ -547,9 +622,9 @@ export default function WeeklyScheduleScreen() {
                   {day.day_name.slice(0, 3)}
                 </Text>
                 
-                {hasRoutine && (
+                {hasRoutine && day.routines[0]?.name && (
                   <Text style={styles.dayGridRoutine} numberOfLines={1}>
-                    {day.routine_name}
+                    {day.routines[0].name}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -657,8 +732,8 @@ export default function WeeklyScheduleScreen() {
           />
           <View style={styles.calendarLegend}>
             {weekSchedule
-              .filter(day => day.routine_id !== null)
-              .map(day => day.routine_name)
+              .filter(day => day.routines.length > 0 && day.routines[0] && day.routines[0].name)
+              .map(day => day.routines[0].name)
               .filter((routineName, index, self) => self.indexOf(routineName) === index) // Get unique routine names
               .map((routineName, index) => (
                 <View key={index} style={styles.calendarLegendItem}>
@@ -730,57 +805,99 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   dayCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 16,
-    padding: 16,
+    padding: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   dayHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   dayName: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: 'bold',
   },
   todayBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
   todayText: {
     color: 'white',
     fontSize: 12,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
-  routineContainer: {
+  multiRoutineContainer: {
+    flexDirection: 'column',
     marginBottom: 16,
   },
-  routineBadge: {
+  routinesSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  totalExercisesBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#E6F7FF',
   },
-  routineIcon: {
+  summaryIcon: {
     marginRight: 6,
+    color: '#0099FF',
   },
-  routineName: {
-    color: 'white',
+  totalExercisesText: {
+    fontSize: 14,
     fontWeight: '600',
-    fontSize: 14,
+    color: '#0099FF',
   },
-  exerciseCount: {
+  routineCount: {
     fontSize: 14,
+    opacity: 0.8,
+  },
+  dayRoutineList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 12,
+    gap: 8,
+  },
+  routineChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 6,
+    marginBottom: 0,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  routineChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'white',
+  },
+  addRoutineButton: {
+    padding: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
   noRoutineContainer: {
     flexDirection: 'row',
@@ -791,6 +908,10 @@ const styles = StyleSheet.create({
   noRoutineText: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  addRoutineText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   addButton: {
     flexDirection: 'row',
@@ -829,19 +950,25 @@ const styles = StyleSheet.create({
   routineSelectModal: {
     width: width * 0.85,
     maxHeight: '80%',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 8,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   routineList: {
     maxHeight: 400,
@@ -853,7 +980,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 14,
+    marginVertical: 4,
+    borderRadius: 12,
   },
   routineOptionContent: {
     flexDirection: 'row',
@@ -861,20 +990,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   routineIconGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   emptyRoutineIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   routineOptionName: {
     fontSize: 16,
@@ -883,25 +1017,43 @@ const styles = StyleSheet.create({
   },
   routineOptionDescription: {
     fontSize: 14,
+    opacity: 0.7,
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
+    justifyContent: 'space-between',
+    marginTop: 24,
+    paddingHorizontal: 10,
   },
   modalButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minWidth: 120,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 16,
+    minWidth: 130,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   cancelButton: {
-    borderWidth: 1,
+    borderWidth: 0,
+    backgroundColor: '#F2F2F2',
   },
   cancelButtonText: {
     fontWeight: '600',
     fontSize: 16,
+    color: '#333333',
+  },
+  doneButton: {
+    // backgroundColor set dynamically in the component
+  },
+  doneButtonText: {
+    fontWeight: '600',
+    fontSize: 16,
+    color: 'white',
   },
   loadingContainer: {
     flex: 1,
@@ -913,29 +1065,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   calendarContainer: {
-    marginBottom: 20,
-    borderRadius: 16,
-    padding: 16,
+    marginBottom: 24,
+    borderRadius: 20,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   calendarTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
   },
   calendarLegend: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 16,
-    paddingTop: 12,
+    marginTop: 18,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.05)',
+    gap: 12,
   },
   calendarLegendItem: {
     flexDirection: 'row',
@@ -944,13 +1097,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   calendarLegendColor: {
-    width: 14,
-    height: 14,
-    borderRadius: 4,
-    marginRight: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 5,
+    marginRight: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
   calendarLegendText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '500',
   },
   sectionHeader: {
     marginBottom: 16,
@@ -965,27 +1124,28 @@ const styles = StyleSheet.create({
   },
   // Weekly Grid Styles
   weeklyGridContainer: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 4,
   },
   weeklyGridTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
   },
   gridLegendContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 18,
     paddingHorizontal: 8,
+    gap: 10,
   },
   legendItem: {
     flexDirection: 'row',
@@ -994,14 +1154,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   legendColorBox: {
-    width: 12,
-    height: 12,
-    borderRadius: 4,
-    marginRight: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 5,
+    marginRight: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
   },
   legendText: {
-    fontSize: 12,
-    maxWidth: 100,
+    fontSize: 13,
+    fontWeight: '500',
+    maxWidth: 120,
   },
   weekGrid: {
     flexDirection: 'row',
@@ -1011,21 +1177,27 @@ const styles = StyleSheet.create({
   dayGridCell: {
     width: '13.5%',
     aspectRatio: 1,
-    borderRadius: 8,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 0,
     padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 0.5,
   },
   dayGridName: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     marginBottom: 2,
     textAlign: 'center',
   },
   dayGridRoutine: {
-    fontSize: 9,
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.95)',
     textAlign: 'center',
+    fontWeight: '500',
   },
 }); 
