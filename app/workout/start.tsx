@@ -172,7 +172,13 @@ export default function StartWorkoutScreen() {
     return () => {
       // Only minimize if we have an active workout and we're not finishing
       if (workoutId && workoutStarted) {
-        minimizeWorkout();
+        // Save progress before minimizing
+        saveWorkoutProgress().then(() => {
+          minimizeWorkout();
+        }).catch(error => {
+          console.error('Failed to save workout:', error);
+          minimizeWorkout(); // Still minimize even if save failed
+        });
       }
       
       if (workoutTimer.current) {
@@ -216,7 +222,7 @@ export default function StartWorkoutScreen() {
       
       if (!workout) {
         Alert.alert('Error', 'Workout not found or already completed');
-        router.replace('/(tabs)/workouts');
+        router.replace({ pathname: '/(tabs)/routines' });
         return;
       }
       
@@ -285,6 +291,8 @@ export default function StartWorkoutScreen() {
             [exerciseRecord.id]
           );
           
+          console.log(`Exercise ${exercise.name}: found ${sets.length} sets`);
+          
           // If we have fewer sets than expected, add the missing ones
           const allSets = [...sets];
           
@@ -305,7 +313,7 @@ export default function StartWorkoutScreen() {
             routine_exercise_id: routineExercise.id,
             exercise_id: exercise.id,
             name: exercise.name,
-            sets: routineExercise.sets,
+            sets: Math.max(routineExercise.sets, allSets.length), // Use the larger value
             completedSets: exerciseRecord.sets_completed,
             exercise_order: routineExercise.order_num,
             sets_data: allSets,
@@ -316,6 +324,7 @@ export default function StartWorkoutScreen() {
         // Sort exercises by order
         loadedExercises.sort((a, b) => a.exercise_order - b.exercise_order);
         setExercises(loadedExercises);
+        console.log(`Loaded ${loadedExercises.length} exercises with their sets`);
       } else {
         // If no exercises found, load from routine definition
         const exerciseResults = await db.getAllAsync<{
@@ -361,7 +370,7 @@ export default function StartWorkoutScreen() {
     } catch (error) {
       console.error('Error resuming workout:', error);
       Alert.alert('Error', 'Failed to resume workout');
-      router.replace('/(tabs)/workouts');
+      router.replace({ pathname: '/(tabs)/routines' });
     } finally {
       setIsLoading(false);
     }
@@ -589,6 +598,11 @@ export default function StartWorkoutScreen() {
     setExercises(updatedExercises);
     setSetModalVisible(false);
     
+    // Save progress to database immediately after saving a set
+    saveWorkoutProgress().catch(error => {
+      console.error('Failed to save set data:', error);
+    });
+    
     // Check if all sets are completed
     if (exercise.completedSets === exercise.sets) {
       // If this was the last exercise and all sets are completed
@@ -630,21 +644,56 @@ export default function StartWorkoutScreen() {
               
               // Save completed exercises and sets
               for (const exercise of exercises) {
-                // Insert workout exercise
-                const exerciseResult = await db.runAsync(
-                  'INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)',
-                  [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes]
+                // Ensure the workout_exercise record exists
+                let workoutExerciseId = null;
+                const existingExercise = await db.getFirstAsync<{id: number}>(
+                  `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
+                  [workoutId, exercise.exercise_id]
                 );
                 
-                const workoutExerciseId = exerciseResult.lastInsertRowId;
+                if (existingExercise) {
+                  workoutExerciseId = existingExercise.id;
+                  // Update existing workout exercise
+                  await db.runAsync(
+                    `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
+                    [exercise.completedSets, exercise.notes || '', workoutExerciseId]
+                  );
+                } else {
+                  // Create new workout exercise record
+                  const result = await db.runAsync(
+                    `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
+                    [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
+                  );
+                  workoutExerciseId = Number(result.lastInsertRowId);
+                }
                 
-                // Insert sets
-                for (const set of exercise.sets_data) {
-                  if (set.completed) {
-                    await db.runAsync(
-                      'INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                      [workoutExerciseId, set.set_number, set.reps, set.weight, set.rest_time, 1, set.notes]
-                    );
+                // Save all sets for this exercise
+                if (workoutExerciseId && exercise.sets_data) {
+                  for (const set of exercise.sets_data) {
+                    if (set.id) {
+                      // Update existing set
+                      await db.runAsync(
+                        `UPDATE sets SET reps = ?, weight = ?, completed = ?, notes = ? WHERE id = ?`,
+                        [set.reps, set.weight, set.completed ? 1 : 0, set.notes || '', set.id]
+                      );
+                    } else {
+                      // Create new set
+                      const result = await db.runAsync(
+                        `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                          workoutExerciseId, 
+                          set.set_number, 
+                          set.reps, 
+                          set.weight, 
+                          set.rest_time || 60, 
+                          set.completed ? 1 : 0, 
+                          set.notes || ''
+                        ]
+                      );
+                      
+                      // Update the set with its ID
+                      set.id = Number(result.lastInsertRowId);
+                    }
                   }
                 }
               }
@@ -656,8 +705,8 @@ export default function StartWorkoutScreen() {
                 { 
                   text: 'OK', 
                   onPress: () => {
-                    // Navigate directly to the History tab
-                    router.replace('/(tabs)/workouts');
+                    // Navigate to the History screen instead of Routines
+                    router.replace({ pathname: '/history' });
                   }
                 }
               ]);
@@ -919,6 +968,11 @@ export default function StartWorkoutScreen() {
     
     setExercises(updatedExercises);
     
+    // Save progress to database after adding a set
+    saveWorkoutProgress().catch(error => {
+      console.error('Failed to save after adding set:', error);
+    });
+    
     Alert.alert('Set Added', `Set ${nextSetNumber} added to ${exercise.name}`);
   };
   
@@ -951,17 +1005,26 @@ export default function StartWorkoutScreen() {
     
     setExercises(updatedExercises);
     
+    // Save progress to database after removing a set
+    saveWorkoutProgress().catch(error => {
+      console.error('Failed to save after removing set:', error);
+    });
+    
     Alert.alert('Set Removed', `Last set removed from ${exercise.name}`);
   };
 
-  // New minimize function
-  const minimizeWorkoutAndNavigate = () => {
+  // Modify minimizeWorkoutAndNavigate to save data before minimizing
+  const minimizeWorkoutAndNavigate = async () => {
     if (!workoutId) return;
     
-    minimizeWorkout();
-    
-    // Navigate back to the previous screen
-    router.back();
+    saveWorkoutProgress().then(() => {
+      minimizeWorkout();
+      router.back();
+    }).catch(error => {
+      console.error('Failed to save workout:', error);
+      minimizeWorkout();
+      router.back();
+    });
   };
 
   // Function to handle input changes and track which fields have been touched
@@ -1001,6 +1064,85 @@ export default function StartWorkoutScreen() {
         </Text>
       </View>
     );
+  };
+
+  // Function to save workout progress to the database
+  const saveWorkoutProgress = async () => {
+    if (!workoutId) return;
+    
+    try {
+      const db = await getDatabase();
+      
+      // Update workout duration and notes
+      const now = new Date();
+      const durationMs = now.getTime() - new Date(workoutStartTime.current!).getTime();
+      const durationSec = Math.floor(durationMs / 1000);
+      
+      await db.runAsync(
+        'UPDATE workouts SET duration = ?, notes = ? WHERE id = ?',
+        [durationSec, workoutNotes, workoutId]
+      );
+      
+      // Save each exercise and its sets
+      for (const exercise of exercises) {
+        // Ensure the workout_exercise record exists
+        let workoutExerciseId = null;
+        const existingExercise = await db.getFirstAsync<{id: number}>(
+          `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
+          [workoutId, exercise.exercise_id]
+        );
+        
+        if (existingExercise) {
+          workoutExerciseId = existingExercise.id;
+          // Update existing workout exercise
+          await db.runAsync(
+            `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
+            [exercise.completedSets, exercise.notes || '', workoutExerciseId]
+          );
+        } else {
+          // Create new workout exercise record
+          const result = await db.runAsync(
+            `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
+            [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
+          );
+          workoutExerciseId = Number(result.lastInsertRowId);
+        }
+        
+        // Save all sets for this exercise
+        if (workoutExerciseId && exercise.sets_data) {
+          for (const set of exercise.sets_data) {
+            if (set.id) {
+              // Update existing set
+              await db.runAsync(
+                `UPDATE sets SET reps = ?, weight = ?, completed = ?, notes = ? WHERE id = ?`,
+                [set.reps, set.weight, set.completed ? 1 : 0, set.notes || '', set.id]
+              );
+            } else {
+              // Create new set
+              const result = await db.runAsync(
+                `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  workoutExerciseId, 
+                  set.set_number, 
+                  set.reps, 
+                  set.weight, 
+                  set.rest_time || 60, 
+                  set.completed ? 1 : 0, 
+                  set.notes || ''
+                ]
+              );
+              
+              // Update the set with its ID
+              set.id = Number(result.lastInsertRowId);
+            }
+          }
+        }
+      }
+      
+      console.log('Workout progress saved successfully');
+    } catch (error) {
+      console.error('Error saving workout progress:', error);
+    }
   };
 
   if (isLoading) {
