@@ -362,7 +362,7 @@ export default function ProgressScreen() {
         LIMIT 20
       `);
       
-      // Get personal records with dates
+      // Get personal records with dates, filtering out 0 values
       const personalRecords = await db.getAllAsync(`
         WITH MaxWeights AS (
           SELECT 
@@ -374,6 +374,8 @@ export default function ProgressScreen() {
             sets s
             JOIN workout_exercises we ON s.workout_exercise_id = we.id
             JOIN exercises e ON we.exercise_id = e.id
+          WHERE 
+            (s.weight > 0 OR s.reps > 0)
           GROUP BY 
             e.id
         )
@@ -391,8 +393,9 @@ export default function ProgressScreen() {
           JOIN workouts w ON we.workout_id = w.id
           JOIN MaxWeights mw ON e.id = mw.exercise_id
         WHERE 
-          (s.weight = mw.max_weight AND mw.max_weight > 0)
-          OR (s.reps = mw.max_reps AND mw.max_weight = 0)
+          ((s.weight = mw.max_weight AND mw.max_weight > 0)
+          OR (s.reps = mw.max_reps AND mw.max_reps > 0))
+          AND (s.weight > 0 OR s.reps > 0)
         ORDER BY 
           w.date DESC
       `);
@@ -400,31 +403,49 @@ export default function ProgressScreen() {
       // Combine workouts and personal records into timeline
       const timeline: ProgressItem[] = [];
       
-      // Add workouts to timeline
+      // Add workouts to timeline with null checks
       workouts.forEach((workout: any) => {
-        timeline.push({
-          date: workout.date,
-          title: 'Workout Completed',
-          description: workout.routine_name || 'Custom Workout',
-          icon: 'dumbbell'
-        });
+        if (workout && workout.date) {
+          timeline.push({
+            date: workout.date,
+            title: 'Workout Completed',
+            description: workout.routine_name || 'Custom Workout',
+            icon: 'dumbbell'
+          });
+        }
       });
       
-      // Add personal records to timeline
+      // Add personal records to timeline with null checks
       personalRecords.forEach((record: any) => {
-        const isWeightExercise = record.max_weight > 0;
-        timeline.push({
-          date: record.date,
-          title: 'New Personal Record',
-          description: `${record.exercise_name}`,
-          icon: 'trophy',
-          value: isWeightExercise ? record.weight : record.reps,
-          unit: isWeightExercise ? 'kg' : 'reps'
-        });
+        if (record && record.date) {
+          // Only add records with non-zero values
+          const isWeightExercise = record.max_weight > 0;
+          const value = isWeightExercise ? record.weight : record.reps;
+          
+          // Skip records with 0 values
+          if (value > 0) {
+            timeline.push({
+              date: record.date,
+              title: 'New Personal Record',
+              description: `${record.exercise_name || 'Exercise'}`,
+              icon: 'trophy',
+              value: value,
+              unit: isWeightExercise ? 'kg' : 'reps'
+            });
+          }
+        }
       });
       
       // Sort timeline by date (newest first)
-      timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      timeline.sort((a, b) => {
+        // Handle potential date parsing issues
+        try {
+          return new Date(b.date).getTime() - new Date(a.date).getTime();
+        } catch (err) {
+          console.error('Error sorting timeline dates:', err);
+          return 0;
+        }
+      });
       
       setProgressTimeline(timeline);
     } catch (error) {
@@ -495,32 +516,41 @@ export default function ProgressScreen() {
   );
   
   // Render progress timeline item
-  const renderTimelineItem = (item: ProgressItem, index: number) => (
-    <View key={`${item.date}-${index}`} style={styles.timelineItem}>
-      <View style={styles.timelineLeft}>
-        <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
-        <View style={[styles.timelineDot, { backgroundColor: colors.primary }]}>
-          <FontAwesome5 name={item.icon} size={14} color="white" />
+  const renderTimelineItem = (item: ProgressItem, index: number) => {
+    // Ensure we have valid data for rendering
+    if (!item || !item.date) {
+      return null;
+    }
+    
+    return (
+      <View key={`${item.date}-${index}`} style={styles.timelineItem}>
+        <View style={styles.timelineLeft}>
+          <View style={[styles.timelineLine, { backgroundColor: colors.border }]} />
+          <View style={[styles.timelineDot, { backgroundColor: colors.primary }]}>
+            <FontAwesome5 name={item.icon || 'circle'} size={14} color="white" />
+          </View>
+        </View>
+        <View style={[styles.timelineContent, { backgroundColor: colors.card }]}>
+          <Text style={[styles.timelineDate, { color: colors.subtext }]}>
+            {formatRelativeDate(item.date)}
+          </Text>
+          <Text style={[styles.timelineTitle, { color: colors.text }]}>
+            {item.title || 'Event'}
+          </Text>
+          <Text style={[styles.timelineDescription, { color: colors.subtext }]}>
+            {item.description || ''}
+          </Text>
+          {item.value !== undefined && item.value !== null && (
+            <View style={styles.timelineValueContainer}>
+              <Text style={[styles.timelineValue, { color: colors.primary }]}>
+                {item.value} {item.unit || ''}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
-      <View style={[styles.timelineContent, { backgroundColor: colors.card }]}>
-        <Text style={[styles.timelineDate, { color: colors.subtext }]}>
-          {formatRelativeDate(item.date)}
-        </Text>
-        <Text style={[styles.timelineTitle, { color: colors.text }]}>{item.title}</Text>
-        <Text style={[styles.timelineDescription, { color: colors.subtext }]}>
-          {item.description}
-        </Text>
-        {item.value && (
-          <View style={styles.timelineValueContainer}>
-            <Text style={[styles.timelineValue, { color: colors.primary }]}>
-              {item.value} {item.unit}
-            </Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
+    );
+  };
 
   // Improved empty state components
   const EmptyStateCard = ({ icon, title, message, actionLabel, action }: { 
