@@ -366,6 +366,23 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
+            onPress={() => router.push('/measurements')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="ruler" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Body Measurements</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Track weight, height, and body measurements
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
             onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
           >
             <View style={styles.settingLabelContainer}>
@@ -397,12 +414,13 @@ export default function ProfileScreen() {
             <View style={styles.themeSelector}>
               <Text style={[styles.themeValue, { color: colors.text }]}>
                 {theme === 'system' 
-                  ? 'System' 
-                  : theme === 'dark' 
-                    ? 'Dark' 
-                    : 'Light'}
+                  ? 'System'
+                  : theme === 'dark'
+                    ? 'Dark'
+                    : 'Light'
+                }
               </Text>
-              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} style={{ marginLeft: 8 }} />
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
             </View>
           </TouchableOpacity>
           
