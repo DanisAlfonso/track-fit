@@ -8,6 +8,7 @@ import { resetDatabase, getDatabase } from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { AntDesign } from '@expo/vector-icons';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -55,6 +56,7 @@ export default function ProfileScreen() {
     daysActive: 0,
     streakDays: 0
   });
+  const router = useRouter();
 
   useEffect(() => {
     // Load saved preference and stats
@@ -295,12 +297,17 @@ export default function ProfileScreen() {
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <TouchableOpacity 
               style={styles.statItem}
-              onPress={() => Alert.alert('Coming Soon', 'Progress charts will be available in a future update.')}
+              onPress={() => router.push('/progress')}
             >
-              <View style={styles.viewProgressButton}>
-                <Text style={[styles.viewProgressText, { color: colors.text }]}>View Progress</Text>
-                <FontAwesome5 name="chart-bar" size={14} color={colors.primary} style={styles.viewProgressIcon} />
-              </View>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.viewProgressButton}
+              >
+                <Text style={styles.viewProgressText}>View Progress</Text>
+                <FontAwesome5 name="trophy" size={14} color="white" style={styles.viewProgressIcon} />
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -499,7 +506,7 @@ export default function ProfileScreen() {
               <View>
                 <Text style={[styles.settingLabel, { color: colors.text }]}>Contact Support</Text>
                 <Text style={[styles.settingDescription, { color: colors.subtext }]}>
-                  danis
+                  danisalfonso.dev@gmail.com
                 </Text>
               </View>
             </View>
@@ -673,15 +680,21 @@ const styles = StyleSheet.create({
   viewProgressButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   viewProgressText: {
     fontSize: 14,
-    marginRight: 6,
-    fontWeight: '500',
+    marginRight: 8,
+    fontWeight: '600',
+    color: 'white',
   },
   viewProgressIcon: {
     marginLeft: 2,
@@ -837,5 +850,9 @@ const styles = StyleSheet.create({
   themeValue: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  settingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 }); 
