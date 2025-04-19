@@ -76,7 +76,7 @@ export default function RoutinesScreen() {
           colors={[colors.primary, colors.secondary]}
           style={styles.routineIcon}
         >
-          <FontAwesome5 name="dumbbell" size={18} color="white" />
+          <FontAwesome5 name="dumbbell" size={22} color="white" />
         </LinearGradient>
       </View>
       <View style={styles.routineContent}>
@@ -88,13 +88,13 @@ export default function RoutinesScreen() {
         )}
         <View style={styles.routineFooter}>
           <View style={styles.routineMetaItem}>
-            <FontAwesome5 name="list" size={12} color={colors.subtext} style={styles.metaIcon} />
+            <FontAwesome5 name="list" size={14} color={colors.subtext} style={styles.metaIcon} />
             <Text style={[styles.routineMeta, { color: colors.subtext }]}>
               {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
             </Text>
           </View>
           <View style={styles.routineMetaItem}>
-            <FontAwesome5 name="calendar-alt" size={12} color={colors.subtext} style={styles.metaIcon} />
+            <FontAwesome5 name="calendar-alt" size={14} color={colors.subtext} style={styles.metaIcon} />
             <Text style={[styles.routineMeta, { color: colors.subtext }]}>
               {formatDate(item.created_at)}
             </Text>
@@ -102,7 +102,7 @@ export default function RoutinesScreen() {
         </View>
       </View>
       <View style={styles.chevronContainer}>
-        <Ionicons name="chevron-forward" size={20} color={colors.subtext} />
+        <Ionicons name="chevron-forward" size={24} color={colors.subtext} />
       </View>
     </TouchableOpacity>
   );
@@ -244,53 +244,57 @@ const styles = StyleSheet.create({
   routineCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    minHeight: 110,
   },
   routineIconContainer: {
-    marginRight: 14,
+    marginRight: 20,
   },
   routineIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   routineContent: {
     flex: 1,
+    paddingVertical: 4,
   },
   routineName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   routineDescription: {
-    fontSize: 14,
-    marginBottom: 10,
+    fontSize: 15,
+    marginBottom: 12,
     lineHeight: 20,
   },
   routineFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    marginTop: 4,
   },
   routineMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
+    marginBottom: 4,
   },
   metaIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   routineMeta: {
-    fontSize: 13,
+    fontSize: 14,
   },
   chevronContainer: {
     marginLeft: 8,
