@@ -33,6 +33,23 @@ type RoutineExercise = {
   exercise_order: number;
 };
 
+// Define common muscle groups for filtering
+const muscleGroups = [
+  { id: 'all', name: 'All' },
+  { id: 'chest', name: 'Chest' },
+  { id: 'back', name: 'Back' },
+  { id: 'shoulders', name: 'Shoulders' },
+  { id: 'biceps', name: 'Biceps' },
+  { id: 'triceps', name: 'Triceps' },
+  { id: 'legs', name: 'Legs' },
+  { id: 'quadriceps', name: 'Quads' },
+  { id: 'hamstrings', name: 'Hamstrings' },
+  { id: 'calves', name: 'Calves' },
+  { id: 'glutes', name: 'Glutes' },
+  { id: 'abs', name: 'Abs' },
+  { id: 'core', name: 'Core' }
+];
+
 export default function CreateRoutineScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -46,22 +63,46 @@ export default function CreateRoutineScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('all');
 
   useEffect(() => {
     loadExercises();
   }, []);
 
   useEffect(() => {
+    filterExercises();
+  }, [searchQuery, exercises, selectedMuscleGroup]);
+
+  const filterExercises = () => {
+    let filtered = [...exercises];
+    
+    // First filter by muscle group if not "all"
+    if (selectedMuscleGroup !== 'all') {
+      filtered = filtered.filter(exercise => {
+        if (!exercise.primary_muscle) return false;
+        
+        // Special case for "legs" to include all leg muscles
+        if (selectedMuscleGroup === 'legs') {
+          const legMuscles = ['quadriceps', 'hamstrings', 'calves', 'glutes', 'legs'];
+          return legMuscles.some(muscle => 
+            exercise.primary_muscle.toLowerCase().includes(muscle)
+          );
+        }
+        
+        return exercise.primary_muscle.toLowerCase().includes(selectedMuscleGroup.toLowerCase());
+      });
+    }
+    
+    // Then filter by search query if it exists
     if (searchQuery) {
-      const filtered = exercises.filter(exercise => 
+      filtered = filtered.filter(exercise => 
         exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (exercise.primary_muscle && exercise.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase()))
       );
-      setFilteredExercises(filtered);
-    } else {
-      setFilteredExercises(exercises);
     }
-  }, [searchQuery, exercises]);
+    
+    setFilteredExercises(filtered);
+  };
 
   const loadExercises = async () => {
     try {
@@ -330,6 +371,47 @@ export default function CreateRoutineScreen() {
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Available Exercises</Text>
           
+          {/* Muscle Group Filter */}
+          <View style={styles.muscleGroupFilterContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.muscleGroupScroll}
+            >
+              {muscleGroups.map(group => (
+                <TouchableOpacity
+                  key={group.id}
+                  style={[
+                    styles.muscleGroupButton,
+                    selectedMuscleGroup === group.id && styles.selectedMuscleGroupButton,
+                    { 
+                      backgroundColor: selectedMuscleGroup === group.id 
+                        ? `${getMuscleColor(group.id)}30` 
+                        : theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                      borderColor: selectedMuscleGroup === group.id 
+                        ? getMuscleColor(group.id) 
+                        : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    }
+                  ]}
+                  onPress={() => setSelectedMuscleGroup(group.id)}
+                >
+                  <Text
+                    style={[
+                      styles.muscleGroupText,
+                      { 
+                        color: selectedMuscleGroup === group.id 
+                          ? getMuscleColor(group.id) 
+                          : colors.text
+                      }
+                    ]}
+                  >
+                    {group.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          
           <View style={[styles.searchContainer, { 
             backgroundColor: colors.card,
             borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
@@ -351,6 +433,26 @@ export default function CreateRoutineScreen() {
               </TouchableOpacity>
             )}
           </View>
+          
+          {/* Filter Results Info */}
+          {(selectedMuscleGroup !== 'all' || searchQuery) && (
+            <View style={styles.filterResultsContainer}>
+              <Text style={[styles.filterResultsText, { color: colors.subtext }]}>
+                {filteredExercises.length} exercises found
+                {selectedMuscleGroup !== 'all' ? ` for ${muscleGroups.find(g => g.id === selectedMuscleGroup)?.name.toLowerCase()}` : ''}
+                {searchQuery ? ` matching "${searchQuery}"` : ''}
+              </Text>
+              <TouchableOpacity 
+                style={styles.clearFilterButton}
+                onPress={() => {
+                  setSelectedMuscleGroup('all');
+                  setSearchQuery('');
+                }}
+              >
+                <Text style={[styles.clearFilterText, { color: colors.primary }]}>Clear Filters</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           
           <View style={styles.exercisesList}>
             {filteredExercises.map((exercise) => {
@@ -473,8 +575,23 @@ export default function CreateRoutineScreen() {
               <View style={[styles.emptySearchContainer, { backgroundColor: colors.card }]}>
                 <FontAwesome name="search" size={24} color={colors.subtext} style={{ opacity: 0.5 }} />
                 <Text style={[styles.emptySearchText, { color: colors.subtext }]}>
-                  {searchQuery ? 'No exercises match your search' : 'No exercises found'}
+                  {searchQuery || selectedMuscleGroup !== 'all' 
+                    ? 'No exercises match your filters' 
+                    : 'No exercises found'}
                 </Text>
+                {(searchQuery || selectedMuscleGroup !== 'all') && (
+                  <TouchableOpacity
+                    style={[styles.resetFilterButton, { backgroundColor: colors.primary + '20' }]}
+                    onPress={() => {
+                      setSelectedMuscleGroup('all');
+                      setSearchQuery('');
+                    }}
+                  >
+                    <Text style={[styles.resetFilterText, { color: colors.primary }]}>
+                      Reset Filters
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -737,5 +854,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginLeft: 4,
+  },
+  muscleGroupFilterContainer: {
+    marginBottom: 16,
+  },
+  muscleGroupScroll: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  muscleGroupButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  selectedMuscleGroupButton: {
+    borderWidth: 1,
+  },
+  muscleGroupText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterResultsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  filterResultsText: {
+    fontSize: 14,
+  },
+  clearFilterButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  clearFilterText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  resetFilterButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 16,
+  },
+  resetFilterText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 

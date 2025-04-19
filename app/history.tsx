@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -28,9 +28,12 @@ export default function HistoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    loadWorkouts();
-  }, []);
+  // Use focus effect to reload data when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkouts();
+    }, [])
+  );
 
   const loadWorkouts = async () => {
     try {
@@ -69,14 +72,32 @@ export default function HistoryScreen() {
               setIsDeleting(true);
               const db = await getDatabase();
               
-              // Delete workout exercises first due to foreign key constraint
-              await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutId]);
+              // Transaction to ensure all related data is deleted
+              await db.runAsync('BEGIN TRANSACTION');
               
-              // Then delete the workout
-              await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutId]);
-              
-              // Refresh the workout list
-              await loadWorkouts();
+              try {
+                // Delete workout exercises first due to foreign key constraint
+                await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutId]);
+                
+                // Then delete the workout
+                await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutId]);
+                
+                // Commit the transaction
+                await db.runAsync('COMMIT');
+                
+                // Refresh the workout list
+                await loadWorkouts();
+                
+                // Navigate back to the home screen to refresh it, then back to history
+                router.push('/');
+                setTimeout(() => {
+                  router.push('/history');
+                }, 100);
+              } catch (error) {
+                // Rollback in case of error
+                await db.runAsync('ROLLBACK');
+                throw error;
+              }
             } catch (error) {
               console.error('Error deleting workout:', error);
               Alert.alert('Error', 'Failed to delete workout');

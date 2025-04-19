@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert, Switch, Platform, ScrollView, Image, Text, Modal, ActivityIndicator, Linking, Share } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -59,37 +59,48 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   useEffect(() => {
-    // Load saved preference and stats
-    const loadData = async () => {
-      // Load weight unit preference
-      const unit = await getWeightUnitPreference();
-      setUseKilograms(unit === 'kg');
-      
-      // Load user name if saved
-      try {
-        const name = await AsyncStorage.getItem(USER_NAME_KEY);
-        if (name) setUserName(name);
-      } catch (error) {
-        console.error('Error loading user name:', error);
-      }
-      
-      // Load workout stats
-      loadWorkoutStats();
-    };
-
     loadData();
   }, []);
   
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+  
+  const loadData = async () => {
+    // Load weight unit preference
+    const unit = await getWeightUnitPreference();
+    setUseKilograms(unit === 'kg');
+    
+    // Load user name if saved
+    try {
+      const name = await AsyncStorage.getItem(USER_NAME_KEY);
+      if (name) setUserName(name);
+    } catch (error) {
+      console.error('Error loading user name:', error);
+    }
+    
+    // Load workout stats
+    loadWorkoutStats();
+  };
+
   const loadWorkoutStats = async () => {
     try {
       const db = await getDatabase();
       
+      // Count only completed workouts that exist in the database
       const workoutsCount = await db.getFirstAsync<{count: number}>(`
-        SELECT COUNT(*) as count FROM workouts WHERE completed_at IS NOT NULL
+        SELECT COUNT(*) as count 
+        FROM workouts 
+        WHERE completed_at IS NOT NULL
       `);
       
+      // Count only workout exercises that are linked to existing workouts
       const exercisesCount = await db.getFirstAsync<{count: number}>(`
-        SELECT COUNT(*) as count FROM workout_exercises
+        SELECT COUNT(*) as count 
+        FROM workout_exercises we
+        WHERE EXISTS (SELECT 1 FROM workouts w WHERE w.id = we.workout_id)
       `);
       
       const uniqueDaysQuery = await db.getFirstAsync<{count: number}>(`

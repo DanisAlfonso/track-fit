@@ -62,13 +62,14 @@ export default function HomeScreen() {
       `);
       setRoutines(routinesResults);
       
-      // Load recent workouts
+      // Load recent workouts - Only select workouts that still exist and are completed
       const recentWorkoutsResults = await db.getAllAsync<RecentWorkout>(`
         SELECT w.id, w.date, r.name as routine_name, w.duration,
         (SELECT COUNT(DISTINCT we.exercise_id) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count
         FROM workouts w
         JOIN routines r ON w.routine_id = r.id
         WHERE w.completed_at IS NOT NULL
+        AND EXISTS (SELECT 1 FROM workouts WHERE id = w.id)
         ORDER BY w.date DESC
         LIMIT 3
       `);
@@ -204,11 +205,27 @@ export default function HomeScreen() {
     }
   };
 
-  const navigateToWorkout = (workoutId: number) => {
-    router.push({
-      pathname: '/workout/[id]',
-      params: { id: workoutId }
-    });
+  const navigateToWorkout = async (workoutId: number) => {
+    try {
+      // Check if the workout still exists in the database before navigating
+      const db = await getDatabase();
+      const workout = await db.getFirstAsync(`SELECT id FROM workouts WHERE id = ?`, [workoutId]);
+      
+      if (workout) {
+        router.push({
+          pathname: '/workout/[id]',
+          params: { id: workoutId }
+        });
+      } else {
+        // Workout doesn't exist anymore, was probably deleted
+        Alert.alert('Workout Not Found', 'This workout has been deleted.');
+        // Refresh the data to remove the deleted workout from recent workouts
+        loadData();
+      }
+    } catch (error) {
+      console.error('Error checking workout existence:', error);
+      Alert.alert('Error', 'Failed to load workout details.');
+    }
   };
 
   const navigateToHistory = () => {
