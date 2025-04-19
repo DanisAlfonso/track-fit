@@ -95,10 +95,13 @@ export default function CreateRoutineScreen() {
     
     // Then filter by search query if it exists
     if (searchQuery) {
-      filtered = filtered.filter(exercise => 
-        exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (exercise.primary_muscle && exercise.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+      const trimmedQuery = searchQuery.trim().toLowerCase();
+      if (trimmedQuery) {
+        filtered = filtered.filter(exercise => 
+          exercise.name.toLowerCase().includes(trimmedQuery) ||
+          (exercise.primary_muscle && exercise.primary_muscle.toLowerCase().includes(trimmedQuery))
+        );
+      }
     }
     
     setFilteredExercises(filtered);

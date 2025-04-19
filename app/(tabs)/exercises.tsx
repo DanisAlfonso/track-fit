@@ -212,6 +212,7 @@ export default function ExercisesScreen() {
     'Shoulders',
     'Biceps',
     'Triceps',
+    'Forearms',
     'Quadriceps',
     'Hamstrings',
     'Glutes',
@@ -254,9 +255,13 @@ export default function ExercisesScreen() {
 
     // Apply search filter
     if (searchQuery) {
-      filtered = filtered.filter(exercise => 
-        exercise.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const trimmedQuery = searchQuery.trim().toLowerCase();
+      if (trimmedQuery) {
+        filtered = filtered.filter(exercise => 
+          exercise.name.toLowerCase().includes(trimmedQuery) ||
+          exercise.primary_muscle.toLowerCase().includes(trimmedQuery)
+        );
+      }
     }
 
     // Apply muscle group filter

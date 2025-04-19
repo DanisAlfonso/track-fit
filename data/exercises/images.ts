@@ -84,6 +84,45 @@ export const exerciseImages: ExerciseImages = {
   'Russian Twist': {
     icon: defaultIcon,
   },
+  'Wrist Curl with Dumbbells': {
+    icon: defaultIcon,
+  },
+  'Wrist Curl with Barbell': {
+    icon: defaultIcon,
+  },
+  'Wrist Curl with Cable': {
+    icon: defaultIcon,
+  },
+  'Reverse Wrist Curl with Dumbbells': {
+    icon: defaultIcon,
+  },
+  'Reverse Wrist Curl with Barbell': {
+    icon: defaultIcon,
+  },
+  'Reverse Wrist Curl with Cable': {
+    icon: defaultIcon,
+  },
+  'Farmer\'s Walk with Dumbbells': {
+    icon: defaultIcon,
+  },
+  'Farmer\'s Walk with Kettlebells': {
+    icon: defaultIcon,
+  },
+  'Farmer\'s Walk with Trap Bar': {
+    icon: defaultIcon,
+  },
+  'Reverse Curl with Dumbbells': {
+    icon: defaultIcon,
+  },
+  'Reverse Curl with Barbell': {
+    icon: defaultIcon,
+  },
+  'Reverse Curl with Cable': {
+    icon: defaultIcon,
+  },
+  'Reverse Curl with EZ Bar': {
+    icon: defaultIcon,
+  },
 };
 
 /**

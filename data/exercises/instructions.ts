@@ -162,6 +162,104 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Rotate to the left, bringing the weight to your left side',
     'Continue alternating sides for the desired number of repetitions'
   ],
+  'Wrist Curl with Dumbbells': [
+    'Sit on a bench with your forearms resting on your thighs, palms facing up',
+    'Hold dumbbells with a full grip',
+    'Lower the dumbbells by extending your wrists',
+    'Curl the dumbbells up by flexing your wrists',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Wrist Curl with Barbell': [
+    'Sit on a bench with your forearms resting on your thighs, palms facing up',
+    'Hold a barbell with an underhand grip',
+    'Lower the barbell by extending your wrists',
+    'Curl the barbell up by flexing your wrists',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Wrist Curl with Cable': [
+    'Sit on a bench in front of a low pulley cable',
+    'Grasp the cable attachment with palms facing up',
+    'Rest your forearms on your thighs',
+    'Lower the weight by extending your wrists',
+    'Curl the weight up by flexing your wrists',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Wrist Curl with Dumbbells': [
+    'Sit on a bench with your forearms resting on your thighs, palms facing down',
+    'Hold dumbbells with a full grip',
+    'Lower the dumbbells by flexing your wrists downward',
+    'Raise the dumbbells by extending your wrists upward',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Wrist Curl with Barbell': [
+    'Sit on a bench with your forearms resting on your thighs, palms facing down',
+    'Hold a barbell with an overhand grip',
+    'Lower the barbell by flexing your wrists downward',
+    'Raise the barbell by extending your wrists upward',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Wrist Curl with Cable': [
+    'Sit on a bench in front of a low pulley cable',
+    'Grasp the cable attachment with palms facing down',
+    'Rest your forearms on your thighs',
+    'Lower the weight by flexing your wrists downward',
+    'Raise the weight by extending your wrists upward',
+    'Hold the contraction briefly at the top',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Farmer\'s Walk with Dumbbells': [
+    'Stand holding a heavy dumbbell in each hand at your sides',
+    'Keep your shoulders back, chest up, and core engaged',
+    'Walk forward with controlled steps for the designated distance or time',
+    'Maintain a strong grip and upright posture throughout the movement'
+  ],
+  'Farmer\'s Walk with Kettlebells': [
+    'Stand holding a kettlebell in each hand at your sides',
+    'Keep your shoulders back, chest up, and core engaged',
+    'Walk forward with controlled steps for the designated distance or time',
+    'Maintain a strong grip and upright posture throughout the movement'
+  ],
+  'Farmer\'s Walk with Trap Bar': [
+    'Position yourself inside a trap bar with feet shoulder-width apart',
+    'Grip the handles and lift the bar by extending your hips and knees',
+    'Stand tall with shoulders back and core engaged',
+    'Walk forward with controlled steps for the designated distance or time',
+    'Maintain a strong grip and upright posture throughout the movement'
+  ],
+  'Reverse Curl with Dumbbells': [
+    'Stand holding dumbbells in front of your thighs with palms facing down',
+    'Keep your elbows close to your sides',
+    'Curl the dumbbells up toward your shoulders while maintaining the overhand grip',
+    'Lower the dumbbells back to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Curl with Barbell': [
+    'Stand holding a barbell in front of your thighs with palms facing down',
+    'Keep your elbows close to your sides',
+    'Curl the barbell up toward your shoulders while maintaining the overhand grip',
+    'Lower the barbell back to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Curl with Cable': [
+    'Stand facing a cable machine with a straight bar attachment set to the lowest position',
+    'Grasp the bar with palms facing down',
+    'Keep your elbows close to your sides',
+    'Curl the bar up toward your shoulders while maintaining the overhand grip',
+    'Lower the bar back to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Reverse Curl with EZ Bar': [
+    'Stand holding an EZ bar in front of your thighs with palms facing down',
+    'Keep your elbows close to your sides',
+    'Curl the bar up toward your shoulders while maintaining the overhand grip',
+    'Lower the bar back to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
   'default': [
     'Set up properly with good form',
     'Control the weight through the entire range of motion',
