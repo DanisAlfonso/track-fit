@@ -43,6 +43,23 @@ type MarkedDates = {
       borderColor?: string;
       borderRadius?: number;
     };
+    customStyles?: {
+      container: {
+        backgroundColor?: string;
+        borderRadius?: number;
+        borderWidth?: number;
+        borderColor?: string;
+      };
+      text: {
+        color?: string;
+        fontWeight?: string;
+      };
+    };
+    periods?: {
+      startingDay: boolean;
+      endingDay: boolean;
+      color: string;
+    }[];
   };
 };
 
@@ -155,24 +172,55 @@ export default function WeeklyScheduleScreen() {
       
       if (routineForDay && routineForDay.routine_id) {
         const dateString = date.toISOString().split('T')[0];
+        
+        // Get the routine index to determine its color (for consistency with weekly grid)
+        const routineIndex = weekSchedule
+          .filter(d => d.routine_id !== null)
+          .map(d => d.routine_name)
+          .indexOf(routineForDay.routine_name);
+        
+        const routineColor = getLegendColor(routineIndex, colors);
+        
         markers[dateString] = {
-          marked: true,
-          dotColor: colors.primary,
-          customContainerStyle: {
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 8,
-          }
+          // Create a more informative marker with custom styling
+          customStyles: {
+            container: {
+              backgroundColor: routineColor,
+              borderRadius: 8,
+            },
+            text: {
+              color: 'white',
+              fontWeight: '600',
+            }
+          },
+          // Add a period to signal there's content without using the dot
+          periods: [
+            {
+              startingDay: true,
+              endingDay: true,
+              color: 'transparent'
+            }
+          ]
         };
       }
     }
     
-    // Mark today
+    // Mark today with a special style
     const todayString = today.toISOString().split('T')[0];
     markers[todayString] = {
       ...markers[todayString],
-      selected: true,
-      selectedColor: colors.primary,
+      customStyles: {
+        container: {
+          backgroundColor: markers[todayString]?.customStyles?.container?.backgroundColor || colors.primary,
+          borderRadius: 8,
+          borderWidth: 2,
+          borderColor: '#ffffff',
+        },
+        text: {
+          color: 'white',
+          fontWeight: 'bold',
+        }
+      }
     };
     
     setMarkedDates(markers);
@@ -560,7 +608,14 @@ export default function WeeklyScheduleScreen() {
     textDayHeaderFontWeight: '600',
     textDayFontSize: 14,
     textMonthFontSize: 18,
-    textDayHeaderFontSize: 13
+    textDayHeaderFontSize: 13,
+    'stylesheet.calendar.main': {
+      week: {
+        marginVertical: 2,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+      }
+    }
   };
 
   return (
@@ -591,13 +646,34 @@ export default function WeeklyScheduleScreen() {
 
         {/* Calendar View */}
         <View style={[styles.calendarContainer, { backgroundColor: colors.card }]}>
+          <Text style={[styles.calendarTitle, { color: colors.text }]}>Monthly Overview</Text>
           <Calendar
             theme={calendarTheme}
+            markingType='custom'
             markedDates={markedDates}
             onDayPress={onDateSelect}
             enableSwipeMonths
             hideExtraDays
           />
+          <View style={styles.calendarLegend}>
+            {weekSchedule
+              .filter(day => day.routine_id !== null)
+              .map(day => day.routine_name)
+              .filter((routineName, index, self) => self.indexOf(routineName) === index) // Get unique routine names
+              .map((routineName, index) => (
+                <View key={index} style={styles.calendarLegendItem}>
+                  <View 
+                    style={[
+                      styles.calendarLegendColor, 
+                      { backgroundColor: getLegendColor(index, colors) }
+                    ]} 
+                  />
+                  <Text style={[styles.calendarLegendText, { color: colors.subtext }]} numberOfLines={1}>
+                    {routineName}
+                  </Text>
+                </View>
+              ))}
+          </View>
         </View>
         
         <View style={styles.sectionHeader}>
@@ -839,12 +915,42 @@ const styles = StyleSheet.create({
   calendarContainer: {
     marginBottom: 20,
     borderRadius: 16,
-    padding: 10,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  calendarTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  calendarLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+    marginBottom: 8,
+  },
+  calendarLegendColor: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+    marginRight: 4,
+  },
+  calendarLegendText: {
+    fontSize: 12,
   },
   sectionHeader: {
     marginBottom: 16,
