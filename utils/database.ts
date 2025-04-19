@@ -115,6 +115,15 @@ export const initDatabase = async (): Promise<void> => {
         FOREIGN KEY (exercise_id) REFERENCES exercises (id) ON DELETE CASCADE,
         UNIQUE(exercise_id)
       );
+
+      CREATE TABLE IF NOT EXISTS weekly_schedule (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        day_of_week INTEGER NOT NULL, -- 0 = Sunday, 1 = Monday, etc.
+        routine_id INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE,
+        UNIQUE(day_of_week) -- Ensure only one routine per day
+      );
     `);
   } catch (error) {
     console.error('Error creating database tables:', error);
@@ -429,6 +438,7 @@ export const resetDatabase = async (): Promise<void> => {
       DROP TABLE IF EXISTS routine_exercises;
       DROP TABLE IF EXISTS routines;
       DROP TABLE IF EXISTS exercises;
+      DROP TABLE IF EXISTS weekly_schedule;
     `);
     
     console.log('Database reset: All tables dropped');

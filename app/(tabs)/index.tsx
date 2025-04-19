@@ -43,6 +43,7 @@ export default function HomeScreen() {
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -133,10 +134,36 @@ export default function HomeScreen() {
       }
       
       setStats(statsResult);
+      
+      // Load today's scheduled workout if any
+      await loadTodaysScheduledWorkout();
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTodaysScheduledWorkout = async () => {
+    try {
+      const db = await getDatabase();
+      const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      const scheduledRoutine = await db.getFirstAsync<{ name: string; id: number; exerciseCount: number } | null>(`
+        SELECT r.id, r.name, 
+        (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exerciseCount
+        FROM weekly_schedule ws
+        JOIN routines r ON ws.routine_id = r.id
+        WHERE ws.day_of_week = ?
+      `, [today]);
+      
+      if (scheduledRoutine) {
+        setTodaysRoutine(scheduledRoutine);
+      } else {
+        setTodaysRoutine(null);
+      }
+    } catch (error) {
+      console.error('Error loading today\'s routine:', error);
     }
   };
 
@@ -286,6 +313,66 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Today's Workout */}
+      {todaysRoutine && (
+        <View style={styles.todaysWorkoutContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Workout</Text>
+          
+          <TouchableOpacity 
+            style={[styles.todaysWorkoutCard, { backgroundColor: colors.card }]}
+            onPress={() => {
+              if (todaysRoutine.exerciseCount > 0) {
+                router.push({
+                  pathname: '/workout/start',
+                  params: { routineId: todaysRoutine.id }
+                });
+              } else {
+                Alert.alert(
+                  'Empty Routine',
+                  `This routine doesn't have any exercises. Please add exercises to it first.`,
+                  [
+                    { text: 'OK', style: 'cancel' },
+                    { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${todaysRoutine.id}`) }
+                  ]
+                );
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.todaysWorkoutContent}>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.todaysWorkoutIconContainer}
+              >
+                <FontAwesome5 name="calendar-day" size={20} color="white" />
+              </LinearGradient>
+              <View style={styles.todaysWorkoutInfo}>
+                <Text style={[styles.todaysWorkoutTitle, { color: colors.text }]}>
+                  {todaysRoutine.name}
+                </Text>
+                <Text style={[styles.todaysWorkoutSubtitle, { color: colors.subtext }]}>
+                  {todaysRoutine.exerciseCount} exercise{todaysRoutine.exerciseCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+            </View>
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.startButton}
+            >
+              <FontAwesome5 name="play" size={14} color="white" />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.scheduleLink}
+            onPress={() => router.push('/weekly-schedule')}
+          >
+            <Text style={[styles.scheduleLinkText, { color: colors.primary }]}>View Weekly Schedule</Text>
+            <FontAwesome5 name="chevron-right" size={12} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Workout Stats */}
       <View style={styles.statsContainer}>
@@ -666,5 +753,56 @@ const styles = StyleSheet.create({
   },
   activityIndicator: {
     marginRight: 8,
+  },
+  todaysWorkoutContainer: {
+    marginBottom: 24,
+  },
+  todaysWorkoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  todaysWorkoutContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  todaysWorkoutIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  todaysWorkoutInfo: {
+    flex: 1,
+  },
+  todaysWorkoutTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  todaysWorkoutSubtitle: {
+    fontSize: 14,
+  },
+  scheduleLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingVertical: 8,
+  },
+  scheduleLinkText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginRight: 6,
   },
 });

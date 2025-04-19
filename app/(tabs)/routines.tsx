@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { FontAwesome5, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
-import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
@@ -110,22 +109,33 @@ export default function RoutinesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
+      <View style={styles.headerContainer}>
         <Text style={[styles.title, { color: colors.text }]}>My Routines</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={navigateToCreateRoutine}
-        >
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.addButtonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+        
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={[styles.scheduleButton, { backgroundColor: colors.card }]}
+            onPress={() => router.push('/weekly-schedule')}
           >
-            <FontAwesome5 name="plus" size={14} color="white" />
-            <Text style={styles.addButtonText}>New Routine</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+            <FontAwesome5 name="calendar-alt" size={16} color={colors.primary} />
+            <Text style={[styles.scheduleButtonText, { color: colors.primary }]} numberOfLines={1}>Schedule</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={navigateToCreateRoutine}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.addButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <FontAwesome5 name="plus" size={14} color="white" />
+              <Text style={styles.addButtonText} numberOfLines={1}>New Routine</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -147,7 +157,7 @@ export default function RoutinesScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Yet</Text>
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                Click the "New Routine" button in the top right to create your first workout routine
+                Click the "New Routine" button to create your first workout routine
               </Text>
             </View>
           }
@@ -162,32 +172,71 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  headerContainer: {
+    marginBottom: 24,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingVertical: 8,
+    marginBottom: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  scheduleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    flex: 1,
+    maxWidth: '48%',
+  },
+  scheduleButtonText: {
+    marginLeft: 8,
+    fontWeight: '600',
+    fontSize: 14,
+    flexShrink: 1,
   },
   addButton: {
     overflow: 'hidden',
     borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+    flex: 1,
+    maxWidth: '48%',
   },
   addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     borderRadius: 12,
   },
   addButtonText: {
     color: 'white',
     fontWeight: '600',
     marginLeft: 8,
+    fontSize: 14,
+    flexShrink: 1,
   },
   routinesList: {
     paddingBottom: 20,
