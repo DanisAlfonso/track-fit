@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity, Alert, RefreshControl, Pressable } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase, getFavoritedExercises, resetExercisesTable, toggleFavorite, deleteExercise } from '@/utils/database';
-import { useRouter, Stack } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import React from 'react';
 
 type Exercise = {
   id: number;
@@ -18,6 +18,176 @@ type Exercise = {
   primary_muscle: string;
   secondary_muscles: string | null;
 };
+
+// Define a type for FontAwesome icon names to avoid type errors
+type FontAwesomeIconName = React.ComponentProps<typeof FontAwesome>['name'];
+
+// Create memoized exercise item component to prevent unnecessary re-renders
+const ExerciseItem = React.memo(({ 
+  item, 
+  navigateToExerciseDetail, 
+  favoriteExerciseIds, 
+  confirmDelete, 
+  handleToggleFavorite,
+  colors,
+  router,
+  getCategoryColor,
+  getMuscleGroupIcon
+}: { 
+  item: Exercise, 
+  navigateToExerciseDetail: (id: number) => void,
+  favoriteExerciseIds: number[],
+  confirmDelete: (id: number, name: string, event: any) => void,
+  handleToggleFavorite: (id: number, event: any) => void,
+  colors: any,
+  router: any,
+  getCategoryColor: (category: string) => [string, string],
+  getMuscleGroupIcon: (muscle: string) => FontAwesomeIconName
+}) => (
+  <TouchableOpacity 
+    style={[styles.exerciseCard, { backgroundColor: colors.card }]}
+    onPress={() => navigateToExerciseDetail(item.id)}
+    activeOpacity={0.7}
+  >
+    <View style={styles.exerciseCardInner}>
+      <View style={styles.exerciseCardHeader}>
+        <View style={styles.exerciseCategoryContainer}>
+          <LinearGradient
+            colors={getCategoryColor(item.category)}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.categoryBadge}
+          >
+            <Text style={styles.categoryText}>{item.category}</Text>
+          </LinearGradient>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={styles.deleteButton}
+            onPress={(e) => confirmDelete(item.id, item.name, e)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <FontAwesome 
+              name="trash-o" 
+              size={20} 
+              color={colors.subtext}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.favoriteButton}
+            onPress={(e) => handleToggleFavorite(item.id, e)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <FontAwesome 
+              name={favoriteExerciseIds.includes(item.id) ? "heart" : "heart-o"} 
+              size={22} 
+              color={favoriteExerciseIds.includes(item.id) ? colors.primary : colors.subtext} 
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <View style={styles.exerciseContent}>
+        <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
+        
+        <View style={styles.muscleGroupsContainer}>
+          <View style={styles.primaryMuscleContainer}>
+            <FontAwesome 
+              name={getMuscleGroupIcon(item.primary_muscle)} 
+              size={14} 
+              color={colors.primary} 
+              style={styles.muscleIcon} 
+            />
+            <Text style={[styles.primaryMuscle, { color: colors.text }]}>
+              {item.primary_muscle}
+            </Text>
+          </View>
+          
+          {item.secondary_muscles && (
+            <View style={styles.secondaryMusclesContainer}>
+              <Text style={[styles.secondaryMusclesLabel, { color: colors.subtext }]}>
+                Also works:
+              </Text>
+              <Text style={[styles.secondaryMuscles, { color: colors.subtext }]}>
+                {item.secondary_muscles}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+      
+      <View style={styles.exerciseFooter}>
+        <TouchableOpacity 
+          style={styles.footerButton} 
+          onPress={() => navigateToExerciseDetail(item.id)}
+        >
+          <Text style={[styles.footerButtonText, { color: colors.primary }]}>Details</Text>
+          <FontAwesome name="info-circle" size={14} color={colors.primary} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.footerButton} 
+          onPress={() => router.push(`/exercise/history/${item.id}`)}
+        >
+          <Text style={[styles.footerButtonText, { color: colors.primary }]}>History</Text>
+          <FontAwesome name="history" size={14} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  </TouchableOpacity>
+), (prevProps, nextProps) => {
+  // Custom comparison function to determine if re-render is needed
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.item.name === nextProps.item.name &&
+    prevProps.item.category === nextProps.item.category &&
+    prevProps.item.primary_muscle === nextProps.item.primary_muscle &&
+    prevProps.item.secondary_muscles === nextProps.item.secondary_muscles &&
+    prevProps.favoriteExerciseIds.includes(prevProps.item.id) === 
+    nextProps.favoriteExerciseIds.includes(nextProps.item.id) &&
+    prevProps.colors.card === nextProps.colors.card &&
+    prevProps.colors.text === nextProps.colors.text &&
+    prevProps.colors.subtext === nextProps.colors.subtext &&
+    prevProps.colors.primary === nextProps.colors.primary
+  );
+});
+
+// Memoized filter button component
+const MuscleGroupFilterButton = React.memo(({ 
+  item, 
+  isSelected, 
+  onPress, 
+  colors 
+}: { 
+  item: string, 
+  isSelected: boolean, 
+  onPress: () => void, 
+  colors: any 
+}) => (
+  <TouchableOpacity
+    style={[
+      styles.filterButton,
+      isSelected
+        ? { backgroundColor: colors.primary }
+        : { backgroundColor: colors.card }
+    ]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <Text
+      style={[
+        styles.filterText,
+        isSelected
+          ? { color: 'white' }
+          : { color: colors.text }
+      ]}
+    >
+      {item}
+    </Text>
+  </TouchableOpacity>
+));
 
 export default function ExercisesScreen() {
   const colorScheme = useColorScheme();
@@ -35,7 +205,7 @@ export default function ExercisesScreen() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const muscleGroups = [
+  const muscleGroups = useMemo(() => [
     'All',
     'Chest',
     'Back',
@@ -47,7 +217,7 @@ export default function ExercisesScreen() {
     'Glutes',
     'Calves',
     'Abs',
-  ];
+  ], []);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,7 +230,7 @@ export default function ExercisesScreen() {
     filterExercises();
   }, [searchQuery, selectedFilter, exercises, showFavoritesOnly, favoriteExerciseIds]);
 
-  const loadExercises = async () => {
+  const loadExercises = useCallback(async () => {
     try {
       const db = await getDatabase();
       const results = await db.getAllAsync<Exercise>('SELECT * FROM exercises ORDER BY name');
@@ -68,18 +238,18 @@ export default function ExercisesScreen() {
     } catch (error) {
       console.error('Error loading exercises:', error);
     }
-  };
+  }, []);
 
-  const loadFavorites = async () => {
+  const loadFavorites = useCallback(async () => {
     try {
       const favorites = await getFavoritedExercises();
       setFavoriteExerciseIds(favorites);
     } catch (error) {
       console.error('Error loading favorites:', error);
     }
-  };
+  }, []);
 
-  const filterExercises = () => {
+  const filterExercises = useCallback(() => {
     let filtered = [...exercises];
 
     // Apply search filter
@@ -105,11 +275,11 @@ export default function ExercisesScreen() {
     }
 
     setFilteredExercises(filtered);
-  };
+  }, [exercises, searchQuery, selectedFilter, showFavoritesOnly, favoriteExerciseIds]);
 
-  const navigateToExerciseDetail = (exerciseId: number) => {
+  const navigateToExerciseDetail = useCallback((exerciseId: number) => {
     router.push(`/exercise/${exerciseId}`);
-  };
+  }, [router]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -122,9 +292,9 @@ export default function ExercisesScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [loadExercises, loadFavorites]);
 
-  const getCategoryColor = (category: string): [string, string] => {
+  const getCategoryColor = useCallback((category: string): [string, string] => {
     switch(category) {
       case 'Compound':
         return ['#4E54C8', '#8F94FB']; // Purple gradient
@@ -137,14 +307,14 @@ export default function ExercisesScreen() {
       default:
         return [colors.primary, colors.primary]; // Default
     }
-  };
+  }, [colors.primary]);
 
-  const getMuscleGroupIcon = (muscle: string): string => {
+  const getMuscleGroupIcon = useCallback((muscle: string): FontAwesomeIconName => {
     // Default icon
     return 'dot-circle-o';
-  };
+  }, []);
 
-  const handleToggleFavorite = async (exerciseId: number, event?: any) => {
+  const handleToggleFavorite = useCallback(async (exerciseId: number, event?: any) => {
     event?.stopPropagation?.();
     
     try {
@@ -161,9 +331,9 @@ export default function ExercisesScreen() {
       console.error('Error toggling favorite:', error);
       Alert.alert('Error', 'Failed to update favorite. Please try again.');
     }
-  };
+  }, []);
 
-  const confirmDelete = (exerciseId: number, exerciseName: string, event?: any) => {
+  const confirmDelete = useCallback((exerciseId: number, exerciseName: string, event?: any) => {
     event?.stopPropagation?.();
     
     Alert.alert(
@@ -191,127 +361,56 @@ export default function ExercisesScreen() {
         }
       ]
     );
-  };
+  }, [loadExercises]);
 
-  const renderExerciseItem = ({ item }: { item: Exercise }) => (
-    <TouchableOpacity 
-      style={[styles.exerciseCard, { backgroundColor: colors.card }]}
-      onPress={() => navigateToExerciseDetail(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.exerciseCardInner}>
-        <View style={styles.exerciseCardHeader}>
-          <View style={styles.exerciseCategoryContainer}>
-            <LinearGradient
-              colors={getCategoryColor(item.category)}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.categoryBadge}
-            >
-              <Text style={styles.categoryText}>{item.category}</Text>
-            </LinearGradient>
-          </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={styles.deleteButton}
-              onPress={(e) => confirmDelete(item.id, item.name, e)}
-              activeOpacity={0.6}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <FontAwesome 
-                name="trash-o" 
-                size={20} 
-                color={colors.subtext}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.favoriteButton}
-              onPress={(e) => handleToggleFavorite(item.id, e)}
-              activeOpacity={0.6}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <FontAwesome 
-                name={favoriteExerciseIds.includes(item.id) ? "heart" : "heart-o"} 
-                size={22} 
-                color={favoriteExerciseIds.includes(item.id) ? colors.primary : colors.subtext} 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        <View style={styles.exerciseContent}>
-          <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
-          
-          <View style={styles.muscleGroupsContainer}>
-            <View style={styles.primaryMuscleContainer}>
-              <FontAwesome 
-                name={getMuscleGroupIcon(item.primary_muscle)} 
-                size={14} 
-                color={colors.primary} 
-                style={styles.muscleIcon} 
-              />
-              <Text style={[styles.primaryMuscle, { color: colors.text }]}>
-                {item.primary_muscle}
-              </Text>
-            </View>
-            
-            {item.secondary_muscles && (
-              <View style={styles.secondaryMusclesContainer}>
-                <Text style={[styles.secondaryMusclesLabel, { color: colors.subtext }]}>
-                  Also works:
-                </Text>
-                <Text style={[styles.secondaryMuscles, { color: colors.subtext }]}>
-                  {item.secondary_muscles}
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-        
-        <View style={styles.exerciseFooter}>
-          <TouchableOpacity 
-            style={styles.footerButton} 
-            onPress={() => navigateToExerciseDetail(item.id)}
-          >
-            <Text style={[styles.footerButtonText, { color: colors.primary }]}>Details</Text>
-            <FontAwesome name="info-circle" size={14} color={colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.footerButton} 
-            onPress={() => router.push(`/exercise/history/${item.id}`)}
-          >
-            <Text style={[styles.footerButtonText, { color: colors.primary }]}>History</Text>
-            <FontAwesome name="history" size={14} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderExerciseItem = useCallback(({ item }: { item: Exercise }) => (
+    <ExerciseItem
+      item={item}
+      navigateToExerciseDetail={navigateToExerciseDetail}
+      favoriteExerciseIds={favoriteExerciseIds}
+      confirmDelete={confirmDelete}
+      handleToggleFavorite={handleToggleFavorite}
+      colors={colors}
+      router={router}
+      getCategoryColor={getCategoryColor}
+      getMuscleGroupIcon={getMuscleGroupIcon}
+    />
+  ), [
+    navigateToExerciseDetail, 
+    favoriteExerciseIds, 
+    confirmDelete, 
+    handleToggleFavorite, 
+    colors,
+    router,
+    getCategoryColor,
+    getMuscleGroupIcon
+  ]);
 
-  const renderMuscleGroupFilter = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={[
-        styles.filterButton,
-        selectedFilter === item || (item === 'All' && !selectedFilter)
-          ? { backgroundColor: colors.primary }
-          : { backgroundColor: colors.card }
-      ]}
+  const renderMuscleGroupFilter = useCallback(({ item }: { item: string }) => (
+    <MuscleGroupFilterButton
+      item={item}
+      isSelected={selectedFilter === item || (item === 'All' && !selectedFilter)}
       onPress={() => setSelectedFilter(item === 'All' ? null : item)}
-      activeOpacity={0.7}
-    >
-      <Text
-        style={[
-          styles.filterText,
-          selectedFilter === item || (item === 'All' && !selectedFilter)
-            ? { color: 'white' }
-            : { color: colors.text }
-        ]}
-      >
-        {item}
+      colors={colors}
+    />
+  ), [selectedFilter, colors]);
+
+  // Optimize empty list component with memo
+  const EmptyListComponent = useMemo(() => (
+    <View style={styles.emptyContainer}>
+      <FontAwesome name="search" size={50} color={colors.subtext} style={styles.emptyIcon} />
+      <Text style={[styles.emptyText, { color: colors.subtext }]}>
+        No exercises found
       </Text>
-    </TouchableOpacity>
-  );
+      <Text style={[styles.emptySubtext, { color: colors.subtext }]}>
+        Try adjusting your filters or pull down to refresh
+      </Text>
+    </View>
+  ), [colors.subtext]);
+
+  // Memoize key extractor functions
+  const keyExtractor = useCallback((item: Exercise) => item.id.toString(), []);
+  const muscleGroupKeyExtractor = useCallback((item: string) => item, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -366,9 +465,12 @@ export default function ExercisesScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               data={muscleGroups}
-              keyExtractor={(item) => item}
+              keyExtractor={muscleGroupKeyExtractor}
               renderItem={renderMuscleGroupFilter}
               contentContainerStyle={styles.muscleFiltersContainer}
+              initialNumToRender={5}
+              maxToRenderPerBatch={5}
+              windowSize={3}
             />
           </View>
         </View>
@@ -381,7 +483,7 @@ export default function ExercisesScreen() {
         
         <FlatList
           data={filteredExercises}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={keyExtractor}
           renderItem={renderExerciseItem}
           contentContainerStyle={styles.exercisesList}
           refreshControl={
@@ -392,17 +494,15 @@ export default function ExercisesScreen() {
               tintColor={colors.primary}
             />
           }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <FontAwesome name="search" size={50} color={colors.subtext} style={styles.emptyIcon} />
-              <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                No exercises found
-              </Text>
-              <Text style={[styles.emptySubtext, { color: colors.subtext }]}>
-                Try adjusting your filters or pull down to refresh
-              </Text>
-            </View>
-          }
+          ListEmptyComponent={EmptyListComponent}
+          initialNumToRender={8}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={(data, index) => (
+            {length: 208, offset: 208 * index, index}
+          )}
         />
       </View>
 
