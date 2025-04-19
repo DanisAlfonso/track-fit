@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import Colors from '@/constants/Colors';
-import { getDatabase, isExerciseFavorited, toggleFavorite } from '@/utils/database';
+import { getDatabase, isExerciseFavorited, toggleFavorite, deleteExercise } from '@/utils/database';
 import { getExerciseInstructions, getExerciseImage } from '@/data/exercises';
+import { StatusBar } from 'expo-status-bar';
 
 // Exercise types match our database schema
 type Exercise = {
@@ -16,6 +17,7 @@ type Exercise = {
   description: string | null;
   primary_muscle: string;
   secondary_muscles: string | null;
+  image_uri: string | null;
 };
 
 export default function ExerciseDetailScreen() {
@@ -77,6 +79,39 @@ export default function ExerciseDetailScreen() {
       console.error('Error toggling favorite:', error);
     }
   };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete Exercise",
+      `Are you sure you want to delete "${exercise?.name}"? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (exercise) {
+                await deleteExercise(exercise.id);
+                Alert.alert("Success", "Exercise deleted successfully", [
+                  {
+                    text: "OK",
+                    onPress: () => router.back()
+                  }
+                ]);
+              }
+            } catch (error) {
+              console.error('Error deleting exercise:', error);
+              Alert.alert("Error", "Failed to delete exercise. Please try again.");
+            }
+          }
+        }
+      ]
+    );
+  };
   
   // Animated styles
   const imageAnimatedStyle = useAnimatedStyle(() => ({
@@ -117,16 +152,28 @@ export default function ExerciseDetailScreen() {
           },
           headerTintColor: colors.text,
           headerRight: () => (
-            <TouchableOpacity 
-              style={[styles.headerButton, { backgroundColor: colors.card }]}
-              onPress={handleToggleFavorite}
-            >
-              <FontAwesome 
-                name={isFavorited ? "heart" : "heart-o"} 
-                size={16} 
-                color={isFavorited ? colors.primary : colors.text} 
-              />
-            </TouchableOpacity>
+            <View style={styles.headerRightContainer}>
+              <TouchableOpacity 
+                style={[styles.headerButton, { backgroundColor: colors.card }]}
+                onPress={confirmDelete}
+              >
+                <FontAwesome 
+                  name="trash-o" 
+                  size={16} 
+                  color={colors.text} 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.headerButton, { backgroundColor: colors.card }]}
+                onPress={handleToggleFavorite}
+              >
+                <FontAwesome 
+                  name={isFavorited ? "heart" : "heart-o"} 
+                  size={16} 
+                  color={isFavorited ? colors.primary : colors.text} 
+                />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -146,14 +193,30 @@ export default function ExerciseDetailScreen() {
       
       <Animated.View style={[styles.animationContainer, imageAnimatedStyle]}>
         <View style={[styles.animationBox, { backgroundColor: colors.card }]}>
-          <Image 
-            source={getExerciseImage(exercise.name)}
-            style={styles.exerciseAnimation}
-            resizeMode="contain"
-          />
-          <Text style={[styles.animationText, { color: colors.primary }]}>
-            Exercise Animation
-          </Text>
+          {exercise.image_uri ? (
+            <>
+              <Image 
+                source={{ uri: exercise.image_uri }}
+                style={styles.customExerciseImage}
+                resizeMode="cover"
+              />
+              <View style={styles.imageTypeIndicator}>
+                <FontAwesome name="image" size={14} color="white" style={styles.imageTypeIcon} />
+                <Text style={styles.imageTypeText}>Custom Image</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <Image 
+                source={getExerciseImage(exercise.name)}
+                style={styles.exerciseAnimation}
+                resizeMode="contain"
+              />
+              <Text style={[styles.animationText, { color: colors.primary }]}>
+                Exercise Animation
+              </Text>
+            </>
+          )}
         </View>
       </Animated.View>
       
@@ -431,5 +494,33 @@ const styles = StyleSheet.create({
   },
   historyIcon: {
     marginRight: 8,
+  },
+  headerRightContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  customExerciseImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  imageTypeIndicator: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+  },
+  imageTypeIcon: {
+    marginRight: 6,
+  },
+  imageTypeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
 }); 

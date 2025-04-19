@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { useColorScheme, Alert, View } from 'react-native';
-import { initDatabase, insertDefaultExercises, resetDatabase } from '../utils/database';
+import { initDatabase, insertDefaultExercises, migrateDatabase } from '@/utils/database';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -26,6 +26,10 @@ export default function RootLayout() {
         console.log('Initializing database...');
         await initDatabase();
         console.log('Database initialized successfully');
+        
+        console.log('Migrating database if needed...');
+        await migrateDatabase();
+        console.log('Database migration checked');
         
         console.log('Inserting default exercises...');
         await insertDefaultExercises();

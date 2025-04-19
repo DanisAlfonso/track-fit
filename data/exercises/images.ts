@@ -89,8 +89,15 @@ export const exerciseImages: ExerciseImages = {
 /**
  * Get the image for a specific exercise
  * @param exerciseName The name of the exercise
+ * @param customImageUri Optional custom image URI for user-added exercises
  * @returns The image reference for the exercise
  */
-export const getExerciseImage = (exerciseName: string): any => {
+export const getExerciseImage = (exerciseName: string, customImageUri?: string | null): any => {
+  // If a custom image URI is provided, return it
+  if (customImageUri) {
+    return { uri: customImageUri };
+  }
+  
+  // Otherwise, return the predefined exercise image or the default
   return exerciseImages[exerciseName] || exerciseImages['default'];
 }; 

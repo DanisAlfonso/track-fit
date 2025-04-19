@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase } from '@/utils/database';
+import { getDatabase, createCustomExercise } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
+import { useTheme } from '@/context/ThemeContext';
 
 const muscleGroups = [
   'Chest',
@@ -43,8 +45,10 @@ const categories = [
 export default function CreateExerciseScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -52,6 +56,7 @@ export default function CreateExerciseScreen() {
   const [secondaryMuscles, setSecondaryMuscles] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   const getCategoryColor = (cat: string): [string, string] => {
     switch(cat) {
@@ -68,6 +73,41 @@ export default function CreateExerciseScreen() {
     }
   };
 
+  const pickImage = async () => {
+    // Request permissions first
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (!permissionResult.granted) {
+      Alert.alert(
+        "Permission Required", 
+        "You need to grant permission to access your photos in order to add an image to your exercise."
+      );
+      return;
+    }
+    
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
+
+  const removeImage = () => {
+    Alert.alert(
+      "Remove Image",
+      "Are you sure you want to remove this image?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: () => setImageUri(null) }
+      ]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!name || !category || !primaryMuscle) {
       Alert.alert('Missing Information', 'Please fill in all required fields (Exercise Name, Category, and Primary Muscle)');
@@ -77,10 +117,13 @@ export default function CreateExerciseScreen() {
     setIsSubmitting(true);
 
     try {
-      const db = await getDatabase();
-      await db.runAsync(
-        'INSERT INTO exercises (name, category, primary_muscle, secondary_muscle, description, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, category, primaryMuscle, secondaryMuscles, description, Date.now()]
+      await createCustomExercise(
+        name,
+        category,
+        primaryMuscle,
+        secondaryMuscles,
+        description,
+        imageUri || undefined
       );
 
       Alert.alert('Success', 'Exercise created successfully', [
@@ -106,7 +149,7 @@ export default function CreateExerciseScreen() {
         style={[styles.container, { backgroundColor: colors.background }]}
         showsVerticalScrollIndicator={false}
       >
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
             title: 'Create Custom Exercise',
@@ -127,6 +170,64 @@ export default function CreateExerciseScreen() {
             <Text style={[styles.headerSubtitle, { color: colors.subtext }]}>
               Create a custom exercise to add to your workouts
             </Text>
+          </View>
+
+          <View style={[styles.formSection, { backgroundColor: colors.card }]}>
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: colors.text }]}>Exercise Image</Text>
+              <Text style={[styles.helperText, { color: colors.subtext }]}>
+                Add an image or animation for your exercise (optional)
+              </Text>
+              
+              <View style={styles.imageContainer}>
+                {imageUri ? (
+                  <View style={styles.imagePreviewContainer}>
+                    <Image 
+                      source={{ uri: imageUri }} 
+                      style={styles.imagePreview} 
+                      resizeMode="cover"
+                    />
+                    <TouchableOpacity 
+                      style={[styles.removeImageButton, { backgroundColor: colors.error }]}
+                      onPress={removeImage}
+                    >
+                      <FontAwesome name="trash" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity 
+                    style={[styles.imageUploadButton, { 
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                    }]}
+                    onPress={pickImage}
+                  >
+                    <FontAwesome 
+                      name="image" 
+                      size={28} 
+                      color={colors.primary} 
+                      style={styles.uploadIcon} 
+                    />
+                    <Text style={[styles.uploadText, { color: colors.text }]}>
+                      Tap to add image
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <View style={[styles.imageInfoCard, { backgroundColor: colors.background }]}>
+                <FontAwesome name="info-circle" size={18} color={colors.primary} style={styles.infoIcon} />
+                <View style={styles.infoTextContainer}>
+                  <Text style={[styles.infoTitle, { color: colors.text }]}>Image Tips</Text>
+                  <Text style={[styles.infoText, { color: colors.subtext }]}>
+                    • Clear, well-lit images work best{'\n'}
+                    • Square images are recommended{'\n'}
+                    • You can add animations or diagrams{'\n'}
+                    • You can add images later from the exercise details
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
 
           <View style={[styles.formSection, { backgroundColor: colors.card }]}>
@@ -444,5 +545,76 @@ const styles = StyleSheet.create({
   },
   submitIcon: {
     marginRight: 8,
+  },
+  imageContainer: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  imageUploadButton: {
+    width: 160,
+    height: 160,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadIcon: {
+    marginBottom: 12,
+  },
+  uploadText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  imagePreviewContainer: {
+    position: 'relative',
+    marginVertical: 8,
+  },
+  imagePreview: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  imageInfoCard: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  infoIcon: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontWeight: '600',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 13,
+    lineHeight: 20,
   },
 }); 

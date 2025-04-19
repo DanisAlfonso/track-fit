@@ -3,7 +3,7 @@ import { StyleSheet, FlatList, View, Text, TextInput, TouchableOpacity, Alert, R
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase, getFavoritedExercises, resetExercisesTable, toggleFavorite } from '@/utils/database';
+import { getDatabase, getFavoritedExercises, resetExercisesTable, toggleFavorite, deleteExercise } from '@/utils/database';
 import { useRouter, Stack } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
@@ -163,6 +163,36 @@ export default function ExercisesScreen() {
     }
   };
 
+  const confirmDelete = (exerciseId: number, exerciseName: string, event?: any) => {
+    event?.stopPropagation?.();
+    
+    Alert.alert(
+      "Delete Exercise",
+      `Are you sure you want to delete "${exerciseName}"? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteExercise(exerciseId);
+              // Refresh exercises list
+              await loadExercises();
+              Alert.alert("Success", "Exercise deleted successfully");
+            } catch (error) {
+              console.error('Error deleting exercise:', error);
+              Alert.alert("Error", "Failed to delete exercise. Please try again.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderExerciseItem = ({ item }: { item: Exercise }) => (
     <TouchableOpacity 
       style={[styles.exerciseCard, { backgroundColor: colors.card }]}
@@ -181,18 +211,32 @@ export default function ExercisesScreen() {
               <Text style={styles.categoryText}>{item.category}</Text>
             </LinearGradient>
           </View>
-          <TouchableOpacity 
-            style={styles.favoriteButton}
-            onPress={(e) => handleToggleFavorite(item.id, e)}
-            activeOpacity={0.6}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <FontAwesome 
-              name={favoriteExerciseIds.includes(item.id) ? "heart" : "heart-o"} 
-              size={22} 
-              color={favoriteExerciseIds.includes(item.id) ? colors.primary : colors.subtext} 
-            />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={(e) => confirmDelete(item.id, item.name, e)}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome 
+                name="trash-o" 
+                size={20} 
+                color={colors.subtext}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.favoriteButton}
+              onPress={(e) => handleToggleFavorite(item.id, e)}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome 
+                name={favoriteExerciseIds.includes(item.id) ? "heart" : "heart-o"} 
+                size={22} 
+                color={favoriteExerciseIds.includes(item.id) ? colors.primary : colors.subtext} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
         
         <View style={styles.exerciseContent}>
@@ -599,6 +643,14 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
   },
   favoriteButton: {
+    padding: 5,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deleteButton: {
     padding: 5,
   },
 }); 

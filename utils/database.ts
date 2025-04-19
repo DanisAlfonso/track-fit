@@ -11,6 +11,34 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
   return db;
 };
 
+// Migrate database - add new columns if needed
+export const migrateDatabase = async (): Promise<void> => {
+  const database = await getDatabase();
+  
+  try {
+    // Check if image_uri column exists in exercises table
+    const tableInfo = await database.getAllAsync(
+      "PRAGMA table_info(exercises)"
+    );
+    
+    const hasImageUriColumn = tableInfo.some((column: any) => 
+      column.name === 'image_uri'
+    );
+    
+    // Add image_uri column if it doesn't exist
+    if (!hasImageUriColumn) {
+      console.log('Adding image_uri column to exercises table...');
+      await database.execAsync(
+        'ALTER TABLE exercises ADD COLUMN image_uri TEXT;'
+      );
+      console.log('Migration completed successfully');
+    }
+  } catch (error) {
+    console.error('Error migrating database:', error);
+    throw error;
+  }
+};
+
 // Initialize database with all required tables
 export const initDatabase = async (): Promise<void> => {
   const database = await getDatabase();
@@ -26,6 +54,7 @@ export const initDatabase = async (): Promise<void> => {
         secondary_muscle TEXT,
         equipment TEXT,
         instructions TEXT,
+        image_uri TEXT,
         created_at INTEGER NOT NULL
       );
 
@@ -333,6 +362,42 @@ export const toggleFavorite = async (exerciseId: number): Promise<boolean> => {
   } else {
     await addToFavorites(exerciseId);
     return true;
+  }
+};
+
+// Delete an exercise by ID
+export const deleteExercise = async (exerciseId: number): Promise<void> => {
+  const database = await getDatabase();
+  try {
+    await database.runAsync(
+      'DELETE FROM exercises WHERE id = ?',
+      [exerciseId]
+    );
+  } catch (error) {
+    console.error('Error deleting exercise:', error);
+    throw error;
+  }
+};
+
+// Create a custom exercise with optional image URI
+export const createCustomExercise = async (
+  name: string,
+  category: string,
+  primaryMuscle: string,
+  secondaryMuscles: string,
+  description: string,
+  imageUri?: string
+): Promise<number> => {
+  const database = await getDatabase();
+  try {
+    const result = await database.runAsync(
+      'INSERT INTO exercises (name, category, primary_muscle, secondary_muscle, description, image_uri, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, category, primaryMuscle, secondaryMuscles, description, imageUri || null, Date.now()]
+    );
+    return result.lastInsertRowId;
+  } catch (error) {
+    console.error('Error creating custom exercise:', error);
+    throw error;
   }
 };
 
