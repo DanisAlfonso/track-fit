@@ -500,23 +500,6 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
-            onPress={() => Linking.openURL('https://github.com/DanisAlfonso/TrackFit')}
-          >
-            <View style={styles.settingLabelContainer}>
-              <FontAwesome5 name="github" size={18} color={colors.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Open Source</Text>
-                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
-                  View project on GitHub
-                </Text>
-              </View>
-            </View>
-            <FontAwesome5 name="external-link-alt" size={16} color={colors.subtext} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
-            activeOpacity={0.7}
             onPress={() => Linking.openURL('mailto:danisalfonso.dev@gmail.com')}
           >
             <View style={styles.settingLabelContainer}>
@@ -549,7 +532,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => {
               const message = "Check out TrackFit, a great workout tracker app I've been using: https://play.google.com/store/apps/details?id=com.danisalfonso.trackfit";
@@ -565,23 +548,6 @@ export default function ProfileScreen() {
                 <Text style={[styles.settingLabel, { color: colors.text }]}>Share with Friends</Text>
                 <Text style={[styles.settingDescription, { color: colors.subtext }]}>
                   Spread the word about TrackFit
-                </Text>
-              </View>
-            </View>
-            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.settingItem}
-            activeOpacity={0.7}
-            onPress={() => Linking.openURL('https://opensource.org/licenses/MIT')}
-          >
-            <View style={styles.settingLabelContainer}>
-              <FontAwesome5 name="file-contract" size={18} color={colors.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>License</Text>
-                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
-                  MIT License
                 </Text>
               </View>
             </View>
