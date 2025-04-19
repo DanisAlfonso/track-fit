@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
-import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '@/context/ThemeContext';
 
 type Workout = {
@@ -17,7 +16,7 @@ type Workout = {
   exercise_count: number;
 };
 
-export default function WorkoutsTab() {
+export default function HistoryScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
@@ -29,15 +28,9 @@ export default function WorkoutsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Workouts tab focused, reloading data...');
-      loadWorkouts();
-      return () => {
-        // Cleanup function when screen loses focus (optional)
-      };
-    }, [])
-  );
+  useEffect(() => {
+    loadWorkouts();
+  }, []);
 
   const loadWorkouts = async () => {
     try {
@@ -163,33 +156,36 @@ export default function WorkoutsTab() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Workout History</Text>
-        <TouchableOpacity 
-          style={[styles.analyticsButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/analytics')}
-        >
-          <FontAwesome name="bar-chart" size={16} color="#fff" />
-          <Text style={styles.analyticsButtonText}>Analytics</Text>
-        </TouchableOpacity>
-      </View>
+    <>
+      <Stack.Screen options={{ title: 'Workout History' }} />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>Workout History</Text>
+          <TouchableOpacity 
+            style={[styles.analyticsButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/analytics')}
+          >
+            <FontAwesome name="bar-chart" size={16} color="#fff" />
+            <Text style={styles.analyticsButtonText}>Analytics</Text>
+          </TouchableOpacity>
+        </View>
 
-      <FlatList
-        data={workouts}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderWorkoutItem}
-        contentContainerStyle={styles.workoutsList}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No Workouts Yet</Text>
-            <Text style={[styles.emptyText, { color: colors.subtext }]}>
-              Start tracking your workouts to see your progress.
-            </Text>
-          </View>
-        }
-      />
-    </View>
+        <FlatList
+          data={workouts}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderWorkoutItem}
+          contentContainerStyle={styles.workoutsList}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Workouts Yet</Text>
+              <Text style={[styles.emptyText, { color: colors.subtext }]}>
+                Start tracking your workouts to see your progress.
+              </Text>
+            </View>
+          }
+        />
+      </View>
+    </>
   );
 }
 
@@ -260,30 +256,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 6,
   },
+  analyticsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  analyticsButtonText: {
+    color: '#fff',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
+    padding: 24,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
-  },
-  analyticsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  analyticsButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 6,
   },
 }); 

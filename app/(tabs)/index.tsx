@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -205,7 +205,14 @@ export default function HomeScreen() {
   };
 
   const navigateToWorkout = (workoutId: number) => {
-    router.push(`/workout/${workoutId}`);
+    router.push({
+      pathname: '/workout/[id]',
+      params: { id: workoutId }
+    });
+  };
+
+  const navigateToHistory = () => {
+    router.push('/history');
   };
 
   if (loading) {
@@ -308,8 +315,8 @@ export default function HomeScreen() {
       <View style={styles.recentWorkoutsContainer}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Workouts</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/workouts')}>
-            <Text style={[styles.seeAllLink, { color: colors.primary }]}>See All</Text>
+          <TouchableOpacity onPress={navigateToHistory}>
+            <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
           </TouchableOpacity>
         </View>
         
@@ -477,9 +484,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  seeAllLink: {
+  viewAllText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   statsGrid: {
     flexDirection: 'row',
