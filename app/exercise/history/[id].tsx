@@ -26,6 +26,7 @@ type ExerciseHistoryEntry = {
     set_number: number;
     reps: number;
     weight: number;
+    training_type?: 'heavy' | 'moderate' | 'light';
   }[];
   totalVolume: number;
   maxWeight: number;
@@ -42,6 +43,7 @@ type SetData = {
   set_number: number;
   reps: number;
   weight: number;
+  training_type?: 'heavy' | 'moderate' | 'light';
 };
 
 // Define a safe chart rendering component
@@ -84,6 +86,7 @@ export default function ExerciseHistoryScreen() {
   const [exerciseName, setExerciseName] = useState('');
   const [historyData, setHistoryData] = useState<ExerciseHistoryEntry[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'chart'>('list');
+  const [selectedTrainingType, setSelectedTrainingType] = useState<'all' | 'heavy' | 'moderate' | 'light'>('all');
   
   const [toggleAnimation] = useState(new Animated.Value(viewMode === 'list' ? 0 : 1));
   
@@ -183,7 +186,7 @@ export default function ExerciseHistoryScreen() {
       for (const workoutExercise of workoutExercises) {
         // Get sets for this workout exercise
         const sets = await db.getAllAsync<SetData>(
-          `SELECT set_number, reps, weight
+          `SELECT set_number, reps, weight, training_type
            FROM sets
            WHERE workout_exercise_id = ?
            ORDER BY set_number`,
@@ -519,8 +522,53 @@ export default function ExerciseHistoryScreen() {
       return renderNoDataState();
     }
     
+    // Filter history data based on selected training type and reverse to show chronological progression
+    const filteredHistoryData = historyData.map(entry => {
+      // If 'all' is selected, return the entry as is
+      if (selectedTrainingType === 'all') {
+        return entry;
+      }
+      
+      // Otherwise, filter sets by training type
+      const filteredSets = entry.sets.filter(set => set.training_type === selectedTrainingType);
+      
+      // If no sets match the filter, return null (will be filtered out later)
+      if (filteredSets.length === 0) {
+        return null;
+      }
+      
+      // Calculate new volume and max weight based on filtered sets
+      const totalVolume = filteredSets.reduce((sum, set) => sum + (set.reps * set.weight), 0);
+      const maxWeight = Math.max(...filteredSets.map(set => set.weight));
+      
+      // Return a modified entry with filtered sets and recalculated stats
+      return {
+        ...entry,
+        sets: filteredSets,
+        totalVolume,
+        maxWeight
+      };
+    }).filter(entry => entry !== null) as ExerciseHistoryEntry[];
+    
     // Reverse the data to show chronological progression
-    const chartData = [...historyData].reverse();
+    const chartData = [...filteredHistoryData].reverse();
+    
+    // Show filtered data message if no matching data
+    if (filteredHistoryData.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome name="filter" size={28} color="#FFB300" style={{ opacity: 0.6 }} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No {selectedTrainingType} Training Data
+          </Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>
+            Try selecting a different training type or complete more workouts with {selectedTrainingType.toLowerCase()} training.
+          </Text>
+        </View>
+      );
+    }
     
     // Update the "More Data Needed" state with animations
     if (chartData.length < 2) {
@@ -759,7 +807,51 @@ export default function ExerciseHistoryScreen() {
       );
     }
     
-    return historyData.map((entry, index) => (
+    // Filter history data based on selected training type
+    const filteredHistoryData = historyData.map(entry => {
+      // If 'all' is selected, return the entry as is
+      if (selectedTrainingType === 'all') {
+        return entry;
+      }
+      
+      // Otherwise, filter sets by training type
+      const filteredSets = entry.sets.filter(set => set.training_type === selectedTrainingType);
+      
+      // If no sets match the filter, return null (will be filtered out later)
+      if (filteredSets.length === 0) {
+        return null;
+      }
+      
+      // Calculate new volume and max weight based on filtered sets
+      const totalVolume = filteredSets.reduce((sum, set) => sum + (set.reps * set.weight), 0);
+      const maxWeight = Math.max(...filteredSets.map(set => set.weight));
+      
+      // Return a modified entry with filtered sets and recalculated stats
+      return {
+        ...entry,
+        sets: filteredSets,
+        totalVolume,
+        maxWeight
+      };
+    }).filter(entry => entry !== null) as ExerciseHistoryEntry[];
+    
+    if (filteredHistoryData.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <View style={[styles.emptyIconContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome name="filter" size={28} color="#FFB300" style={{ opacity: 0.6 }} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            No {selectedTrainingType} Training Data
+          </Text>
+          <Text style={[styles.emptyText, { color: colors.subtext }]}>
+            Try selecting a different training type or complete more workouts with {selectedTrainingType.toLowerCase()} training.
+          </Text>
+        </View>
+      );
+    }
+    
+    return filteredHistoryData.map((entry, index) => (
       <View 
         key={index} 
         style={[styles.historyCard, { backgroundColor: colors.card }]}
@@ -810,6 +902,35 @@ export default function ExerciseHistoryScreen() {
               <Text style={[styles.setText, { color: colors.text }]}>
                 {set.weight} kg
               </Text>
+              {set.training_type && (
+                <View 
+                  style={[
+                    styles.trainingTypeBadge, 
+                    { 
+                      backgroundColor: 
+                        set.training_type === 'heavy' ? '#6F74DD20' :
+                        set.training_type === 'moderate' ? '#FFB30020' :
+                        set.training_type === 'light' ? '#4CAF5020' : 
+                        'transparent' 
+                    }
+                  ]}
+                >
+                  <Text 
+                    style={[
+                      styles.trainingTypeBadgeText, 
+                      { 
+                        color: 
+                          set.training_type === 'heavy' ? '#6F74DD' :
+                          set.training_type === 'moderate' ? '#FFB300' :
+                          set.training_type === 'light' ? '#4CAF50' : 
+                          colors.text 
+                      }
+                    ]}
+                  >
+                    {set.training_type.charAt(0).toUpperCase() + set.training_type.slice(1)}
+                  </Text>
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -919,6 +1040,102 @@ export default function ExerciseHistoryScreen() {
               ]}
             >
               Charts
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      {/* Training Type Filter */}
+      <View style={styles.trainingTypeFilterContainer}>
+        <Text style={[styles.filterLabel, { color: colors.text }]}>
+          Training Type:
+        </Text>
+        <View style={styles.trainingTypeButtons}>
+          <TouchableOpacity
+            style={[
+              styles.trainingTypeButton,
+              { 
+                backgroundColor: selectedTrainingType === 'all' 
+                  ? colors.primary + '20' 
+                  : colors.card,
+                borderColor: selectedTrainingType === 'all' 
+                  ? colors.primary 
+                  : colors.border
+              }
+            ]}
+            onPress={() => setSelectedTrainingType('all')}
+          >
+            <Text style={[
+              styles.trainingTypeText, 
+              { color: selectedTrainingType === 'all' ? colors.primary : colors.text }
+            ]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.trainingTypeButton,
+              { 
+                backgroundColor: selectedTrainingType === 'heavy' 
+                  ? '#6F74DD' + '20' 
+                  : colors.card,
+                borderColor: selectedTrainingType === 'heavy' 
+                  ? '#6F74DD' 
+                  : colors.border
+              }
+            ]}
+            onPress={() => setSelectedTrainingType('heavy')}
+          >
+            <Text style={[
+              styles.trainingTypeText, 
+              { color: selectedTrainingType === 'heavy' ? '#6F74DD' : colors.text }
+            ]}>
+              Heavy
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.trainingTypeButton,
+              { 
+                backgroundColor: selectedTrainingType === 'moderate' 
+                  ? '#FFB300' + '20' 
+                  : colors.card,
+                borderColor: selectedTrainingType === 'moderate' 
+                  ? '#FFB300' 
+                  : colors.border
+              }
+            ]}
+            onPress={() => setSelectedTrainingType('moderate')}
+          >
+            <Text style={[
+              styles.trainingTypeText, 
+              { color: selectedTrainingType === 'moderate' ? '#FFB300' : colors.text }
+            ]}>
+              Moderate
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.trainingTypeButton,
+              { 
+                backgroundColor: selectedTrainingType === 'light' 
+                  ? '#4CAF50' + '20' 
+                  : colors.card,
+                borderColor: selectedTrainingType === 'light' 
+                  ? '#4CAF50' 
+                  : colors.border
+              }
+            ]}
+            onPress={() => setSelectedTrainingType('light')}
+          >
+            <Text style={[
+              styles.trainingTypeText, 
+              { color: selectedTrainingType === 'light' ? '#4CAF50' : colors.text }
+            ]}>
+              Light
             </Text>
           </TouchableOpacity>
         </View>
@@ -1169,5 +1386,48 @@ const styles = StyleSheet.create({
   },
   dataPreviewInfo: {
     fontSize: 14,
+  },
+  trainingTypeFilterContainer: {
+    padding: 16,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  trainingTypeButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  trainingTypeButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    marginHorizontal: 3,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 38,
+  },
+  trainingTypeText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  trainingTypeBadge: {
+    padding: 4,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  trainingTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 }); 

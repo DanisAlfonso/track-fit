@@ -27,6 +27,7 @@ type Set = {
   weight: number;
   rest_time: number;
   completed: boolean;
+  training_type?: 'heavy' | 'moderate' | 'light'; // New field for rep range categorization
   notes: string;
 };
 
@@ -51,6 +52,13 @@ type TouchedFields = {
   reps: boolean;
   weight: boolean;
 };
+
+// Define training type options
+const TRAINING_TYPES = [
+  { value: 'heavy', label: 'Heavy', description: '1-5 reps', color: '#6F74DD' },
+  { value: 'moderate', label: 'Moderate', description: '6-12 reps', color: '#FFB300' },
+  { value: 'light', label: 'Light', description: '13+ reps', color: '#4CAF50' },
+];
 
 export default function StartWorkoutScreen() {
   const { routineId, workoutId: existingWorkoutId } = useLocalSearchParams();
@@ -531,6 +539,17 @@ export default function StartWorkoutScreen() {
       // Only pre-fill values if they haven't been changed already
       if (currentSetData.reps === 0) {
         currentSetData.reps = prevSet.reps;
+        
+        // Suggest training type based on rep count
+        if (!currentSetData.training_type) {
+          if (prevSet.reps <= 5) {
+            currentSetData.training_type = 'heavy';
+          } else if (prevSet.reps <= 12) {
+            currentSetData.training_type = 'moderate';
+          } else {
+            currentSetData.training_type = 'light';
+          }
+        }
       }
       
       if (currentSetData.weight === 0) {
@@ -569,6 +588,17 @@ export default function StartWorkoutScreen() {
     // Find the set index
     const setIndex = exercise.sets_data.findIndex(s => s.set_number === currentSet.set_number);
     if (setIndex === -1) return;
+    
+    // If no training type is selected, automatically categorize based on rep count
+    if (!currentSet.training_type) {
+      if (currentSet.reps <= 5) {
+        currentSet.training_type = 'heavy';
+      } else if (currentSet.reps <= 12) {
+        currentSet.training_type = 'moderate';
+      } else {
+        currentSet.training_type = 'light';
+      }
+    }
     
     // Store the weight in kg in the database, regardless of display preference
     const convertedWeight = getStoredWeight(currentSet.weight);
@@ -664,20 +694,21 @@ export default function StartWorkoutScreen() {
                     if (set.id) {
                       // Update existing set
                       await db.runAsync(
-                        `UPDATE sets SET reps = ?, weight = ?, completed = ?, notes = ? WHERE id = ?`,
-                        [set.reps, set.weight, set.completed ? 1 : 0, set.notes || '', set.id]
+                        `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, notes = ? WHERE id = ?`,
+                        [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.notes || '', set.id]
                       );
                     } else {
                       // Create new set
                       const result = await db.runAsync(
-                        `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                         [
                           workoutExerciseId, 
                           set.set_number, 
                           set.reps, 
                           set.weight, 
                           set.rest_time || 60, 
-                          set.completed ? 1 : 0, 
+                          set.completed ? 1 : 0,
+                          set.training_type || null,
                           set.notes || ''
                         ]
                       );
@@ -768,13 +799,26 @@ export default function StartWorkoutScreen() {
 
     // Function to render set items with the correct exercise index
     const renderExerciseSetItem = (setItem: Set, setIndex: number) => {
+      // Get training type display
+      const getTrainingTypeColor = () => {
+        if (!setItem.training_type) return colors.border;
+        switch(setItem.training_type) {
+          case 'heavy': return '#6F74DD';  // Blue/purple for heavy sets
+          case 'moderate': return '#FFB300'; // Orange for moderate sets
+          case 'light': return '#4CAF50';  // Green for light sets
+          default: return colors.border;
+        }
+      };
+      
       return (
         <TouchableOpacity 
           style={[
             styles.setItem, 
             { 
               backgroundColor: setItem.completed ? colors.success + '22' : colors.card,
-              borderColor: setItem.completed ? colors.success : colors.border,
+              borderColor: setItem.completed ? 
+                (setItem.training_type ? getTrainingTypeColor() : colors.success) : 
+                colors.border,
               borderWidth: 1.5,
             }
           ]}
@@ -798,6 +842,13 @@ export default function StartWorkoutScreen() {
                 <Text style={[styles.setDetail, { color: colors.text }]}>
                   {weightUnit === 'lb' ? `${kgToLb(setItem.weight).toFixed(1)} lb` : `${setItem.weight} kg`}
                 </Text>
+                {setItem.training_type && (
+                  <View style={[styles.trainingTypeBadge, { backgroundColor: getTrainingTypeColor() + '30' }]}>
+                    <Text style={[styles.trainingTypeBadgeText, { color: getTrainingTypeColor() }]}>
+                      {setItem.training_type.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <FontAwesome name="check" size={14} color={colors.success} style={styles.completedIcon} />
               </>
             ) : (
@@ -1028,7 +1079,21 @@ export default function StartWorkoutScreen() {
     setTouchedFields(prev => ({ ...prev, [field]: true }));
     
     if (field === 'reps') {
-      setCurrentSet({...currentSet, reps: parseInt(value) || 0});
+      const repCount = parseInt(value) || 0;
+      
+      // Automatically suggest a training type based on rep count
+      let suggestedType = currentSet.training_type;
+      if (repCount > 0) {
+        if (repCount <= 5) {
+          suggestedType = 'heavy';
+        } else if (repCount <= 12) {
+          suggestedType = 'moderate';
+        } else {
+          suggestedType = 'light';
+        }
+      }
+      
+      setCurrentSet({...currentSet, reps: repCount, training_type: suggestedType});
     } else if (field === 'weight') {
       setCurrentSet({...currentSet, weight: parseFloat(value) || 0});
     }
@@ -1110,20 +1175,21 @@ export default function StartWorkoutScreen() {
             if (set.id) {
               // Update existing set
               await db.runAsync(
-                `UPDATE sets SET reps = ?, weight = ?, completed = ?, notes = ? WHERE id = ?`,
-                [set.reps, set.weight, set.completed ? 1 : 0, set.notes || '', set.id]
+                `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, notes = ? WHERE id = ?`,
+                [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.notes || '', set.id]
               );
             } else {
               // Create new set
               const result = await db.runAsync(
-                `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                   workoutExerciseId, 
                   set.set_number, 
                   set.reps, 
                   set.weight, 
                   set.rest_time || 60, 
-                  set.completed ? 1 : 0, 
+                  set.completed ? 1 : 0,
+                  set.training_type || null,
                   set.notes || ''
                 ]
               );
@@ -1751,6 +1817,57 @@ export default function StartWorkoutScreen() {
             </View>
             
             <View style={styles.inputGroup}>
+              <View style={styles.inputLabelContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Training Type</Text>
+                <Text style={[styles.optionalIndicator, { color: colors.subtext }]}>Optional</Text>
+              </View>
+              <View style={[styles.trainingTypeContainer, { borderColor: colors.border, borderRadius: 8, borderWidth: 1 }]}>
+                {TRAINING_TYPES.map((type, index) => (
+                  <TouchableOpacity
+                    key={type.value}
+                    style={[
+                      styles.trainingTypeButton,
+                      { 
+                        backgroundColor: currentSet.training_type === type.value 
+                          ? type.color + '30' 
+                          : 'transparent',
+                        borderColor: colors.border,
+                        borderLeftWidth: index > 0 ? 1 : 0,
+                        borderRadius: 0,
+                      }
+                    ]}
+                    onPress={() => setCurrentSet({...currentSet, training_type: type.value as 'heavy' | 'moderate' | 'light'})}
+                  >
+                    <Text style={[
+                      styles.trainingTypeText, 
+                      { 
+                        color: currentSet.training_type === type.value 
+                          ? type.color 
+                          : colors.text,
+                        fontWeight: currentSet.training_type === type.value ? 'bold' : 'normal',  
+                      }
+                    ]}>
+                      {type.label}
+                    </Text>
+                    <Text style={[
+                      styles.trainingTypeDescription, 
+                      { 
+                        color: currentSet.training_type === type.value 
+                          ? type.color 
+                          : colors.subtext,
+                      }
+                    ]}>
+                      {type.description}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={[styles.trainingTypeHint, { color: colors.subtext }]}>
+                Categorize by intensity to track progress separately
+              </Text>
+            </View>
+            
+            <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Rest Time (seconds)</Text>
               <TextInput
                 style={[styles.input, { 
@@ -1763,22 +1880,6 @@ export default function StartWorkoutScreen() {
                 onChangeText={(text) => setCurrentSet({...currentSet, rest_time: parseInt(text) || 0})}
                 placeholder="60"
                 placeholderTextColor={colors.subtext}
-              />
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Notes</Text>
-              <TextInput
-                style={[styles.modalNotesInput, { 
-                  color: colors.text, 
-                  borderColor: colors.border,
-                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-                }]}
-                value={currentSet.notes}
-                onChangeText={(text) => setCurrentSet({...currentSet, notes: text})}
-                placeholder="Add notes for this set..."
-                placeholderTextColor={colors.subtext}
-                multiline
               />
             </View>
             
@@ -2117,6 +2218,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginLeft: 4,
   },
+  optionalIndicator: {
+    fontSize: 12,
+    marginLeft: 8,
+    fontStyle: 'italic',
+  },
   inputError: {
     fontSize: 12,
     marginTop: 4,
@@ -2368,5 +2474,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: 'center',
     opacity: 0.7,
+  },
+  trainingTypeContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  trainingTypeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trainingTypeText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  trainingTypeDescription: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  trainingTypeHint: {
+    fontSize: 12,
+    marginTop: 4,
+    
+  },
+  trainingTypeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  trainingTypeBadgeText: {
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 }); 

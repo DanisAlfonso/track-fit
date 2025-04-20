@@ -19,6 +19,7 @@ interface Set {
   reps: number;
   rest_time: number | null;
   notes: string | null;
+  training_type?: 'heavy' | 'moderate' | 'light';
 }
 
 interface ExerciseWithSets {
@@ -69,9 +70,15 @@ export default function WorkoutAnalyticsScreen() {
   const [loading, setLoading] = useState(true);
   const [totalVolume, setTotalVolume] = useState(0);
   const [previousWorkouts, setPreviousWorkouts] = useState<PreviousWorkout[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'volume' | 'muscles' | 'progress'>('volume');
+  const [selectedTab, setSelectedTab] = useState<'volume' | 'muscles' | 'progress' | 'training'>('volume');
   const [volumeHistory, setVolumeHistory] = useState<{date: string; volume: number}[]>([]);
   const [muscleGroups, setMuscleGroups] = useState<Record<string, number>>({});
+  const [trainingTypeDistribution, setTrainingTypeDistribution] = useState<Record<string, number>>({
+    heavy: 0,
+    moderate: 0,
+    light: 0,
+    unspecified: 0
+  });
   
   // Load workout details
   useEffect(() => {
@@ -140,6 +147,12 @@ export default function WorkoutAnalyticsScreen() {
         let totalSets = 0;
         let calculatedVolume = 0;
         const muscleGroupsData: Record<string, number> = {};
+        const trainingTypesData: Record<string, number> = {
+          heavy: 0,
+          moderate: 0,
+          light: 0,
+          unspecified: 0
+        };
 
         for (const exercise of exercises) {
           if (!isMounted) return;
@@ -163,6 +176,18 @@ export default function WorkoutAnalyticsScreen() {
           } else {
             muscleGroupsData[muscleName] = exerciseVolume;
           }
+          
+          // Calculate training type distribution
+          exerciseSets.forEach(set => {
+            const trainingType = set.training_type || 'unspecified';
+            const setVolume = set.weight * set.reps;
+            
+            if (trainingTypesData[trainingType]) {
+              trainingTypesData[trainingType] += setVolume;
+            } else {
+              trainingTypesData[trainingType] = setVolume;
+            }
+          });
         }
 
         if (!isMounted) return;
@@ -171,6 +196,7 @@ export default function WorkoutAnalyticsScreen() {
           setExercisesWithSets(exercises);
           setTotalVolume(calculatedVolume);
           setMuscleGroups(muscleGroupsData);
+          setTrainingTypeDistribution(trainingTypesData);
         }
 
         // Load previous workouts for comparison
@@ -188,7 +214,7 @@ export default function WorkoutAnalyticsScreen() {
         const db = await getDatabase();
         
         // Get previous workouts
-        const previousWorkoutsResult = await db.getAllAsync(
+        const previousWorkoutsResult = await db.getAllAsync<{id: number, date: string, completed_at: string | null, duration: number | null, routine_id: number}>(
           `SELECT w.id, w.date, w.completed_at, w.duration, w.routine_id
            FROM workouts w
            WHERE w.routine_id = ? AND w.completed_at IS NOT NULL
@@ -205,7 +231,7 @@ export default function WorkoutAnalyticsScreen() {
         for (const prevWorkout of previousWorkoutsResult) {
           if (!isMounted) return;
           
-          const workoutExercises = await db.getAllAsync(
+          const workoutExercises = await db.getAllAsync<{id: number}>(
             `SELECT we.id FROM workout_exercises we WHERE we.workout_id = ?`,
             [prevWorkout.id]
           );
@@ -275,7 +301,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
-            selectedTab === 'volume' && {color: '#fff'}
+            { color: selectedTab === 'volume' ? '#fff' : colors.text }
           ]}>
             Volume
           </Text>
@@ -293,7 +319,7 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
-            selectedTab === 'muscles' && {color: '#fff'}
+            { color: selectedTab === 'muscles' ? '#fff' : colors.text }
           ]}>
             Muscles
           </Text>
@@ -311,9 +337,27 @@ export default function WorkoutAnalyticsScreen() {
         >
           <Text style={[
             styles.tabButtonText, 
-            selectedTab === 'progress' && {color: '#fff'}
+            { color: selectedTab === 'progress' ? '#fff' : colors.text }
           ]}>
             Progress
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[
+            styles.tabButton, 
+            selectedTab === 'training' && {
+              backgroundColor: colors.primary, 
+              borderColor: colors.primary
+            }
+          ]} 
+          onPress={() => setSelectedTab('training')}
+        >
+          <Text style={[
+            styles.tabButtonText, 
+            { color: selectedTab === 'training' ? '#fff' : colors.text }
+          ]}>
+            Training
           </Text>
         </TouchableOpacity>
       </View>
@@ -529,6 +573,8 @@ export default function WorkoutAnalyticsScreen() {
               data={barChartData}
               width={windowWidth - 40}
               height={220}
+              yAxisLabel=""
+              yAxisSuffix=" kg"
               chartConfig={{
                 backgroundColor: colors.card,
                 backgroundGradientFrom: colors.card,
@@ -711,6 +757,184 @@ export default function WorkoutAnalyticsScreen() {
     );
   };
 
+  // Render training tab content
+  const renderTrainingTab = () => {
+    // Get total volume for percentage calculations
+    const totalTrainingVolume = Object.values(trainingTypeDistribution).reduce((sum, val) => sum + val, 0);
+    
+    // Colors for the training types (matching the history page)
+    const trainingTypeColors = {
+      heavy: '#6F74DD',
+      moderate: '#FFB300',
+      light: '#4CAF50',
+      unspecified: '#757575'
+    };
+    
+    // Prepare data for pie chart
+    const pieChartData = Object.entries(trainingTypeDistribution)
+      .filter(([_, volume]) => volume > 0) // Only include types with volume
+      .map(([type, volume]) => {
+        return {
+          name: type.charAt(0).toUpperCase() + type.slice(1),
+          volume,
+          legendFontColor: colors.text,
+          legendFontSize: 12,
+          color: trainingTypeColors[type as keyof typeof trainingTypeColors]
+        };
+      });
+    
+    // Calculate the number of sets per training type
+    const setsPerType = {
+      heavy: 0,
+      moderate: 0,
+      light: 0,
+      unspecified: 0
+    };
+    
+    exercisesWithSets.forEach(exercise => {
+      exercise.sets.forEach(set => {
+        const type = set.training_type || 'unspecified';
+        setsPerType[type as keyof typeof setsPerType]++;
+      });
+    });
+    
+    // Get total sets
+    const totalSets = Object.values(setsPerType).reduce((sum, count) => sum + count, 0);
+    
+    // Calculate bar widths dynamically
+    const getBarWidth = (volumePercentage: number): object => {
+      return {
+        width: `${volumePercentage}%`
+      };
+    };
+    
+    return (
+      <View style={styles.tabContent}>
+        <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>
+            Training Type Distribution
+          </Text>
+          
+          {totalTrainingVolume > 0 ? (
+            <>
+              <PieChart
+                data={pieChartData}
+                width={windowWidth - 40}
+                height={220}
+                chartConfig={{
+                  backgroundColor: colors.card,
+                  backgroundGradientFrom: colors.card,
+                  backgroundGradientTo: colors.card,
+                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
+                }}
+                accessor="volume"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                absolute={false}
+                avoidFalseZero={true}
+              />
+              
+              <View style={styles.focusContainer}>
+                <Text style={[styles.focusLabel, { color: colors.text }]}>
+                  Primary Focus:
+                </Text>
+                <Text style={[
+                  styles.focusValue, 
+                  { 
+                    color: trainingTypeColors[
+                      Object.entries(trainingTypeDistribution)
+                        .sort((a, b) => b[1] - a[1])[0][0] as keyof typeof trainingTypeColors
+                    ]
+                  }
+                ]}>
+                  {Object.entries(trainingTypeDistribution)
+                    .sort((a, b) => b[1] - a[1])[0][0].charAt(0).toUpperCase() 
+                    + Object.entries(trainingTypeDistribution)
+                    .sort((a, b) => b[1] - a[1])[0][0].slice(1)} Training
+                </Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.noDataContainer}>
+              <MaterialCommunityIcons name="chart-pie" size={40} color={colors.subtext} />
+              <Text style={[styles.noDataText, {color: colors.subtext}]}>
+                No training type data available
+              </Text>
+            </View>
+          )}
+        </View>
+        
+        <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.chartTitle, { color: colors.text }]}>
+            Training Intensity Breakdown
+          </Text>
+          
+          {totalTrainingVolume > 0 ? (
+            <View style={styles.trainingTypeStatsContainer}>
+              {Object.entries(trainingTypeDistribution)
+                .filter(([_, volume]) => volume > 0)
+                .sort((a, b) => b[1] - a[1])
+                .map(([type, volume], index) => {
+                  const typeKey = type as keyof typeof trainingTypeColors;
+                  const percentage = (volume / totalTrainingVolume * 100).toFixed(1);
+                  const setCount = setsPerType[typeKey];
+                  const setPercentage = totalSets > 0 ? (setCount / totalSets * 100).toFixed(1) : '0';
+                  const percentageValue = parseFloat(percentage);
+                  
+                  return (
+                    <View key={type} style={styles.trainingTypeStat}>
+                      <View style={styles.trainingTypeHeader}>
+                        <View style={[
+                          styles.trainingTypeIndicator, 
+                          { backgroundColor: trainingTypeColors[typeKey] }
+                        ]} />
+                        <Text style={[styles.trainingTypeName, { color: colors.text }]}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)} Training
+                        </Text>
+                        <Text style={[styles.trainingTypePercentage, { color: trainingTypeColors[typeKey] }]}>
+                          {percentage}%
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.trainingTypeBar}>
+                        <View 
+                          style={[
+                            styles.trainingTypeBarFill, 
+                            { backgroundColor: trainingTypeColors[typeKey] },
+                            getBarWidth(parseFloat(percentage))
+                          ]} 
+                        />
+                      </View>
+                      
+                      <View style={styles.trainingTypeDetails}>
+                        <Text style={[styles.trainingTypeDetail, { color: colors.subtext }]}>
+                          {volume.toLocaleString()} kg volume
+                        </Text>
+                        <Text style={[styles.trainingTypeDetail, { color: colors.subtext }]}>
+                          {setCount} sets ({setPercentage}%)
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+            </View>
+          ) : (
+            <View style={styles.noDataContainer}>
+              <MaterialCommunityIcons name="weight-lifter" size={40} color={colors.subtext} />
+              <Text style={[styles.noDataText, {color: colors.subtext}]}>
+                No training intensity data available
+              </Text>
+              <Text style={[styles.noDataSubtext, {color: colors.subtext}]}>
+                Complete workouts with heavy, moderate, or light training types
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   // Chart colors
   const chartColors = [
     '#FF5733', '#33A8FF', '#33FF57', '#A833FF', '#FF33A8', 
@@ -767,6 +991,7 @@ export default function WorkoutAnalyticsScreen() {
             {selectedTab === 'volume' && renderVolumeTab()}
             {selectedTab === 'muscles' && renderMusclesTab()}
             {selectedTab === 'progress' && renderProgressTab()}
+            {selectedTab === 'training' && renderTrainingTab()}
           </>
         )}
       </ScrollView>
@@ -972,6 +1197,60 @@ const styles = StyleSheet.create({
   },
   noDataText: {
     fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  trainingTypeStatsContainer: {
+    flexDirection: 'column',
+    width: '100%',
+  },
+  trainingTypeStat: {
+    width: '100%',
+    marginBottom: 16,
+  },
+  trainingTypeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    justifyContent: 'space-between',
+  },
+  trainingTypeIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  trainingTypeName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  trainingTypePercentage: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  trainingTypeBar: {
+    height: 10,
+    backgroundColor: '#eee',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 4,
+    width: '100%',
+  },
+  trainingTypeBarFill: {
+    height: '100%',
+  },
+  trainingTypeDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  trainingTypeDetail: {
+    fontSize: 12,
+  },
+  noDataSubtext: {
+    fontSize: 12,
     textAlign: 'center',
     marginTop: 8,
   },

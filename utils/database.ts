@@ -34,6 +34,24 @@ export const migrateDatabase = async (): Promise<void> => {
       console.log('Migration completed successfully');
     }
 
+    // Check if training_type column exists in sets table
+    const setsTableInfo = await database.getAllAsync(
+      "PRAGMA table_info(sets)"
+    );
+    
+    const hasTrainingTypeColumn = setsTableInfo.some((column: any) => 
+      column.name === 'training_type'
+    );
+    
+    // Add training_type column if it doesn't exist
+    if (!hasTrainingTypeColumn) {
+      console.log('Adding training_type column to sets table...');
+      await database.execAsync(
+        'ALTER TABLE sets ADD COLUMN training_type TEXT;'
+      );
+      console.log('Training type column added successfully');
+    }
+
     // Check if weekly_schedule table needs to be modified for multiple routines per day
     try {
       // Try to insert two routines for the same day to see if it fails
@@ -175,6 +193,7 @@ export const initDatabase = async (): Promise<void> => {
         weight REAL,
         rest_time INTEGER, -- Rest time in seconds
         completed INTEGER NOT NULL DEFAULT 0,
+        training_type TEXT, -- Can be 'heavy', 'moderate', or 'light'
         notes TEXT,
         FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises (id) ON DELETE CASCADE
       );
