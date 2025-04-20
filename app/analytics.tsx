@@ -40,6 +40,13 @@ interface ExerciseTrend {
   }[];
 }
 
+interface TrainingTypeDistribution {
+  heavy: number;
+  moderate: number;
+  light: number;
+  unspecified: number;
+}
+
 export default function WorkoutAnalyticsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -54,6 +61,12 @@ export default function WorkoutAnalyticsScreen() {
   const [muscleGroupVolumes, setMuscleGroupVolumes] = useState<MuscleGroupVolume[]>([]);
   const [exerciseTrends, setExerciseTrends] = useState<ExerciseTrend[]>([]);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'volume' | 'muscles' | 'exercises'>('overview');
+  const [trainingTypeVolumes, setTrainingTypeVolumes] = useState<TrainingTypeDistribution>({
+    heavy: 0,
+    moderate: 0,
+    light: 0,
+    unspecified: 0
+  });
   const [totalStats, setTotalStats] = useState({
     workouts: 0,
     volume: 0,
@@ -81,6 +94,9 @@ export default function WorkoutAnalyticsScreen() {
         
         // Load exercise trends
         await loadExerciseTrends(db);
+        
+        // Load training type distribution
+        await loadTrainingTypeDistribution(db);
         
         if (isMounted) {
           setLoading(false);
@@ -293,6 +309,59 @@ export default function WorkoutAnalyticsScreen() {
       }
     };
 
+    const loadTrainingTypeDistribution = async (db: any) => {
+      if (!isMounted) return;
+      
+      try {
+        // Get volume for heavy training type
+        const heavyVolume = await db.getAllAsync(`
+          SELECT SUM(s.weight * s.reps) as volume
+          FROM workouts w
+          JOIN workout_exercises we ON w.id = we.workout_id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          WHERE w.completed_at IS NOT NULL AND s.training_type = 'heavy'
+        `);
+        
+        // Get volume for moderate training type
+        const moderateVolume = await db.getAllAsync(`
+          SELECT SUM(s.weight * s.reps) as volume
+          FROM workouts w
+          JOIN workout_exercises we ON w.id = we.workout_id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          WHERE w.completed_at IS NOT NULL AND s.training_type = 'moderate'
+        `);
+        
+        // Get volume for light training type
+        const lightVolume = await db.getAllAsync(`
+          SELECT SUM(s.weight * s.reps) as volume
+          FROM workouts w
+          JOIN workout_exercises we ON w.id = we.workout_id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          WHERE w.completed_at IS NOT NULL AND s.training_type = 'light'
+        `);
+        
+        // Get volume for unspecified training type
+        const unspecifiedVolume = await db.getAllAsync(`
+          SELECT SUM(s.weight * s.reps) as volume
+          FROM workouts w
+          JOIN workout_exercises we ON w.id = we.workout_id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          WHERE w.completed_at IS NOT NULL AND (s.training_type IS NULL OR s.training_type = '')
+        `);
+        
+        if (isMounted) {
+          setTrainingTypeVolumes({
+            heavy: heavyVolume[0]?.volume || 0,
+            moderate: moderateVolume[0]?.volume || 0,
+            light: lightVolume[0]?.volume || 0,
+            unspecified: unspecifiedVolume[0]?.volume || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error loading training type distribution:', error);
+      }
+    };
+
     loadAnalyticsData();
     
     return () => {
@@ -399,8 +468,10 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <MaterialCommunityIcons name="calendar-check" size={28} color={colors.primary} />
+            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <View style={styles.statIconContainer}>
+                <MaterialCommunityIcons name="calendar-check" size={24} color={colors.primary} />
+              </View>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {totalStats.workouts}
               </Text>
@@ -409,18 +480,67 @@ export default function WorkoutAnalyticsScreen() {
               </Text>
             </View>
             
-            <View style={styles.statItem}>
-              <MaterialCommunityIcons name="weight-lifter" size={28} color={colors.primary} />
+            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <View style={styles.statIconContainer}>
+                <MaterialCommunityIcons name="weight-lifter" size={24} color={colors.primary} />
+              </View>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {totalStats.volume.toLocaleString()} kg
               </Text>
               <Text style={[styles.statLabel, { color: colors.subtext }]}>
                 Total Volume
               </Text>
+              
+              {/* Training Type Breakdown */}
+              {trainingTypeVolumes.heavy + trainingTypeVolumes.moderate + trainingTypeVolumes.light + trainingTypeVolumes.unspecified > 0 && (
+                <View style={styles.volumeBreakdown}>
+                  {trainingTypeVolumes.heavy > 0 && (
+                    <View style={styles.volumeBreakdownRow}>
+                      <View style={[styles.intensityDot, { backgroundColor: '#6F74DD' }]} />
+                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Heavy:</Text>
+                      <Text style={[styles.intensityValue, { color: colors.text }]}>
+                        {trainingTypeVolumes.heavy.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {trainingTypeVolumes.moderate > 0 && (
+                    <View style={styles.volumeBreakdownRow}>
+                      <View style={[styles.intensityDot, { backgroundColor: '#FFB300' }]} />
+                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Moderate:</Text>
+                      <Text style={[styles.intensityValue, { color: colors.text }]}>
+                        {trainingTypeVolumes.moderate.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {trainingTypeVolumes.light > 0 && (
+                    <View style={styles.volumeBreakdownRow}>
+                      <View style={[styles.intensityDot, { backgroundColor: '#4CAF50' }]} />
+                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Light:</Text>
+                      <Text style={[styles.intensityValue, { color: colors.text }]}>
+                        {trainingTypeVolumes.light.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {trainingTypeVolumes.unspecified > 0 && (
+                    <View style={styles.volumeBreakdownRow}>
+                      <View style={[styles.intensityDot, { backgroundColor: '#757575' }]} />
+                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Other:</Text>
+                      <Text style={[styles.intensityValue, { color: colors.text }]}>
+                        {trainingTypeVolumes.unspecified.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
             
-            <View style={styles.statItem}>
-              <Ionicons name="time-outline" size={28} color={colors.primary} />
+            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <View style={styles.statIconContainer}>
+                <Ionicons name="time-outline" size={24} color={colors.primary} />
+              </View>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {calculateDuration(totalStats.duration)}
               </Text>
@@ -429,8 +549,10 @@ export default function WorkoutAnalyticsScreen() {
               </Text>
             </View>
             
-            <View style={styles.statItem}>
-              <MaterialCommunityIcons name="repeat" size={28} color={colors.primary} />
+            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <View style={styles.statIconContainer}>
+                <MaterialCommunityIcons name="repeat" size={24} color={colors.primary} />
+              </View>
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {totalStats.sets}
               </Text>
@@ -1051,21 +1173,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    marginTop: 8,
   },
-  statItem: {
+  statCard: {
     width: '48%',
-    alignItems: 'center',
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 16,
-    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  statIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginTop: 8,
+    marginTop: 4,
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 14,
-    marginTop: 4,
   },
   recentWorkoutsList: {
     marginTop: 8,
@@ -1217,5 +1350,30 @@ const styles = StyleSheet.create({
   exerciseVolume: {
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  volumeBreakdown: {
+    marginTop: 10,
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  volumeBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 6,
+  },
+  intensityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  intensityLabel: {
+    fontSize: 12,
+    flex: 1,
+  },
+  intensityValue: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 }); 

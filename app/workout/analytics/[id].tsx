@@ -703,15 +703,69 @@ export default function WorkoutAnalyticsScreen() {
           
           {workout && (
             <View style={styles.summaryContainer}>
-              <View style={styles.summaryItem}>
-                <MaterialCommunityIcons name="weight-lifter" size={24} color={colors.primary} />
-                <View style={styles.summaryItemText}>
-                  <Text style={[styles.summaryItemLabel, { color: colors.subtext }]}>
-                    Total Volume
+              {/* Volume breakdown by training type */}
+              <View style={[
+                styles.volumeBreakdownContainer, 
+                { 
+                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                  borderColor: colors.border,
+                  borderWidth: 1
+                }
+              ]}>
+                <View style={[
+                  styles.volumeBreakdownHeader,
+                  { borderBottomColor: colors.border, borderBottomWidth: 1 }
+                ]}>
+                  <MaterialCommunityIcons name="weight-lifter" size={24} color={colors.primary} />
+                  <Text style={[styles.volumeBreakdownTitle, { color: colors.text }]}>
+                    Volume Breakdown
                   </Text>
-                  <Text style={[styles.summaryItemValue, { color: colors.text }]}>
-                    {totalVolume.toLocaleString()} kg
-                  </Text>
+                </View>
+                
+                <View style={styles.volumeBreakdownContent}>
+                  <View style={styles.volumeTypeRow}>
+                    <View style={[styles.volumeTypeIndicator, { backgroundColor: '#6F74DD' }]} />
+                    <Text style={[styles.volumeTypeLabel, { color: colors.text }]}>Heavy</Text>
+                    <Text style={[styles.volumeTypeValue, { color: '#6F74DD' }]}>
+                      {trainingTypeDistribution.heavy.toLocaleString()} kg
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.volumeTypeRow}>
+                    <View style={[styles.volumeTypeIndicator, { backgroundColor: '#FFB300' }]} />
+                    <Text style={[styles.volumeTypeLabel, { color: colors.text }]}>Moderate</Text>
+                    <Text style={[styles.volumeTypeValue, { color: '#FFB300' }]}>
+                      {trainingTypeDistribution.moderate.toLocaleString()} kg
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.volumeTypeRow}>
+                    <View style={[styles.volumeTypeIndicator, { backgroundColor: '#4CAF50' }]} />
+                    <Text style={[styles.volumeTypeLabel, { color: colors.text }]}>Light</Text>
+                    <Text style={[styles.volumeTypeValue, { color: '#4CAF50' }]}>
+                      {trainingTypeDistribution.light.toLocaleString()} kg
+                    </Text>
+                  </View>
+                  
+                  {trainingTypeDistribution.unspecified > 0 && (
+                    <View style={styles.volumeTypeRow}>
+                      <View style={[styles.volumeTypeIndicator, { backgroundColor: '#757575' }]} />
+                      <Text style={[styles.volumeTypeLabel, { color: colors.text }]}>Unspecified</Text>
+                      <Text style={[styles.volumeTypeValue, { color: '#757575' }]}>
+                        {trainingTypeDistribution.unspecified.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  )}
+                  
+                  <View style={[
+                    styles.volumeTotalRow,
+                    { borderTopColor: colors.border, borderTopWidth: 1 }
+                  ]}>
+                    <Text style={[styles.volumeTotalLabel, { color: colors.text }]}>Total</Text>
+                    <Text style={[styles.volumeTotalValue, { color: colors.primary }]}>
+                      {totalVolume.toLocaleString()} kg
+                    </Text>
+                  </View>
                 </View>
               </View>
               
@@ -1253,5 +1307,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: 8,
+  },
+  volumeBreakdownContainer: {
+    marginBottom: 16,
+    width: '100%',
+    borderRadius: 12,
+    padding: 16,
+  },
+  volumeBreakdownHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+  },
+  volumeBreakdownTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  volumeBreakdownContent: {
+    flexDirection: 'column',
+  },
+  volumeTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingVertical: 4,
+  },
+  volumeTypeIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  volumeTypeLabel: {
+    fontSize: 14,
+    flex: 1,
+  },
+  volumeTypeValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  volumeTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  volumeTotalLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  volumeTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 }); 
