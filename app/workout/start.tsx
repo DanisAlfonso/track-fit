@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback, Vibration } from 'react-native';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -94,6 +94,10 @@ export default function StartWorkoutScreen() {
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
   const [sortOption, setSortOption] = useState<SortOption>('default');
+  const [isResting, setIsResting] = useState(false);
+  const [restTimeRemaining, setRestTimeRemaining] = useState(0);
+  const restTimer = useRef<NodeJS.Timeout | null>(null);
+  const restAnimation = useRef(new Animated.Value(0)).current;
 
   // Load user's weight unit preference
   useEffect(() => {
@@ -576,6 +580,9 @@ export default function StartWorkoutScreen() {
     
     setExercises(updatedExercises);
     setSetModalVisible(false);
+    
+    // Start the rest timer based on the set's rest time
+    startRestTimer(currentSet.rest_time);
     
     // Save progress to database immediately after saving a set
     saveWorkoutProgress().catch(error => {
@@ -1182,6 +1189,84 @@ export default function StartWorkoutScreen() {
     return muscleColors[muscle] || '#4CAF50';
   };
 
+  // Effect to handle rest timer countdown
+  useEffect(() => {
+    if (isResting && restTimeRemaining > 0) {
+      restTimer.current = setInterval(() => {
+        setRestTimeRemaining(prev => {
+          if (prev <= 1) {
+            // Time is up, clear the interval
+            if (restTimer.current) {
+              clearInterval(restTimer.current);
+            }
+            // Notify the user that rest time is over
+            notifyRestComplete();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      // Start animation for rest timer
+      Animated.timing(restAnimation, {
+        toValue: 1,
+        duration: restTimeRemaining * 1000,
+        useNativeDriver: false,
+      }).start();
+    }
+    
+    return () => {
+      if (restTimer.current) {
+        clearInterval(restTimer.current);
+      }
+      restAnimation.setValue(0);
+    };
+  }, [isResting, restTimeRemaining]);
+  
+  // Function to notify user that rest time is complete
+  const notifyRestComplete = () => {
+    // Vibrate the device
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(500);
+    }
+    
+    // Stop the rest timer
+    setIsResting(false);
+    
+    // Show alert to user
+    Alert.alert(
+      'Rest Complete',
+      'Time to do your next set!',
+      [{ text: 'OK' }]
+    );
+  };
+  
+  // Start the rest timer with the specified duration
+  const startRestTimer = (duration: number) => {
+    // Clear any existing timer
+    if (restTimer.current) {
+      clearInterval(restTimer.current);
+    }
+    restAnimation.setValue(0);
+    
+    setRestTimeRemaining(duration);
+    setIsResting(true);
+  };
+  
+  // Skip the rest timer
+  const skipRestTimer = () => {
+    if (restTimer.current) {
+      clearInterval(restTimer.current);
+    }
+    restAnimation.setValue(0);
+    setIsResting(false);
+  };
+  
+  // Add extra time to the rest timer
+  const addRestTime = (seconds: number) => {
+    setRestTimeRemaining(prev => prev + seconds);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1226,6 +1311,69 @@ export default function StartWorkoutScreen() {
           ),
         }}
       />
+      
+      {/* Rest Timer Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isResting}
+        onRequestClose={skipRestTimer}
+      >
+        <View style={styles.restModalOverlay}>
+          <View style={[styles.restModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.restTimerHeader}>
+              <Text style={[styles.restTimerTitle, { color: colors.text }]}>Rest Time</Text>
+              <TouchableOpacity onPress={skipRestTimer}>
+                <FontAwesome name="times" size={22} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.restTimerClock}>
+              <Text style={[styles.restTimerCountdown, { color: colors.text }]}>
+                {Math.floor(restTimeRemaining / 60)}:{(restTimeRemaining % 60).toString().padStart(2, '0')}
+              </Text>
+            </View>
+            
+            <View style={styles.restProgressBarContainer}>
+              <Animated.View 
+                style={[
+                  styles.restProgressBarFill, 
+                  { 
+                    backgroundColor: colors.primary,
+                    width: restAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['100%', '0%']
+                    })
+                  }
+                ]} 
+              />
+            </View>
+            
+            <View style={styles.restTimerActions}>
+              <TouchableOpacity 
+                style={[styles.restTimerButton, { backgroundColor: colors.primary + '30' }]}
+                onPress={() => addRestTime(30)}
+              >
+                <Text style={[styles.restTimerButtonText, { color: colors.primary }]}>+30s</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.restTimerButton, { backgroundColor: colors.primary + '30' }]}
+                onPress={() => addRestTime(60)}
+              >
+                <Text style={[styles.restTimerButtonText, { color: colors.primary }]}>+1m</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.skipRestButton, { backgroundColor: colors.error + '20' }]}
+                onPress={skipRestTimer}
+              >
+                <Text style={[styles.skipRestText, { color: colors.error }]}>Skip</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       
       {!workoutStarted ? (
         <View style={styles.startWorkoutContainer}>
@@ -2047,5 +2195,87 @@ const styles = StyleSheet.create({
   },
   groupCount: {
     fontSize: 12,
+  },
+  // Rest Timer Styles
+  restModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  restModalContent: {
+    width: '80%',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  restTimerHeader: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  restTimerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  restTimerClock: {
+    marginBottom: 24,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 30,
+    paddingVertical: 20,
+    borderRadius: 16,
+    minWidth: 160,
+    alignItems: 'center',
+  },
+  restTimerCountdown: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
+  },
+  restProgressBarContainer: {
+    width: '100%',
+    height: 10,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 5,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  restProgressBarFill: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  restTimerActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+  },
+  restTimerButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  restTimerButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  skipRestButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  skipRestText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 }); 
