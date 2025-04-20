@@ -96,9 +96,14 @@ export default function StartWorkoutScreen() {
   const [sortOption, setSortOption] = useState<SortOption>('default');
   const [isResting, setIsResting] = useState(false);
   const [restTimeRemaining, setRestTimeRemaining] = useState(0);
-  const restTimer = useRef<NodeJS.Timeout | null>(null);
-  const restAnimation = useRef(new Animated.Value(0)).current;
-
+  const [initialRestTime, setInitialRestTime] = useState(0);
+  const [restPercent, setRestPercent] = useState(100);
+  const restTimeoutFlash = useRef(new Animated.Value(0)).current;
+  const restTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const restStartTimeRef = useRef<number>(0);
+  const restEndTimeRef = useRef<number>(0);
+  
   // Load user's weight unit preference
   useEffect(() => {
     const loadWeightUnitPreference = async () => {
@@ -1189,49 +1194,102 @@ export default function StartWorkoutScreen() {
     return muscleColors[muscle] || '#4CAF50';
   };
 
-  // Effect to handle rest timer countdown
+  // Run a smooth animation frame loop when resting
   useEffect(() => {
     if (isResting && restTimeRemaining > 0) {
-      restTimer.current = setInterval(() => {
-        setRestTimeRemaining(prev => {
-          if (prev <= 1) {
-            // Time is up, clear the interval
-            if (restTimer.current) {
-              clearInterval(restTimer.current);
-            }
-            // Notify the user that rest time is over
-            notifyRestComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      // Set start and end time references for precise timing
+      const now = Date.now();
+      restStartTimeRef.current = now;
+      restEndTimeRef.current = now + (restTimeRemaining * 1000);
       
-      // Start animation for rest timer
-      Animated.timing(restAnimation, {
-        toValue: 1,
-        duration: restTimeRemaining * 1000,
-        useNativeDriver: false,
-      }).start();
+      // Clear any existing animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      
+      // Function to update both timer and progress bar
+      const updateRestTimer = () => {
+        const now = Date.now();
+        
+        // If time is up, complete the rest
+        if (now >= restEndTimeRef.current) {
+          setRestTimeRemaining(0);
+          setRestPercent(0);
+          notifyRestComplete();
+          return;
+        }
+        
+        // Calculate remaining time and percentage precisely
+        const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
+        const elapsed = now - restStartTimeRef.current;
+        const remaining = restEndTimeRef.current - now;
+        const percent = Math.max(0, (remaining / totalDuration) * 100);
+        
+        // Update state with precise values
+        setRestTimeRemaining(Math.ceil(remaining / 1000)); // Round up to nearest second
+        setRestPercent(percent);
+        
+        // Continue the animation loop
+        animationFrameRef.current = requestAnimationFrame(updateRestTimer);
+      };
+      
+      // Start the animation loop
+      animationFrameRef.current = requestAnimationFrame(updateRestTimer);
     }
     
     return () => {
-      if (restTimer.current) {
-        clearInterval(restTimer.current);
+      // Clean up the animation frame on unmount
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
-      restAnimation.setValue(0);
     };
-  }, [isResting, restTimeRemaining]);
+  }, [isResting]);
   
   // Function to notify user that rest time is complete
   const notifyRestComplete = () => {
-    // Vibrate the device
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      Vibration.vibrate(500);
+    // Cancel any existing animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     
-    // Stop the rest timer
-    setIsResting(false);
+    // Vibrate the device - note this may not work in Expo Go
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      try {
+        Vibration.vibrate(500);
+      } catch (error) {
+        console.log('Vibration may not work in Expo Go');
+      }
+    }
+    
+    // Visual notification with flash animation
+    Animated.sequence([
+      Animated.timing(restTimeoutFlash, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+      Animated.timing(restTimeoutFlash, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+      Animated.timing(restTimeoutFlash, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+      Animated.timing(restTimeoutFlash, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: false,
+      }),
+    ]).start();
+    
+    // Stop the rest timer after a short delay to show the completion
+    setTimeout(() => {
+      setIsResting(false);
+    }, 600);
     
     // Show alert to user
     Alert.alert(
@@ -1243,28 +1301,48 @@ export default function StartWorkoutScreen() {
   
   // Start the rest timer with the specified duration
   const startRestTimer = (duration: number) => {
-    // Clear any existing timer
-    if (restTimer.current) {
-      clearInterval(restTimer.current);
+    // Cancel any existing animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
-    restAnimation.setValue(0);
     
+    // Reset rest timer states
     setRestTimeRemaining(duration);
+    setInitialRestTime(duration);
+    setRestPercent(100);
+    restTimeoutFlash.setValue(0);
+    
+    // Calculate exact start and end times
+    const now = Date.now();
+    restStartTimeRef.current = now;
+    restEndTimeRef.current = now + (duration * 1000);
+    
+    // Start the rest timer
     setIsResting(true);
   };
   
   // Skip the rest timer
   const skipRestTimer = () => {
-    if (restTimer.current) {
-      clearInterval(restTimer.current);
+    // Cancel any existing animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
-    restAnimation.setValue(0);
+    
     setIsResting(false);
   };
   
   // Add extra time to the rest timer
   const addRestTime = (seconds: number) => {
-    setRestTimeRemaining(prev => prev + seconds);
+    // Update the end time reference with the additional time
+    restEndTimeRef.current += (seconds * 1000);
+    
+    // Update the initial rest time for progress calculation
+    const newTotalDuration = restEndTimeRef.current - restStartTimeRef.current;
+    setInitialRestTime(newTotalDuration / 1000);
+    
+    // The animation loop will automatically update the display on next frame
   };
 
   if (isLoading) {
@@ -1320,7 +1398,17 @@ export default function StartWorkoutScreen() {
         onRequestClose={skipRestTimer}
       >
         <View style={styles.restModalOverlay}>
-          <View style={[styles.restModalContent, { backgroundColor: colors.card }]}>
+          <Animated.View 
+            style={[
+              styles.restModalContent, 
+              { 
+                backgroundColor: restTimeoutFlash.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [colors.card, colors.primary + '30']
+                }) 
+              }
+            ]}
+          >
             <View style={styles.restTimerHeader}>
               <Text style={[styles.restTimerTitle, { color: colors.text }]}>Rest Time</Text>
               <TouchableOpacity onPress={skipRestTimer}>
@@ -1335,15 +1423,12 @@ export default function StartWorkoutScreen() {
             </View>
             
             <View style={styles.restProgressBarContainer}>
-              <Animated.View 
+              <View 
                 style={[
                   styles.restProgressBarFill, 
                   { 
                     backgroundColor: colors.primary,
-                    width: restAnimation.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ['100%', '0%']
-                    })
+                    width: `${restPercent}%`,
                   }
                 ]} 
               />
@@ -1371,7 +1456,7 @@ export default function StartWorkoutScreen() {
                 <Text style={[styles.skipRestText, { color: colors.error }]}>Skip</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
       
@@ -2277,5 +2362,11 @@ const styles = StyleSheet.create({
   skipRestText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  restTimerNote: {
+    fontSize: 12,
+    marginBottom: 16,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 }); 
