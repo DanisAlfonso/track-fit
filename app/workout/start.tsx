@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback } from 'react-native';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +16,8 @@ type Exercise = {
   name: string;
   sets: number;
   exercise_order: number;
+  primary_muscle: string;
+  category: string;
 };
 
 type Set = {
@@ -35,9 +37,14 @@ type WorkoutExercise = {
   sets: number;
   completedSets: number;
   exercise_order: number;
+  primary_muscle: string;
+  category: string;
   sets_data: Set[];
   notes: string;
 };
+
+// Add SortOption type, similar to routine details screen
+type SortOption = 'default' | 'muscle' | 'category';
 
 // Add this new type to track field interaction
 type TouchedFields = {
@@ -86,6 +93,7 @@ export default function StartWorkoutScreen() {
   const [previousWorkoutData, setPreviousWorkoutData] = useState<Map<number, { reps: number, weight: number }[]>>(new Map());
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
+  const [sortOption, setSortOption] = useState<SortOption>('default');
 
   // Load user's weight unit preference
   useEffect(() => {
@@ -199,173 +207,143 @@ export default function StartWorkoutScreen() {
     setIsLoading(true);
     
     try {
-      console.log("Attempting to resume workout:", workoutId);
       const db = await getDatabase();
       
       // Get the workout details
-      const workout = await db.getFirstAsync<{
-        id: number;
-        name: string;
-        routine_id: number;
+      const workout = await db.getFirstAsync<{ 
+        routine_id: number; 
+        name: string; 
         date: number;
-        duration: number;
-        routine_name: string;
+        notes: string | null;
       }>(
-        `SELECT w.id, w.name, w.routine_id, w.date, w.duration, r.name as routine_name 
-         FROM workouts w
-         JOIN routines r ON w.routine_id = r.id
-         WHERE w.id = ? AND w.completed_at IS NULL`,
+        'SELECT routine_id, name, date, notes FROM workouts WHERE id = ?',
         [workoutId]
       );
-      
-      console.log("Found workout:", workout);
       
       if (!workout) {
-        Alert.alert('Error', 'Workout not found or already completed');
-        router.replace({ pathname: '/(tabs)/routines' });
-        return;
+        throw new Error('Workout not found');
       }
       
-      // Set workout state
+      // Set workout details
+      setRoutineName(workout.name);
       setWorkoutId(workoutId);
-      setRoutineName(workout.routine_name);
       setWorkoutStarted(true);
+      setWorkoutNotes(workout.notes || '');
       workoutStartTime.current = workout.date;
-      setWorkoutDuration(workout.duration || 0);
       
-      // Resume global workout context
-      resumeWorkout();
-      
-      // Load workout exercises from database
-      console.log("Loading workout exercises for routine:", workout.routine_id);
-      
-      // First check if we already have exercises recorded
-      const existingExercises = await db.getAllAsync<{
+      // Load workout exercises and sets
+      const exerciseRecords = await db.getAllAsync<{
         id: number;
-        workout_id: number;
         exercise_id: number;
         sets_completed: number;
-        notes: string;
+        notes: string | null;
       }>(
-        `SELECT * FROM workout_exercises WHERE workout_id = ?`,
+        'SELECT id, exercise_id, sets_completed, notes FROM workout_exercises WHERE workout_id = ?',
         [workoutId]
       );
       
-      console.log("Found existing exercises:", existingExercises.length);
+      if (exerciseRecords.length === 0) {
+        throw new Error('No exercises found for this workout');
+      }
       
-      // If we have workout_exercises entries, load them with their sets
-      if (existingExercises.length > 0) {
-        const loadedExercises: WorkoutExercise[] = [];
+      // Get all routine exercises for this routine to map to workout exercises
+      const routineExercises = await db.getAllAsync<{
+        id: number;
+        exercise_id: number;
+        sets: number;
+        order_num: number;
+        primary_muscle: string;
+        category: string;
+      }>(
+        `SELECT re.id, re.exercise_id, re.sets, re.order_num, e.primary_muscle, e.category
+         FROM routine_exercises re
+         JOIN exercises e ON re.exercise_id = e.id
+         WHERE re.routine_id = ?
+         ORDER BY re.order_num`,
+        [workout.routine_id]
+      );
+      
+      // Create map of exercise_id to routine_exercise for quick lookup
+      const routineExerciseMap = new Map();
+      routineExercises.forEach(re => {
+        routineExerciseMap.set(re.exercise_id, re);
+      });
+      
+      // Create workout exercises with completed sets
+      const workoutExercises: WorkoutExercise[] = [];
+      
+      for (const exerciseRecord of exerciseRecords) {
+        // Get the corresponding routine exercise
+        const routineExercise = routineExerciseMap.get(exerciseRecord.exercise_id);
         
-        for (const exerciseRecord of existingExercises) {
-          // Get exercise details
-          const exercise = await db.getFirstAsync<{
-            id: number;
-            name: string;
-          }>(
-            `SELECT id, name FROM exercises WHERE id = ?`,
-            [exerciseRecord.exercise_id]
-          );
-          
-          if (!exercise) continue;
-          
-          // Get routine exercise details for order and sets
-          const routineExercise = await db.getFirstAsync<{
-            id: number;
-            order_num: number;
-            sets: number;
-          }>(
-            `SELECT id, order_num, sets FROM routine_exercises 
-             WHERE routine_id = ? AND exercise_id = ?`,
-            [workout.routine_id, exerciseRecord.exercise_id]
-          );
-          
-          if (!routineExercise) continue;
-          
-          // Get sets for this exercise
-          const sets = await db.getAllAsync<Set>(
-            `SELECT id, set_number, reps, weight, rest_time, completed, notes
-             FROM sets
-             WHERE workout_exercise_id = ?
-             ORDER BY set_number`,
-            [exerciseRecord.id]
-          );
-          
-          console.log(`Exercise ${exercise.name}: found ${sets.length} sets`);
-          
-          // If we have fewer sets than expected, add the missing ones
-          const allSets = [...sets];
-          
-          if (sets.length < routineExercise.sets) {
-            for (let i = sets.length + 1; i <= routineExercise.sets; i++) {
-              allSets.push({
-                set_number: i,
-                reps: 0,
-                weight: 0,
-                rest_time: 60,
-                completed: false,
-                notes: ''
-              });
-            }
-          }
-          
-          loadedExercises.push({
-            routine_exercise_id: routineExercise.id,
-            exercise_id: exercise.id,
-            name: exercise.name,
-            sets: Math.max(routineExercise.sets, allSets.length), // Use the larger value
-            completedSets: exerciseRecord.sets_completed,
-            exercise_order: routineExercise.order_num,
-            sets_data: allSets,
-            notes: exerciseRecord.notes || ''
-          });
+        if (!routineExercise) {
+          console.warn(`Routine exercise not found for exercise_id ${exerciseRecord.exercise_id}`);
+          continue;
         }
         
-        // Sort exercises by order
-        loadedExercises.sort((a, b) => a.exercise_order - b.exercise_order);
-        setExercises(loadedExercises);
-        console.log(`Loaded ${loadedExercises.length} exercises with their sets`);
-      } else {
-        // If no exercises found, load from routine definition
-        const exerciseResults = await db.getAllAsync<{
-          id: number;
-          exercise_id: number;
-          name: string;
-          sets: number;
-          order_num: number;
-        }>(
-          `SELECT re.id, re.exercise_id, e.name, re.sets, re.order_num
-           FROM routine_exercises re
-           JOIN exercises e ON re.exercise_id = e.id
-           WHERE re.routine_id = ?
-           ORDER BY re.order_num`,
-          [workout.routine_id]
+        // Get the exercise name
+        const exerciseName = await db.getFirstAsync<{ name: string }>(
+          'SELECT name FROM exercises WHERE id = ?',
+          [exerciseRecord.exercise_id]
         );
         
-        console.log("Loading from routine definition, found:", exerciseResults.length);
+        if (!exerciseName) {
+          console.warn(`Exercise name not found for exercise_id ${exerciseRecord.exercise_id}`);
+          continue;
+        }
         
-        if (exerciseResults.length > 0) {
-          const workoutExercises: WorkoutExercise[] = exerciseResults.map(exercise => ({
-            routine_exercise_id: exercise.id,
-            exercise_id: exercise.exercise_id,
-            name: exercise.name,
-            sets: exercise.sets,
-            completedSets: 0,
-            exercise_order: exercise.order_num,
-            sets_data: Array.from({ length: exercise.sets }, (_, i) => ({
-              set_number: i + 1,
+        // Get all sets for this workout exercise
+        const sets = await db.getAllAsync<Set>(
+          `SELECT id, set_number, reps, weight, rest_time, completed, notes
+           FROM sets
+           WHERE workout_exercise_id = ?
+           ORDER BY set_number`,
+          [exerciseRecord.id]
+        );
+        
+        // Create a full array of sets, ensuring we have the correct number
+        const allSets: Set[] = [];
+        for (let i = 1; i <= routineExercise.sets; i++) {
+          // Look for existing set
+          const existingSet = sets.find(s => s.set_number === i);
+          
+          if (existingSet) {
+            allSets.push(existingSet);
+          } else {
+            // Create a new default set
+            allSets.push({
+              set_number: i,
               reps: 0,
               weight: 0,
               rest_time: 60,
               completed: false,
               notes: ''
-            })),
-            notes: ''
-          }));
-          
-          setExercises(workoutExercises);
+            });
+          }
         }
+        
+        // Add the workout exercise
+        workoutExercises.push({
+          routine_exercise_id: routineExercise.id,
+          exercise_id: exerciseRecord.exercise_id,
+          name: exerciseName.name,
+          sets: routineExercise.sets,
+          completedSets: exerciseRecord.sets_completed,
+          exercise_order: routineExercise.order_num,
+          primary_muscle: routineExercise.primary_muscle,
+          category: routineExercise.category,
+          sets_data: allSets,
+          notes: exerciseRecord.notes || ''
+        });
       }
+      
+      // Sort workout exercises by order number
+      workoutExercises.sort((a, b) => a.exercise_order - b.exercise_order);
+      
+      setExercises(workoutExercises);
+      
+      // Register with global workout context
+      resumeWorkout();
       
     } catch (error) {
       console.error('Error resuming workout:', error);
@@ -394,9 +372,10 @@ export default function StartWorkoutScreen() {
       if (routineResult) {
         setRoutineName(routineResult.name);
         
-        // Get routine exercises
+        // Get routine exercises - Added primary_muscle and category to query
         const exerciseResults = await db.getAllAsync<Exercise>(
-          `SELECT re.id as routine_exercise_id, e.id as exercise_id, e.name, re.sets, re.order_num as exercise_order
+          `SELECT re.id as routine_exercise_id, e.id as exercise_id, e.name, re.sets, re.order_num as exercise_order,
+           e.primary_muscle, e.category
            FROM routine_exercises re
            JOIN exercises e ON re.exercise_id = e.id
            WHERE re.routine_id = ?
@@ -764,12 +743,17 @@ export default function StartWorkoutScreen() {
     );
   };
 
-  const renderExerciseItem = ({ item, index }: { item: WorkoutExercise, index: number }) => {
+  const renderExerciseItem = ({ item, index, muscleColor }: { item: WorkoutExercise, index: number, muscleColor?: string }) => {
     // Calculate exercise completion percentage
     const totalSets = item.sets_data.length;
     const completedSets = item.sets_data.filter(set => set.completed).length;
     const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
     
+    // Use the muscle color if provided, otherwise use the default primary/success color
+    const borderColor = progress === 100 
+      ? colors.success 
+      : (muscleColor || colors.primary);
+
     // Function to render set items with the correct exercise index
     const renderExerciseSetItem = (setItem: Set, setIndex: number) => {
       return (
@@ -818,7 +802,7 @@ export default function StartWorkoutScreen() {
       <View style={[styles.exerciseItem, { 
         backgroundColor: colors.card,
         borderLeftWidth: 4,
-        borderLeftColor: progress === 100 ? colors.success : colors.primary,
+        borderLeftColor: borderColor,
       }]}>
         <View style={[styles.exerciseHeader, { borderBottomColor: colors.border }]}>
           <View style={styles.exerciseTitleArea}>
@@ -1145,6 +1129,59 @@ export default function StartWorkoutScreen() {
     }
   };
 
+  // Organize exercises by muscle groups for rendering (similar to routine details screen)
+  const muscleGroups = useMemo(() => {
+    const groups: Record<string, WorkoutExercise[]> = {};
+    
+    exercises.forEach(exercise => {
+      const muscle = exercise.primary_muscle || 'Other';
+      if (!groups[muscle]) {
+        groups[muscle] = [];
+      }
+      groups[muscle].push(exercise);
+    });
+    
+    return groups;
+  }, [exercises]);
+
+  // Organize exercises by category for rendering (similar to routine details screen)
+  const exerciseCategories = useMemo(() => {
+    const categories: Record<string, WorkoutExercise[]> = {};
+    
+    exercises.forEach(exercise => {
+      const category = exercise.category || 'Other';
+      if (!categories[category]) {
+        categories[category] = [];
+      }
+      categories[category].push(exercise);
+    });
+    
+    return categories;
+  }, [exercises]);
+
+  // Helper function to get color based on muscle group (similar to routine details screen)
+  const getMuscleColor = (muscle: string) => {
+    const muscleColors: Record<string, string> = {
+      'Chest': '#E91E63',
+      'Back': '#3F51B5',
+      'Shoulders': '#009688',
+      'Biceps': '#FF5722',
+      'Triceps': '#FF9800',
+      'Legs': '#8BC34A',
+      'Quadriceps': '#8BC34A',
+      'Hamstrings': '#CDDC39',
+      'Calves': '#FFEB3B',
+      'Glutes': '#FFC107',
+      'Abs': '#00BCD4',
+      'Core': '#00BCD4',
+      'Forearms': '#795548',
+      'Traps': '#9C27B0',
+      'Full Body': '#607D8B',
+    };
+    
+    return muscleColors[muscle] || '#4CAF50';
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1172,22 +1209,20 @@ export default function StartWorkoutScreen() {
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
-          title: routineName,
-          headerShown: true,
+          title: workoutStarted ? `Workout: ${routineName}` : 'Start Workout',
           headerStyle: {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
-          // Add minimize button in header
           headerRight: () => (
-            workoutStarted ? (
+            workoutStarted && (
               <TouchableOpacity 
-                onPress={minimizeWorkoutAndNavigate}
                 style={styles.minimizeButton}
+                onPress={minimizeWorkoutAndNavigate}
               >
-                <FontAwesome name="minus-circle" size={24} color={colors.primary} />
+                <FontAwesome name="compress" size={18} color={colors.primary} />
               </TouchableOpacity>
-            ) : null
+            )
           ),
         }}
       />
@@ -1245,6 +1280,60 @@ export default function StartWorkoutScreen() {
                 {renderProgressBar()}
               </View>
               
+              {/* Add sorting options */}
+              <View style={styles.sortOptions}>
+                <TouchableOpacity 
+                  style={[
+                    styles.sortButton, 
+                    sortOption === 'default' && [styles.sortButtonActive, { borderColor: colors.primary }]
+                  ]}
+                  onPress={() => setSortOption('default')}
+                >
+                  <Text 
+                    style={[
+                      styles.sortButtonText, 
+                      { color: sortOption === 'default' ? colors.primary : colors.subtext }
+                    ]}
+                  >
+                    Order
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.sortButton, 
+                    sortOption === 'muscle' && [styles.sortButtonActive, { borderColor: colors.primary }]
+                  ]}
+                  onPress={() => setSortOption('muscle')}
+                >
+                  <Text 
+                    style={[
+                      styles.sortButtonText, 
+                      { color: sortOption === 'muscle' ? colors.primary : colors.subtext }
+                    ]}
+                  >
+                    Muscle
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.sortButton, 
+                    sortOption === 'category' && [styles.sortButtonActive, { borderColor: colors.primary }]
+                  ]}
+                  onPress={() => setSortOption('category')}
+                >
+                  <Text 
+                    style={[
+                      styles.sortButtonText, 
+                      { color: sortOption === 'category' ? colors.primary : colors.subtext }
+                    ]}
+                  >
+                    Category
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
               <TextInput
                 style={[styles.workoutNotes, { 
                   color: colors.text, 
@@ -1260,12 +1349,63 @@ export default function StartWorkoutScreen() {
             </View>
           </View>
           
-          <FlatList
-            data={exercises}
-            renderItem={renderExerciseItem}
-            keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
-            contentContainerStyle={styles.exerciseList}
-          />
+          {/* Replace FlatList with conditional rendering based on sortOption */}
+          {sortOption === 'default' && (
+            <FlatList
+              data={exercises}
+              renderItem={renderExerciseItem}
+              keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
+              contentContainerStyle={styles.exerciseList}
+            />
+          )}
+          
+          {sortOption === 'muscle' && (
+            <ScrollView contentContainerStyle={styles.exerciseList}>
+              {Object.entries(muscleGroups).map(([muscle, muscleExercises]) => (
+                <View key={muscle} style={styles.exerciseGroup}>
+                  <View style={[styles.groupHeader, { 
+                    backgroundColor: colors.card, 
+                    borderLeftColor: getMuscleColor(muscle),
+                    borderLeftWidth: 4 
+                  }]}>
+                    <Text style={[styles.groupTitle, { color: colors.text }]}>{muscle}</Text>
+                    <Text style={[styles.groupCount, { color: colors.subtext }]}>
+                      {muscleExercises.length} exercise{muscleExercises.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  {muscleExercises.map((exercise, index) => (
+                    <View key={`${exercise.routine_exercise_id}`}>
+                      {renderExerciseItem({ 
+                        item: exercise, 
+                        index,
+                        muscleColor: getMuscleColor(muscle) 
+                      })}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          
+          {sortOption === 'category' && (
+            <ScrollView contentContainerStyle={styles.exerciseList}>
+              {Object.entries(exerciseCategories).map(([category, categoryExercises]) => (
+                <View key={category} style={styles.exerciseGroup}>
+                  <View style={[styles.groupHeader, { backgroundColor: colors.card }]}>
+                    <Text style={[styles.groupTitle, { color: colors.text }]}>{category}</Text>
+                    <Text style={[styles.groupCount, { color: colors.subtext }]}>
+                      {categoryExercises.length} exercise{categoryExercises.length !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  {categoryExercises.map((exercise, index) => (
+                    <View key={`${exercise.routine_exercise_id}`}>
+                      {renderExerciseItem({ item: exercise, index })}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
+          )}
           
           <View style={[styles.finishButtonContainer, { 
             backgroundColor: theme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
@@ -1868,5 +2008,44 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  sortOptions: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  sortButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    marginHorizontal: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  sortButtonActive: {
+    borderWidth: 1,
+  },
+  sortButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  exerciseGroup: {
+    marginBottom: 16,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  groupCount: {
+    fontSize: 12,
   },
 }); 
