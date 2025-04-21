@@ -997,29 +997,38 @@ export default function WorkoutAnalyticsScreen() {
           
           {muscleGroupVolumes.length > 0 ? (
             <View style={styles.muscleDistributionContainer}>
-              {/* Top muscle groups with enhanced bars */}
+              {/* Improved muscle group bars */}
               <View style={styles.enhancedBarsContainer}>
                 {muscleGroupVolumes.slice(0, 6).map((muscle, index) => {
                   // Calculate percentage of this muscle group's volume compared to the highest
                   const maxVolume = Math.max(...muscleGroupVolumes.map(m => m.volume));
                   const percentage = Math.round((muscle.volume / maxVolume) * 100);
+                  const barColor = chartColors[index % chartColors.length];
                   
                   return (
                     <View key={index} style={styles.enhancedBarRow}>
-                      <View style={[styles.muscleDot, { backgroundColor: chartColors[index % chartColors.length] }]} />
-                      <Text style={[styles.muscleBarLabel, { color: colors.text }]}>
-                        {muscle.muscle}
-                      </Text>
+                      <View style={[styles.muscleDot, { backgroundColor: barColor }]} />
+                      <View style={styles.muscleNameContainer}>
+                        <Text style={[styles.muscleBarLabel, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+                          {muscle.muscle}
+                        </Text>
+                      </View>
                       <View style={[styles.muscleBarWrapper, { backgroundColor: lightBackgroundColor }]}>
                         <View 
                           style={[
                             styles.muscleBar, 
                             { 
-                              backgroundColor: chartColors[index % chartColors.length],
+                              backgroundColor: barColor,
                               width: `${percentage}%` 
                             }
                           ]} 
                         />
+                        {/* Add percentage label inside bar for better visualization */}
+                        {percentage > 15 && (
+                          <Text style={styles.muscleBarPercentage}>
+                            {percentage}%
+                          </Text>
+                        )}
                       </View>
                       <Text style={[styles.muscleBarValue, { color: colors.text }]}>
                         {muscle.volume.toLocaleString()} kg
@@ -1032,26 +1041,54 @@ export default function WorkoutAnalyticsScreen() {
               {/* Muscle groups balance indicators */}
               <View style={[styles.muscleBalanceCard, { backgroundColor: lightBackgroundColor }]}>
                 <Text style={[styles.muscleBalanceTitle, { color: colors.text }]}>
-                  Muscle Balance
+                  Muscle Balance Insights
                 </Text>
                 
                 <View style={styles.muscleBalanceInfo}>
                   <View style={styles.muscleBalanceStat}>
-                    <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
-                      Strongest:
-                    </Text>
+                    <View style={styles.muscleBalanceHeader}>
+                      <MaterialCommunityIcons 
+                        name="trending-up" 
+                        size={16} 
+                        color={colors.primary} 
+                        style={styles.muscleBalanceIcon} 
+                      />
+                      <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
+                        Strongest:
+                      </Text>
+                    </View>
                     <Text style={[styles.muscleBalanceValue, { color: colors.text }]}>
                       {muscleGroupVolumes[0]?.muscle || 'N/A'}
                     </Text>
+                    {muscleGroupVolumes[0]?.volume > 0 && (
+                      <Text style={[styles.muscleBalanceSubtext, { color: colors.subtext }]}>
+                        {((muscleGroupVolumes[0]?.volume / totalStats.volume) * 100).toFixed(1)}% of total volume
+                      </Text>
+                    )}
                   </View>
                   
+                  <View style={styles.muscleBalanceDivider} />
+                  
                   <View style={styles.muscleBalanceStat}>
-                    <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
-                      Needs Focus:
-                    </Text>
+                    <View style={styles.muscleBalanceHeader}>
+                      <MaterialCommunityIcons 
+                        name="trending-down" 
+                        size={16} 
+                        color="#FF5733" 
+                        style={styles.muscleBalanceIcon} 
+                      />
+                      <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
+                        Needs Focus:
+                      </Text>
+                    </View>
                     <Text style={[styles.muscleBalanceValue, { color: colors.text }]}>
                       {muscleGroupVolumes.length > 3 ? muscleGroupVolumes[muscleGroupVolumes.length-1]?.muscle || 'N/A' : 'N/A'}
                     </Text>
+                    {muscleGroupVolumes.length > 3 && muscleGroupVolumes[muscleGroupVolumes.length-1]?.volume > 0 && (
+                      <Text style={[styles.muscleBalanceSubtext, { color: colors.subtext }]}>
+                        Only {((muscleGroupVolumes[muscleGroupVolumes.length-1]?.volume / totalStats.volume) * 100).toFixed(1)}% of total volume
+                      </Text>
+                    )}
                   </View>
                 </View>
               </View>
@@ -1836,36 +1873,55 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginRight: 8,
   },
+  muscleNameContainer: {
+    width: 90,
+    marginRight: 8,
+  },
   muscleBarLabel: {
     fontSize: 14,
-    width: 80, 
-    marginRight: 8,
+    fontWeight: '500',
   },
   muscleBarWrapper: {
     flex: 1,
-    height: 8,
-    borderRadius: 4,
+    height: 26,
+    borderRadius: 13,
     marginRight: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
   },
   muscleBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 26,
+    borderRadius: 13,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  muscleBarPercentage: {
+    position: 'absolute',
+    right: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'white',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   muscleBarValue: {
     fontSize: 14,
     fontWeight: '500',
-    width: 70,
+    width: 80,
     textAlign: 'right',
   },
   muscleBalanceCard: {
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 4,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 10,
   },
   muscleBalanceTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   muscleBalanceInfo: {
     flexDirection: 'row',
@@ -1874,12 +1930,28 @@ const styles = StyleSheet.create({
   muscleBalanceStat: {
     flex: 1,
   },
+  muscleBalanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  muscleBalanceIcon: {
+    marginRight: 6,
+  },
   muscleBalanceLabel: {
-    fontSize: 13,
-    marginBottom: 3,
+    fontSize: 14,
   },
   muscleBalanceValue: {
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  muscleBalanceSubtext: {
+    fontSize: 12,
+  },
+  muscleBalanceDivider: {
+    width: 1,
+    backgroundColor: 'rgba(128, 128, 128, 0.2)',
+    marginHorizontal: 12,
   },
 }); 

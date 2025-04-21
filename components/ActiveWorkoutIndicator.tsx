@@ -16,6 +16,9 @@ export default function ActiveWorkoutIndicator() {
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // For button press animation
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  
   // Get screen dimensions to position properly
   const { height } = Dimensions.get('window');
   const tabBarHeight = 50; // Approximate tab bar height
@@ -84,6 +87,20 @@ export default function ActiveWorkoutIndicator() {
   // Direct navigation to workout/start with the correct ID
   const navigateToWorkout = () => {
     if (activeWorkout.id) {
+      // Animate button press
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.97,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        })
+      ]).start();
+      
       router.push({
         pathname: "/workout/start",
         params: { workoutId: activeWorkout.id }
@@ -92,46 +109,52 @@ export default function ActiveWorkoutIndicator() {
   };
 
   return (
-    <TouchableOpacity 
+    <Animated.View
       style={[
         styles.container, 
         { 
           backgroundColor: colors.card,
+          borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
           bottom: tabBarHeight + 8, // Position above tab bar
+          transform: [{ scale: scaleAnim }],
         }
       ]}
-      onPress={navigateToWorkout}
-      activeOpacity={0.8}
     >
-      <View style={styles.contentContainer}>
-        <View style={styles.workoutInfo}>
-          <Text style={[styles.workoutTitle, { color: colors.text }]}>
-            {activeWorkout.routineName}
-          </Text>
-          <View style={styles.timerContainer}>
-            <Animated.View style={[
-              styles.timerDot,
-              { 
-                backgroundColor: activeWorkout.isActive ? colors.primary : colors.subtext,
-                opacity: activeWorkout.isActive ? pulseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.5, 1]
-                }) : 0.5
-              }
-            ]} />
-            <Text style={[styles.timerText, { color: colors.subtext }]}>
-              {elapsedTime}
+      <TouchableOpacity 
+        style={styles.touchableArea}
+        onPress={navigateToWorkout}
+        activeOpacity={0.9}
+      >
+        <View style={styles.contentContainer}>
+          <View style={styles.workoutInfo}>
+            <Text style={[styles.workoutTitle, { color: colors.text }]}>
+              {activeWorkout.routineName}
             </Text>
+            <View style={styles.timerContainer}>
+              <Animated.View style={[
+                styles.timerDot,
+                { 
+                  backgroundColor: colors.primary,
+                  opacity: pulseAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.5, 1]
+                  })
+                }
+              ]} />
+              <Text style={[styles.timerText, { color: colors.subtext }]}>
+                {elapsedTime}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.actionContainer}>
+            <Text style={[styles.actionText, { color: colors.primary }]}>
+              Continue
+            </Text>
+            <FontAwesome name="chevron-right" size={14} color={colors.primary} style={styles.chevron} />
           </View>
         </View>
-        <View style={styles.actionContainer}>
-          <Text style={[styles.actionText, { color: colors.primary }]}>
-            Continue
-          </Text>
-          <FontAwesome name="chevron-right" size={14} color={colors.primary} />
-        </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -140,14 +163,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    padding: 12,
     borderRadius: 16,
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
     zIndex: 998, // Below modals but above content
+    overflow: 'hidden',
+  },
+  touchableArea: {
+    width: '100%',
+    padding: 14,
   },
   contentContainer: {
     flexDirection: 'row',
@@ -159,7 +187,7 @@ const styles = StyleSheet.create({
   },
   workoutTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginBottom: 4,
   },
   timerContainer: {
@@ -167,21 +195,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: 6,
   },
   timerText: {
     fontSize: 14,
+    fontWeight: '500',
   },
   actionContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
   },
   actionText: {
     fontSize: 14,
     fontWeight: '600',
     marginRight: 4,
+  },
+  chevron: {
+    marginLeft: 2,
   },
 }); 

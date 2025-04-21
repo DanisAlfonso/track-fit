@@ -181,7 +181,9 @@ export default function WorkoutDetailScreen() {
         if (!isMounted) return;
         
         if (isMounted) {
-          setExercisesWithSets(exercises);
+          // Filter out exercises with no sets
+          const exercisesWithData = exercises.filter(exercise => exercise.sets.length > 0);
+          setExercisesWithSets(exercisesWithData);
           setTotalVolume(calculatedVolume);
         }
 
@@ -288,7 +290,11 @@ export default function WorkoutDetailScreen() {
           };
         });
         
-        if (isMounted) setExercisesWithSets(exercisesWithHistory);
+        if (isMounted) {
+          // Filter out exercises with no sets before updating state
+          const exercisesWithDataAndHistory = exercisesWithHistory.filter(exercise => exercise.sets.length > 0);
+          setExercisesWithSets(exercisesWithDataAndHistory);
+        }
         
         // Calculate comparison stats with the most recent previous workout
         if (previousWorkoutsData.length > 0 && workout) {

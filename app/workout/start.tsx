@@ -259,11 +259,7 @@ export default function StartWorkoutScreen() {
         [workoutId]
       );
       
-      if (exerciseRecords.length === 0) {
-        throw new Error('No exercises found for this workout');
-      }
-      
-      // Get all routine exercises for this routine to map to workout exercises
+      // Get all routine exercises for this routine (will be used in both cases)
       const routineExercises = await db.getAllAsync<{
         id: number;
         exercise_id: number;
@@ -271,8 +267,9 @@ export default function StartWorkoutScreen() {
         order_num: number;
         primary_muscle: string;
         category: string;
+        name: string;
       }>(
-        `SELECT re.id, re.exercise_id, re.sets, re.order_num, e.primary_muscle, e.category
+        `SELECT re.id, re.exercise_id, re.sets, re.order_num, e.primary_muscle, e.category, e.name
          FROM routine_exercises re
          JOIN exercises e ON re.exercise_id = e.id
          WHERE re.routine_id = ?
@@ -280,55 +277,22 @@ export default function StartWorkoutScreen() {
         [workout.routine_id]
       );
       
-      // Create map of exercise_id to routine_exercise for quick lookup
-      const routineExerciseMap = new Map();
-      routineExercises.forEach(re => {
-        routineExerciseMap.set(re.exercise_id, re);
-      });
+      if (routineExercises.length === 0) {
+        throw new Error('No exercises found for this routine');
+      }
       
-      // Create workout exercises with completed sets
-      const workoutExercises: WorkoutExercise[] = [];
+      let workoutExercises: WorkoutExercise[] = [];
       
-      for (const exerciseRecord of exerciseRecords) {
-        // Get the corresponding routine exercise
-        const routineExercise = routineExerciseMap.get(exerciseRecord.exercise_id);
+      if (exerciseRecords.length === 0) {
+        // No exercises have been saved yet for this workout - use routine exercises as a template
+        console.log('No saved workout exercises found - using routine exercises as template');
         
-        if (!routineExercise) {
-          console.warn(`Routine exercise not found for exercise_id ${exerciseRecord.exercise_id}`);
-          continue;
-        }
-        
-        // Get the exercise name
-        const exerciseName = await db.getFirstAsync<{ name: string }>(
-          'SELECT name FROM exercises WHERE id = ?',
-          [exerciseRecord.exercise_id]
-        );
-        
-        if (!exerciseName) {
-          console.warn(`Exercise name not found for exercise_id ${exerciseRecord.exercise_id}`);
-          continue;
-        }
-        
-        // Get all sets for this workout exercise
-        const sets = await db.getAllAsync<Set>(
-          `SELECT id, set_number, reps, weight, rest_time, completed, notes
-           FROM sets
-           WHERE workout_exercise_id = ?
-           ORDER BY set_number`,
-          [exerciseRecord.id]
-        );
-        
-        // Create a full array of sets, ensuring we have the correct number
-        const allSets: Set[] = [];
-        for (let i = 1; i <= routineExercise.sets; i++) {
-          // Look for existing set
-          const existingSet = sets.find(s => s.set_number === i);
+        workoutExercises = routineExercises.map(re => {
+          // Create default sets data
+          const sets_data: Set[] = [];
           
-          if (existingSet) {
-            allSets.push(existingSet);
-          } else {
-            // Create a new default set
-            allSets.push({
+          for (let i = 1; i <= re.sets; i++) {
+            sets_data.push({
               set_number: i,
               reps: 0,
               weight: 0,
@@ -337,21 +301,83 @@ export default function StartWorkoutScreen() {
               notes: ''
             });
           }
-        }
-        
-        // Add the workout exercise
-        workoutExercises.push({
-          routine_exercise_id: routineExercise.id,
-          exercise_id: exerciseRecord.exercise_id,
-          name: exerciseName.name,
-          sets: routineExercise.sets,
-          completedSets: exerciseRecord.sets_completed,
-          exercise_order: routineExercise.order_num,
-          primary_muscle: routineExercise.primary_muscle,
-          category: routineExercise.category,
-          sets_data: allSets,
-          notes: exerciseRecord.notes || ''
+          
+          return {
+            routine_exercise_id: re.id,
+            exercise_id: re.exercise_id,
+            name: re.name,
+            sets: re.sets,
+            completedSets: 0,
+            exercise_order: re.order_num,
+            primary_muscle: re.primary_muscle,
+            category: re.category,
+            sets_data: sets_data,
+            notes: ''
+          };
         });
+      } else {
+        // Create map of exercise_id to routine_exercise for quick lookup
+        const routineExerciseMap = new Map();
+        routineExercises.forEach(re => {
+          routineExerciseMap.set(re.exercise_id, re);
+        });
+        
+        // Create workout exercises with completed sets
+        workoutExercises = [];
+        
+        for (const exerciseRecord of exerciseRecords) {
+          // Get the corresponding routine exercise
+          const routineExercise = routineExerciseMap.get(exerciseRecord.exercise_id);
+          
+          if (!routineExercise) {
+            console.warn(`Routine exercise not found for exercise_id ${exerciseRecord.exercise_id}`);
+            continue;
+          }
+          
+          // Get all sets for this workout exercise
+          const sets = await db.getAllAsync<Set>(
+            `SELECT id, set_number, reps, weight, rest_time, completed, training_type, notes
+             FROM sets
+             WHERE workout_exercise_id = ?
+             ORDER BY set_number`,
+            [exerciseRecord.id]
+          );
+          
+          // Create a full array of sets, ensuring we have the correct number
+          const allSets: Set[] = [];
+          for (let i = 1; i <= routineExercise.sets; i++) {
+            // Look for existing set
+            const existingSet = sets.find(s => s.set_number === i);
+            
+            if (existingSet) {
+              allSets.push(existingSet);
+            } else {
+              // Create a new default set
+              allSets.push({
+                set_number: i,
+                reps: 0,
+                weight: 0,
+                rest_time: 60,
+                completed: false,
+                notes: ''
+              });
+            }
+          }
+          
+          // Add the workout exercise
+          workoutExercises.push({
+            routine_exercise_id: routineExercise.id,
+            exercise_id: exerciseRecord.exercise_id,
+            name: routineExercise.name,
+            sets: routineExercise.sets,
+            completedSets: exerciseRecord.sets_completed || 0,
+            exercise_order: routineExercise.order_num,
+            primary_muscle: routineExercise.primary_muscle,
+            category: routineExercise.category,
+            sets_data: allSets,
+            notes: exerciseRecord.notes || ''
+          });
+        }
       }
       
       // Sort workout exercises by order number
@@ -665,6 +691,14 @@ export default function StartWorkoutScreen() {
               
               // Save completed exercises and sets
               for (const exercise of exercises) {
+                // Skip exercises with no sets or all sets are empty
+                const hasCompletedSets = exercise.sets_data.some(set => set.completed);
+                const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
+                
+                if (!hasCompletedSets && !hasAnySetData) {
+                  continue; // Skip this exercise entirely
+                }
+                
                 // Ensure the workout_exercise record exists
                 let workoutExerciseId = null;
                 const existingExercise = await db.getFirstAsync<{id: number}>(
@@ -1146,6 +1180,14 @@ export default function StartWorkoutScreen() {
       
       // Save each exercise and its sets
       for (const exercise of exercises) {
+        // Skip exercises with no sets or all sets are empty
+        const hasCompletedSets = exercise.sets_data.some(set => set.completed);
+        const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
+        
+        if (!hasCompletedSets && !hasAnySetData) {
+          continue; // Skip this exercise entirely
+        }
+        
         // Ensure the workout_exercise record exists
         let workoutExerciseId = null;
         const existingExercise = await db.getFirstAsync<{id: number}>(
@@ -1411,6 +1453,30 @@ export default function StartWorkoutScreen() {
     // The animation loop will automatically update the display on next frame
   };
 
+  // Reference to the scroll view for muscle groups
+  const muscleScrollViewRef = useRef<ScrollView>(null);
+  
+  // References to position of each muscle group section
+  const musclePositions = useRef<Record<string, number>>({});
+  
+  // Track scroll position to show/hide navigation bar
+  const [scrollY, setScrollY] = useState(0);
+  
+  // Function to scroll to a specific muscle group
+  const scrollToMuscle = (muscle: string) => {
+    if (muscleScrollViewRef.current && musclePositions.current[muscle] !== undefined) {
+      muscleScrollViewRef.current.scrollTo({
+        y: musclePositions.current[muscle] - 60, // Adjust for header
+        animated: true,
+      });
+    }
+  };
+  
+  // Function to measure and store position of muscle groups
+  const measureMusclePosition = (muscle: string, y: number) => {
+    musclePositions.current[muscle] = y;
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1648,6 +1714,41 @@ export default function StartWorkoutScreen() {
             </View>
           </View>
           
+          {/* Quick muscle group navigation */}
+          {sortOption === 'muscle' && Object.keys(muscleGroups).length > 1 && (
+            <View style={[styles.muscleNavContainer, { 
+              backgroundColor: theme === 'dark' ? 'rgba(30, 30, 35, 0.95)' : 'rgba(248, 248, 248, 0.95)',
+              borderColor: colors.border,
+              marginTop: 12,
+            }]}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.muscleNavContent}
+              >
+                {Object.keys(muscleGroups).map((muscle) => (
+                  <TouchableOpacity
+                    key={`nav-${muscle}`}
+                    style={[
+                      styles.muscleNavItem,
+                      { 
+                        borderColor: getMuscleColor(muscle),
+                        backgroundColor: theme === 'dark' ? 'rgba(45, 45, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                      }
+                    ]}
+                    onPress={() => scrollToMuscle(muscle)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.muscleNavDot, { backgroundColor: getMuscleColor(muscle) }]} />
+                    <Text style={[styles.muscleNavText, { color: colors.text }]}>
+                      {muscle}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          
           {/* Replace FlatList with conditional rendering based on sortOption */}
           {sortOption === 'default' && (
             <FlatList
@@ -1659,9 +1760,21 @@ export default function StartWorkoutScreen() {
           )}
           
           {sortOption === 'muscle' && (
-            <ScrollView contentContainerStyle={styles.exerciseList}>
+            <ScrollView 
+              ref={muscleScrollViewRef}
+              contentContainerStyle={styles.exerciseList}
+              onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+              scrollEventThrottle={16}
+            >
               {Object.entries(muscleGroups).map(([muscle, muscleExercises]) => (
-                <View key={muscle} style={styles.exerciseGroup}>
+                <View 
+                  key={muscle} 
+                  style={styles.exerciseGroup}
+                  onLayout={(event) => {
+                    const { y } = event.nativeEvent.layout;
+                    measureMusclePosition(muscle, y);
+                  }}
+                >
                   <View style={[styles.groupHeader, { 
                     backgroundColor: colors.card, 
                     borderLeftColor: getMuscleColor(muscle),
@@ -2509,4 +2622,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-}); 
+  muscleNavContainer: {
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    zIndex: 10,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  muscleNavContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  muscleNavItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  muscleNavDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  muscleNavText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+})
