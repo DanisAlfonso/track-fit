@@ -590,13 +590,9 @@ export default function WeeklyScheduleScreen() {
         
         <View style={styles.weekGrid}>
           {weekSchedule.map((day, index) => {
-            const hasRoutine = day.routines.length > 0 && day.routines[0]?.name;
+            const hasRoutines = day.routines.length > 0;
             const isToday = new Date().getDay() === day.day_of_week;
-            
-            let routineIndex = -1;
-            if (hasRoutine && day.routines[0]?.name) {
-              routineIndex = validRoutines.indexOf(day.routines[0].name);
-            }
+            const hasMultipleRoutines = day.routines.length > 1;
             
             return (
               <TouchableOpacity 
@@ -604,10 +600,16 @@ export default function WeeklyScheduleScreen() {
                 style={[
                   styles.dayGridCell,
                   { 
-                    backgroundColor: hasRoutine && routineIndex >= 0
-                      ? getLegendColor(routineIndex, colors) 
-                      : 'transparent',
-                    borderColor: isToday ? colors.primary : colors.border
+                    borderColor: isToday ? colors.primary : colors.border,
+                    borderWidth: isToday ? 2 : hasRoutines ? 0 : 1,
+                    backgroundColor: colors.card,
+                    ...(hasRoutines && {
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 3,
+                      elevation: 2,
+                    })
                   }
                 ]}
                 onPress={() => handleDayPress(day.day_of_week)}
@@ -615,16 +617,52 @@ export default function WeeklyScheduleScreen() {
                 <Text style={[
                   styles.dayGridName, 
                   { 
-                    color: hasRoutine ? '#fff' : colors.text,
+                    color: colors.text,
                     fontWeight: isToday ? 'bold' : 'normal'
                   }
                 ]}>
                   {day.day_name.slice(0, 3)}
                 </Text>
                 
-                {hasRoutine && day.routines[0]?.name && (
-                  <Text style={styles.dayGridRoutine} numberOfLines={1}>
-                    {day.routines[0].name}
+                {hasRoutines ? (
+                  <View style={styles.dayGridRoutineContainer}>
+                    {day.routines.slice(0, 3).map((routine, routineIndex) => {
+                      if (!routine?.name) return null;
+                      
+                      // Find index in validRoutines for color
+                      const routineNameIndex = validRoutines.indexOf(routine.name);
+                      
+                      return (
+                        <View 
+                          key={routine.id}
+                          style={[
+                            styles.dayGridRoutinePill,
+                            { backgroundColor: getLegendColor(
+                                routineNameIndex >= 0 ? routineNameIndex : routineIndex,
+                                colors
+                              )
+                            }
+                          ]}
+                        >
+                          <Text style={styles.dayGridRoutineText} numberOfLines={1}>
+                            {routine.name}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                    
+                    {/* Show +N indicator if there are more than 3 routines */}
+                    {day.routines.length > 3 && (
+                      <View style={[styles.moreRoutinesBadge, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.moreRoutinesText}>
+                          +{day.routines.length - 3}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={[styles.emptyDayLabel, { color: colors.subtext }]}>
+                    Rest
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1173,15 +1211,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    paddingHorizontal: 4,
+    paddingTop: 8,
+    paddingBottom: 4,
+    rowGap: 10,
   },
   dayGridCell: {
     width: '13.5%',
-    aspectRatio: 1,
-    borderRadius: 100,
-    justifyContent: 'center',
+    aspectRatio: 0.8,
+    borderRadius: 12,
+    justifyContent: 'flex-start',
     alignItems: 'center',
     borderWidth: 0,
-    padding: 4,
+    padding: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -1191,13 +1233,44 @@ const styles = StyleSheet.create({
   dayGridName: {
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: 6,
     textAlign: 'center',
   },
-  dayGridRoutine: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.95)',
+  dayGridRoutineContainer: {
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  dayGridRoutinePill: {
+    width: '95%',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+    marginVertical: 1,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayGridRoutineText: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: 'white',
     textAlign: 'center',
-    fontWeight: '500',
+  },
+  moreRoutinesBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 2,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreRoutinesText: {
+    fontSize: 8,
+    fontWeight: '600',
+    color: 'white',
+  },
+  emptyDayLabel: {
+    fontSize: 10,
+    fontStyle: 'italic',
   },
 }); 
