@@ -511,7 +511,10 @@ export default function WeeklyScheduleScreen() {
           
           <View style={styles.modalButtons}>
             <TouchableOpacity
-              style={[styles.modalButton, styles.cancelButton, { borderColor: colors.border, backgroundColor: '#F2F2F2' }]}
+              style={[styles.modalButton, styles.cancelButton, { 
+                borderColor: colors.border, 
+                backgroundColor: currentTheme === 'dark' ? '#333333' : '#F2F2F2' 
+              }]}
               onPress={() => {
                 setRoutineSelectVisible(false);
                 setSelectedDay(null);
@@ -1078,12 +1081,10 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     borderWidth: 0,
-    backgroundColor: '#F2F2F2',
   },
   cancelButtonText: {
     fontWeight: '600',
     fontSize: 16,
-    color: '#333333',
   },
   doneButton: {
     // backgroundColor set dynamically in the component
