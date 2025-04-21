@@ -916,13 +916,6 @@ export default function WeeklyScheduleScreen() {
       
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Weekly Schedule</Text>
-        <TouchableOpacity 
-          style={[styles.clearButton, { borderColor: colors.error }]}
-          onPress={handleClearSchedule}
-        >
-          <FontAwesome5 name="trash-alt" size={14} color={colors.error} />
-          <Text style={[styles.clearButtonText, { color: colors.error }]}>Clear All</Text>
-        </TouchableOpacity>
       </View>
       
       <Text style={[styles.description, { color: colors.subtext }]}>
@@ -980,6 +973,21 @@ export default function WeeklyScheduleScreen() {
         
         {/* Daily Cards */}
         {weekSchedule.map(day => renderDayCard(day))}
+        
+        {/* Only show Clear All button if there are routines scheduled */}
+        {weekSchedule.some(day => day.routines.length > 0) && (
+          <TouchableOpacity 
+            style={[styles.clearAllButtonDiscrete, { borderColor: colors.error + '80' }]}
+            onPress={handleClearSchedule}
+          >
+            <FontAwesome5 name="trash-alt" size={14} color={colors.error + 'CC'} />
+            <Text style={[styles.clearAllButtonTextDiscrete, { color: colors.error + 'CC' }]}>
+              Clear Schedule
+            </Text>
+          </TouchableOpacity>
+        )}
+        
+        <View style={{ height: 20 }} />
       </ScrollView>
       
       {renderRoutineSelection()}
@@ -1008,19 +1016,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     marginBottom: 24,
-  },
-  clearButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  clearButtonText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
   },
   scrollContent: {
     paddingBottom: 30,
@@ -1654,6 +1649,23 @@ const styles = StyleSheet.create({
   },
   previewCloseText: {
     fontSize: 16,
+    fontWeight: '500',
+  },
+  clearAllButtonDiscrete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignSelf: 'center',
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  clearAllButtonTextDiscrete: {
+    marginLeft: 8,
+    fontSize: 14,
     fontWeight: '500',
   },
 }); 
