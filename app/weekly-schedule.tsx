@@ -83,6 +83,9 @@ export default function WeeklyScheduleScreen() {
   const [routineSelectVisible, setRoutineSelectVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
+  const [previewRoutine, setPreviewRoutine] = useState<{id: number, name: string} | null>(null);
+  const [exercisePreviewVisible, setExercisePreviewVisible] = useState(false);
+  const [previewExercises, setPreviewExercises] = useState<{id: number, name: string}[]>([]);
 
   const dayNames = [
     'Sunday', 'Monday', 'Tuesday', 'Wednesday',
@@ -176,6 +179,17 @@ export default function WeeklyScheduleScreen() {
     }
   };
 
+  // Helper to create a more appealing gradient for the calendar
+  const createGradientBackground = (baseColor: string) => {
+    return {
+      backgroundColor: baseColor,
+      borderRadius: 8,
+      borderWidth: 0,
+      borderColor: 'transparent',
+    };
+  };
+
+  // Update calendar markers with enhanced styling
   const updateCalendarMarkers = () => {
     const today = new Date();
     const markers: MarkedDates = {};
@@ -208,8 +222,7 @@ export default function WeeklyScheduleScreen() {
           // Create a more informative marker with custom styling
           customStyles: {
             container: {
-              backgroundColor: routineColor,
-              borderRadius: 8,
+              ...createGradientBackground(routineColor),
             },
             text: {
               color: 'white',
@@ -342,12 +355,44 @@ export default function WeeklyScheduleScreen() {
     );
   };
 
+  // Render the rest day content with proper styling
+  const renderRestDayContent = (day: RoutineAssignment) => {
+    return (
+      <View style={styles.restDayContainer}>
+        <View style={[styles.restDayContent, { backgroundColor: colors.card + '80', padding: 12, borderRadius: 12 }]}>
+          <View style={[styles.restDayIconContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome5 
+              name="bed" 
+              size={22} 
+              color={colors.subtext} 
+              style={styles.restDayIcon} 
+            />
+          </View>
+          <View style={styles.restDayTextContainer}>
+            <Text style={[styles.restDayTitle, { color: colors.text }]}>Rest Day</Text>
+            <Text style={[styles.restDayText, { color: colors.subtext }]}>
+              Recovery is important for muscle growth and preventing injuries
+            </Text>
+          </View>
+        </View>
+        
+        <TouchableOpacity 
+          style={[styles.addWorkoutButton, { backgroundColor: colors.primary + '15', borderColor: 'transparent' }]}
+          onPress={() => handleDayPress(day.day_of_week)}
+        >
+          <FontAwesome5 name="plus" size={12} color={colors.primary} style={styles.addWorkoutIcon} />
+          <Text style={[styles.addWorkoutText, { color: colors.primary }]}>Add Workout</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   const renderDayCard = (day: RoutineAssignment) => {
     const isToday = new Date().getDay() === day.day_of_week;
     const hasRoutines = day.routines.length > 0;
     const totalExercises = day.routines.reduce((sum, routine) => 
       sum + (routine?.exercise_count || 0), 0);
-
+    
     return (
       <TouchableOpacity
         key={day.day_of_week}
@@ -374,9 +419,9 @@ export default function WeeklyScheduleScreen() {
         {hasRoutines ? (
           <View style={styles.multiRoutineContainer}>
             <View style={styles.routinesSummary}>
-              <View style={[styles.totalExercisesBadge, { backgroundColor: '#E6F7FF' }]}>
-                <FontAwesome5 name="dumbbell" size={12} color="#0099FF" style={styles.summaryIcon} />
-                <Text style={[styles.totalExercisesText, { color: '#0099FF' }]}>
+              <View style={[styles.totalExercisesBadge, { backgroundColor: colors.primary + '15' }]}>
+                <FontAwesome5 name="dumbbell" size={12} color={colors.primary} style={styles.summaryIcon} />
+                <Text style={[styles.totalExercisesText, { color: colors.primary }]}>
                   {totalExercises} exercise{totalExercises !== 1 ? 's' : ''}
                 </Text>
               </View>
@@ -388,37 +433,63 @@ export default function WeeklyScheduleScreen() {
             <View style={styles.dayRoutineList}>
               {day.routines.map((routine, index) => 
                 routine && routine.name ? (
-                  <View 
-                    key={routine.id} 
-                    style={[
-                      styles.routineChip, 
-                      { backgroundColor: getLegendColor(index % 7, colors) }
-                    ]}
-                  >
-                    <Text style={styles.routineChipText} numberOfLines={1}>{routine.name}</Text>
+                  <View key={routine.id} style={styles.routineCardContainer}>
+                    <View 
+                      style={[
+                        styles.routineCard, 
+                        { backgroundColor: getLegendColor(index % 7, colors) }
+                      ]}
+                    >
+                      <View style={styles.routineCardContent}>
+                        <FontAwesome5 name="dumbbell" size={14} color="white" style={styles.routineCardIcon} />
+                        <Text style={styles.routineCardText} numberOfLines={1}>
+                          {routine.name}
+                        </Text>
+                      </View>
+                      <View style={styles.routineCardActions}>
+                        <TouchableOpacity 
+                          style={styles.exerciseCountBadge}
+                          onPress={() => handleShowExercises(routine.id, routine.name)}
+                        >
+                          <Text style={styles.exerciseCountText}>
+                            {routine.exercise_count}
+                          </Text>
+                          <Text style={styles.exerciseCountLabel}>
+                            {routine.exercise_count === 1 ? 'exercise' : 'exercises'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={styles.startButton}
+                          onPress={() => {
+                            // Navigate to start workout screen
+                            router.push({
+                              pathname: '/workout/start',
+                              params: { routineId: routine.id }
+                            });
+                          }}
+                        >
+                          <FontAwesome5 name="play" size={12} color="white" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 ) : null
               )}
             </View>
           </View>
         ) : (
-          <View style={styles.noRoutineContainer}>
-            <Text style={[styles.noRoutineText, { color: colors.subtext }]}>No workout planned</Text>
-            <TouchableOpacity>
-              <Text style={[styles.addRoutineText, { color: colors.primary }]}>Add</Text>
-            </TouchableOpacity>
-          </View>
+          renderRestDayContent(day)
         )}
 
         <View style={styles.dayFooter}>
           <FontAwesome5 
             name="edit" 
             size={14} 
-            color="#0099FF" 
+            color={colors.primary} 
             style={styles.editIcon} 
           />
-          <Text style={[styles.tapToEdit, { color: "#0099FF" }]}>
-            {hasRoutines ? 'Manage' : 'Manage'} routines
+          <Text style={[styles.tapToEdit, { color: colors.primary }]}>
+            {hasRoutines ? 'Manage' : 'Add'} routines
           </Text>
         </View>
       </TouchableOpacity>
@@ -533,6 +604,111 @@ export default function WeeklyScheduleScreen() {
               }}
             >
               <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Function to load and show exercises for a routine
+  const handleShowExercises = async (routineId: number, routineName: string) => {
+    try {
+      const db = await getDatabase();
+      
+      // Query exercises for this routine
+      const exercises = await db.getAllAsync<{id: number, name: string}>(`
+        SELECT e.id, e.name
+        FROM exercises e
+        JOIN routine_exercises re ON e.id = re.exercise_id
+        WHERE re.routine_id = ?
+        ORDER BY re.order_num
+      `, [routineId]);
+      
+      setPreviewRoutine({id: routineId, name: routineName});
+      setPreviewExercises(exercises);
+      setExercisePreviewVisible(true);
+    } catch (error) {
+      console.error('Error loading exercises:', error);
+    }
+  };
+
+  // Render preview modal
+  const renderExercisePreview = () => {
+    if (!exercisePreviewVisible || !previewRoutine) return null;
+    
+    return (
+      <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <View style={[styles.previewModal, { backgroundColor: colors.card }]}>
+          <View style={styles.previewHeader}>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>
+              {previewRoutine.name}
+            </Text>
+            <Text style={[styles.previewSubtitle, { color: colors.subtext }]}>
+              {previewExercises.length} {previewExercises.length === 1 ? 'exercise' : 'exercises'}
+            </Text>
+          </View>
+          
+          <ScrollView 
+            style={styles.previewList}
+            contentContainerStyle={styles.previewListContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {previewExercises.length > 0 ? (
+              previewExercises.map((exercise, index) => (
+                <View 
+                  key={exercise.id} 
+                  style={[
+                    styles.exerciseItem, 
+                    index < previewExercises.length - 1 && { 
+                      borderBottomWidth: 1, 
+                      borderBottomColor: colors.border 
+                    }
+                  ]}
+                >
+                  <View style={styles.exerciseItemContent}>
+                    <View style={[styles.exerciseNumberBadge, { backgroundColor: colors.primary + '20' }]}>
+                      <Text style={[styles.exerciseNumber, { color: colors.primary }]}>
+                        {index + 1}
+                      </Text>
+                    </View>
+                    <Text style={[styles.exerciseName, { color: colors.text }]}>
+                      {exercise.name}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <View style={styles.emptyExercisesContainer}>
+                <FontAwesome5 name="dumbbell" size={24} color={colors.subtext} style={styles.emptyExercisesIcon} />
+                <Text style={[styles.emptyExercisesText, { color: colors.subtext }]}>
+                  No exercises in this routine
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+          
+          <View style={styles.previewFooter}>
+            <TouchableOpacity
+              style={[styles.previewButton, { backgroundColor: colors.primary }]}
+              onPress={() => {
+                setExercisePreviewVisible(false);
+                // Navigate to the start workout page
+                router.push({
+                  pathname: '/workout/start',
+                  params: { routineId: previewRoutine.id }
+                });
+              }}
+            >
+              <FontAwesome5 name="play" size={14} color="white" style={{marginRight: 8}} />
+              <Text style={styles.previewButtonText}>Start Workout</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.previewCloseButton, { borderColor: colors.border }]}
+              onPress={() => setExercisePreviewVisible(false)}
+            >
+              <Text style={[styles.previewCloseText, { color: colors.text }]}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -793,9 +969,12 @@ export default function WeeklyScheduleScreen() {
         </View>
         
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Daily Details</Text>
+          <View style={styles.sectionTitleWrapper}>
+            <FontAwesome5 name="calendar-alt" size={16} color={colors.primary} style={{marginRight: 8}} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Daily Details</Text>
+          </View>
           <Text style={[styles.sectionSubtitle, { color: colors.subtext }]}>
-            Tap on a day to assign a routine
+            Tap to manage workouts · Long press to rearrange
           </Text>
         </View>
         
@@ -804,6 +983,7 @@ export default function WeeklyScheduleScreen() {
       </ScrollView>
       
       {renderRoutineSelection()}
+      {renderExercisePreview()}
     </View>
   );
 }
@@ -846,9 +1026,9 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   dayCard: {
-    borderRadius: 20,
+    borderRadius: 22,
     marginBottom: 16,
-    padding: 18,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
@@ -886,49 +1066,97 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  metricContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   totalExercisesBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#E6F7FF',
   },
   summaryIcon: {
     marginRight: 6,
-    color: '#0099FF',
   },
   totalExercisesText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0099FF',
+  },
+  durationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  durationText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   routineCount: {
     fontSize: 14,
-    opacity: 0.8,
+    fontWeight: '500',
   },
   dayRoutineList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     marginBottom: 12,
     gap: 8,
   },
-  routineChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 6,
-    marginBottom: 0,
-    shadowColor: 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
+  routineCardContainer: {
+    marginBottom: 8,
+    width: '100%',
   },
-  routineChipText: {
-    fontSize: 13,
+  routineCard: {
+    padding: 12,
+    paddingRight: 8,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  routineCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 6,
+  },
+  routineCardIcon: {
+    marginRight: 8,
+    width: 20,
+    textAlign: 'center',
+  },
+  routineCardText: {
+    fontSize: 14,
     fontWeight: '600',
     color: 'white',
+    flex: 1,
+  },
+  exerciseCountBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  exerciseCountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+    marginRight: 4,
+  },
+  exerciseCountLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.9)',
   },
   addRoutineButton: {
     padding: 8,
@@ -940,32 +1168,39 @@ const styles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 1,
   },
-  noRoutineContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  restDayContainer: {
+    flexDirection: 'column',
     marginBottom: 16,
   },
-  noRoutineText: {
-    fontSize: 14,
-    fontStyle: 'italic',
+  restDayContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  addRoutineText: {
-    fontSize: 14,
+  restDayIcon: {
+    marginRight: 12,
+  },
+  restDayTitle: {
+    fontSize: 16,
     fontWeight: '600',
+    marginBottom: 2,
+  },
+  restDayText: {
+    fontSize: 13,
+    opacity: 0.7,
   },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 16,
+    alignSelf: 'flex-start',
     borderWidth: 1,
   },
-  addButtonText: {
-    marginLeft: 6,
-    fontSize: 12,
-    fontWeight: '500',
+  addRoutineText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   dayFooter: {
     flexDirection: 'row',
@@ -994,10 +1229,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
   },
   modalTitle: {
     fontSize: 22,
@@ -1021,9 +1256,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    marginVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 16,
+    marginVertical: 5,
+    borderRadius: 14,
   },
   routineOptionContent: {
     flexDirection: 'row',
@@ -1152,14 +1387,21 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginBottom: 16,
+    marginTop: 8,
+  },
+  sectionTitleWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
+    marginLeft: 24,
+    opacity: 0.8,
   },
   // Weekly Grid Styles
   weeklyGridContainer: {
@@ -1273,5 +1515,145 @@ const styles = StyleSheet.create({
   emptyDayLabel: {
     fontSize: 10,
     fontStyle: 'italic',
+  },
+  routineCardActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  startButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  restDayIconContainer: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  restDayTextContainer: {
+    flex: 1,
+  },
+  addWorkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginTop: 12,
+  },
+  addWorkoutIcon: {
+    marginRight: 8,
+  },
+  addWorkoutText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  previewModal: {
+    width: width * 0.85,
+    maxHeight: '80%',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  previewHeader: {
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  previewTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  previewSubtitle: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+  previewList: {
+    maxHeight: 350,
+  },
+  previewListContent: {
+    paddingVertical: 8,
+  },
+  exerciseItem: {
+    paddingVertical: 12,
+  },
+  exerciseItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseNumberBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  exerciseNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exerciseName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  emptyExercisesContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyExercisesIcon: {
+    marginBottom: 12,
+    opacity: 0.5,
+  },
+  emptyExercisesText: {
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+  previewFooter: {
+    marginTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  previewButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  previewButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+  },
+  previewCloseButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  previewCloseText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 }); 
