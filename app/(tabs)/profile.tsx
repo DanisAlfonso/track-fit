@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { AntDesign } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -330,6 +331,472 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleImportData = async () => {
+    try {
+      // Warn the user about the implications of importing data
+      Alert.alert(
+        'Import Data',
+        'Importing data will replace your current data. This cannot be undone. Are you sure you want to proceed?',
+        [
+          { 
+            text: 'Cancel', 
+            style: 'cancel' 
+          },
+          {
+            text: 'Continue',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                // Open document picker to select a JSON file
+                const result = await DocumentPicker.getDocumentAsync({
+                  type: 'application/json',
+                  copyToCacheDirectory: true
+                });
+                
+                if (result.canceled) {
+                  return;
+                }
+                
+                // Read the selected file
+                const fileUri = result.assets[0].uri;
+                const fileContents = await FileSystem.readAsStringAsync(fileUri);
+                
+                // Parse the JSON data
+                const importData = JSON.parse(fileContents);
+                
+                // Validate the import data structure
+                if (!importData.data || !importData.exportDate) {
+                  Alert.alert('Invalid File', 'The selected file is not a valid TrackFit export file.');
+                  return;
+                }
+                
+                // Show progress indicator
+                Alert.alert(
+                  'Importing Data',
+                  'Please wait while we import your data. This may take a few moments...',
+                  [{ text: 'OK' }]
+                );
+                
+                const db = await getDatabase();
+                
+                // Begin transaction to ensure data integrity
+                await db.execAsync('BEGIN TRANSACTION');
+                
+                try {
+                  // Clear existing data
+                  await db.execAsync(`
+                    DELETE FROM weekly_schedule;
+                    DELETE FROM favorites;
+                    DELETE FROM sets;
+                    DELETE FROM workout_exercises;
+                    DELETE FROM workouts;
+                    DELETE FROM routine_exercises;
+                    DELETE FROM routines;
+                    -- Keep exercises table intact to preserve system defaults
+                  `);
+                  
+                  // Optional: Clear measurements tables if they exist
+                  try {
+                    await db.execAsync(`
+                      DELETE FROM measurements;
+                      DELETE FROM measurement_preferences;
+                    `);
+                  } catch (error) {
+                    console.log('Measurements tables might not exist, skipping cleanup...');
+                  }
+                  
+                  // Import routines
+                  if (importData.data.routines && importData.data.routines.length > 0) {
+                    for (const routine of importData.data.routines) {
+                      // Insert the routine
+                      const routineResult = await db.runAsync(
+                        'INSERT INTO routines (id, name, description, created_at) VALUES (?, ?, ?, ?)',
+                        [routine.id, routine.name, routine.description, routine.created_at]
+                      );
+                      
+                      // Insert routine exercises if they exist
+                      if (routine.exercises && routine.exercises.length > 0) {
+                        for (const exercise of routine.exercises) {
+                          // Find the exercise in the database by name to get its ID
+                          const exerciseResult = await db.getFirstAsync<{ id: number }>(
+                            'SELECT id FROM exercises WHERE name = ?',
+                            [exercise.exercise_name]
+                          );
+                          
+                          if (exerciseResult) {
+                            await db.runAsync(
+                              'INSERT INTO routine_exercises (id, routine_id, exercise_id, sets, order_num) VALUES (?, ?, ?, ?, ?)',
+                              [exercise.id, routine.id, exerciseResult.id, exercise.sets, exercise.order_num]
+                            );
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Import workouts
+                  if (importData.data.workouts && importData.data.workouts.length > 0) {
+                    for (const workout of importData.data.workouts) {
+                      // Insert the workout
+                      await db.runAsync(
+                        'INSERT INTO workouts (id, routine_id, name, date, completed_at, duration, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [workout.id, workout.routine_id, workout.name, workout.date, workout.completed_at, workout.duration, workout.notes]
+                      );
+                      
+                      // Insert workout exercises if they exist
+                      if (workout.exercises && workout.exercises.length > 0) {
+                        for (const exercise of workout.exercises) {
+                          // Find the exercise in the database by name
+                          const exerciseResult = await db.getFirstAsync<{ id: number }>(
+                            'SELECT id FROM exercises WHERE name = ?',
+                            [exercise.exercise_name]
+                          );
+                          
+                          if (exerciseResult) {
+                            // Insert the workout exercise
+                            await db.runAsync(
+                              'INSERT INTO workout_exercises (id, workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?, ?)',
+                              [exercise.id, workout.id, exerciseResult.id, exercise.sets_completed, exercise.notes]
+                            );
+                            
+                            // Insert sets if they exist
+                            if (exercise.sets && exercise.sets.length > 0) {
+                              for (const set of exercise.sets) {
+                                await db.runAsync(
+                                  'INSERT INTO sets (id, workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                  [set.id, exercise.id, set.set_number, set.reps, set.weight, set.rest_time, set.completed, set.training_type, set.notes]
+                                );
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                  
+                  // Import weekly schedule
+                  if (importData.data.weeklySchedule && importData.data.weeklySchedule.length > 0) {
+                    for (const scheduleItem of importData.data.weeklySchedule) {
+                      await db.runAsync(
+                        'INSERT INTO weekly_schedule (id, day_of_week, routine_id, created_at) VALUES (?, ?, ?, ?)',
+                        [scheduleItem.id, scheduleItem.day_of_week, scheduleItem.routine_id, scheduleItem.created_at]
+                      );
+                    }
+                  }
+                  
+                  // Import favorites
+                  if (importData.data.favorites && importData.data.favorites.length > 0) {
+                    for (const favorite of importData.data.favorites) {
+                      // Find the exercise by name
+                      const exerciseResult = await db.getFirstAsync<{ id: number }>(
+                        'SELECT id FROM exercises WHERE name = ?',
+                        [favorite.exercise_name]
+                      );
+                      
+                      if (exerciseResult) {
+                        await db.runAsync(
+                          'INSERT INTO favorites (id, exercise_id, created_at) VALUES (?, ?, ?)',
+                          [favorite.id, exerciseResult.id, favorite.created_at]
+                        );
+                      }
+                    }
+                  }
+                  
+                  // Import measurements if they exist in the export
+                  if (importData.data.measurements && importData.data.measurements.length > 0) {
+                    try {
+                      // Ensure the measurements table exists
+                      await db.execAsync(`
+                        CREATE TABLE IF NOT EXISTS measurements (
+                          id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          type TEXT NOT NULL,
+                          value REAL NOT NULL,
+                          date INTEGER NOT NULL,
+                          unit TEXT,
+                          custom_name TEXT
+                        )
+                      `);
+                      
+                      for (const measurement of importData.data.measurements) {
+                        await db.runAsync(
+                          'INSERT INTO measurements (id, type, value, date, unit, custom_name) VALUES (?, ?, ?, ?, ?, ?)',
+                          [measurement.id, measurement.type, measurement.value, measurement.date, measurement.unit, measurement.custom_name]
+                        );
+                      }
+                    } catch (error) {
+                      console.error('Error restoring measurements:', error);
+                    }
+                  }
+                  
+                  // Import measurement preferences if they exist
+                  if (importData.data.measurementPreferences && importData.data.measurementPreferences.length > 0) {
+                    try {
+                      // Ensure the measurement_preferences table exists
+                      await db.execAsync(`
+                        CREATE TABLE IF NOT EXISTS measurement_preferences (
+                          id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          type TEXT NOT NULL UNIQUE,
+                          is_tracking INTEGER NOT NULL DEFAULT 0,
+                          custom_name TEXT
+                        )
+                      `);
+                      
+                      for (const pref of importData.data.measurementPreferences) {
+                        await db.runAsync(
+                          'INSERT INTO measurement_preferences (id, type, is_tracking, custom_name) VALUES (?, ?, ?, ?)',
+                          [pref.id, pref.type, pref.is_tracking, pref.custom_name]
+                        );
+                      }
+                    } catch (error) {
+                      console.error('Error restoring measurement preferences:', error);
+                    }
+                  }
+                  
+                  // Commit transaction if everything went well
+                  await db.execAsync('COMMIT');
+                  
+                  // Show success message
+                  Alert.alert(
+                    'Import Complete',
+                    'Your data has been successfully restored. The app will now refresh to apply the changes.',
+                    [
+                      { 
+                        text: 'OK', 
+                        onPress: () => {
+                          // Refresh app data
+                          loadData();
+                        }
+                      }
+                    ]
+                  );
+                } catch (error) {
+                  // Rollback transaction on error
+                  await db.execAsync('ROLLBACK');
+                  throw error;
+                }
+              } catch (error) {
+                console.error('Error importing data:', error);
+                Alert.alert('Import Failed', 'An error occurred while importing your data. Please try again.');
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error in handleImportData:', error);
+      Alert.alert('Import Failed', 'An error occurred while preparing to import data.');
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      // Show loading indicator
+      Alert.alert(
+        'Exporting Data',
+        'Please wait while we prepare your data for export...',
+        [{ text: 'OK' }]
+      );
+      
+      const db = await getDatabase();
+      const exportData: any = {
+        exportDate: new Date().toISOString(),
+        appVersion: '1.0.0',
+        data: {}
+      };
+      
+      // Define types for our DB entities
+      type DbRoutine = {
+        id: number;
+        name: string;
+        description: string | null;
+        created_at: number;
+      };
+      
+      type DbRoutineExercise = {
+        id: number;
+        routine_id: number;
+        exercise_id: number;
+        sets: number;
+        order_num: number;
+        exercise_name: string;
+        primary_muscle: string;
+        category: string;
+      };
+      
+      type DbWorkout = {
+        id: number;
+        routine_id: number;
+        name: string;
+        date: number;
+        completed_at: number | null;
+        duration: number | null;
+        notes: string | null;
+        routine_name: string;
+      };
+      
+      type DbWorkoutExercise = {
+        id: number;
+        workout_id: number;
+        exercise_id: number;
+        sets_completed: number;
+        notes: string | null;
+        exercise_name: string;
+        primary_muscle: string;
+        category: string;
+      };
+      
+      type DbSet = {
+        id: number;
+        workout_exercise_id: number;
+        set_number: number;
+        reps: number | null;
+        weight: number | null;
+        rest_time: number | null;
+        completed: number;
+        training_type: string | null;
+        notes: string | null;
+      };
+      
+      // Export routines with their exercises
+      const routines = await db.getAllAsync<DbRoutine>(`
+        SELECT * FROM routines
+      `);
+      
+      // Process routines and include their exercises
+      exportData.data.routines = await Promise.all(routines.map(async (routine) => {
+        const routineExercises = await db.getAllAsync<DbRoutineExercise>(`
+          SELECT re.*, e.name as exercise_name, e.primary_muscle, e.category 
+          FROM routine_exercises re
+          JOIN exercises e ON re.exercise_id = e.id
+          WHERE re.routine_id = ?
+          ORDER BY re.order_num
+        `, [routine.id]);
+        
+        return {
+          ...routine,
+          exercises: routineExercises
+        };
+      }));
+      
+      // Export workouts with their exercises and sets
+      const workouts = await db.getAllAsync<DbWorkout>(`
+        SELECT w.*, r.name as routine_name
+        FROM workouts w
+        LEFT JOIN routines r ON w.routine_id = r.id
+      `);
+      
+      // Process workouts and include their exercises and sets
+      exportData.data.workouts = await Promise.all(workouts.map(async (workout) => {
+        const workoutExercises = await db.getAllAsync<DbWorkoutExercise>(`
+          SELECT we.*, e.name as exercise_name, e.primary_muscle, e.category
+          FROM workout_exercises we
+          JOIN exercises e ON we.exercise_id = e.id
+          WHERE we.workout_id = ?
+        `, [workout.id]);
+        
+        // Get sets for each workout exercise
+        const processedExercises = await Promise.all(workoutExercises.map(async (exercise) => {
+          const sets = await db.getAllAsync<DbSet>(`
+            SELECT * FROM sets
+            WHERE workout_exercise_id = ?
+            ORDER BY set_number
+          `, [exercise.id]);
+          
+          return {
+            ...exercise,
+            sets
+          };
+        }));
+        
+        return {
+          ...workout,
+          exercises: processedExercises
+        };
+      }));
+      
+      // Export exercises
+      exportData.data.exercises = await db.getAllAsync(`
+        SELECT * FROM exercises
+      `);
+      
+      // Export measurements
+      try {
+        // Check if the measurements table exists
+        const measurementsExist = await db.getFirstAsync(`
+          SELECT name FROM sqlite_master WHERE type='table' AND name='measurements'
+        `);
+        
+        if (measurementsExist) {
+          exportData.data.measurements = await db.getAllAsync(`
+            SELECT * FROM measurements
+          `);
+          
+          exportData.data.measurementPreferences = await db.getAllAsync(`
+            SELECT * FROM measurement_preferences
+          `);
+        }
+      } catch (error) {
+        console.log('Measurements table not found, skipping...');
+      }
+      
+      // Export weekly schedule
+      exportData.data.weeklySchedule = await db.getAllAsync(`
+        SELECT ws.*, r.name as routine_name
+        FROM weekly_schedule ws
+        JOIN routines r ON ws.routine_id = r.id
+      `);
+      
+      // Export favorites
+      exportData.data.favorites = await db.getAllAsync(`
+        SELECT f.*, e.name as exercise_name
+        FROM favorites f
+        JOIN exercises e ON f.exercise_id = e.id
+      `);
+      
+      // Convert the data to JSON
+      const jsonData = JSON.stringify(exportData, null, 2);
+      
+      // Generate a filename with the current date
+      const date = new Date();
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const fileName = `trackfit_export_${dateStr}.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Write the data to a file
+      await FileSystem.writeAsStringAsync(fileUri, jsonData);
+      
+      // Check if sharing is available
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      
+      if (isSharingAvailable) {
+        // Show success message and share options
+        Alert.alert(
+          'Export Complete',
+          'Your data has been exported successfully. Would you like to share the file?',
+          [
+            { 
+              text: 'Share', 
+              onPress: async () => {
+                // Share the file
+                await Sharing.shareAsync(fileUri, {
+                  mimeType: 'application/json',
+                  dialogTitle: 'Share TrackFit Data',
+                  UTI: 'public.json' // for iOS
+                });
+              }
+            },
+            { text: 'Close' }
+          ]
+        );
+      } else {
+        Alert.alert('Export Complete', 'Your data has been exported successfully to the app documents directory.');
+      }
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      Alert.alert('Export Failed', 'An error occurred while exporting your data. Please try again later.');
+    }
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
@@ -568,7 +1035,24 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: colors.border }]}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
+            onPress={handleImportData}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="database" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Import Data</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Restore data from a previous export
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={handleExportData}
           >
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="file-export" size={18} color={colors.primary} style={styles.settingIcon} />
