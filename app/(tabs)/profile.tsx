@@ -9,6 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { AntDesign } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
@@ -245,6 +247,89 @@ export default function ProfileScreen() {
     </Modal>
   );
 
+  const handleImportRoutine = async () => {
+    try {
+      // Open document picker to select a JSON file
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true
+      });
+      
+      if (result.canceled) {
+        return;
+      }
+      
+      // Read the selected file
+      const fileUri = result.assets[0].uri;
+      const fileContents = await FileSystem.readAsStringAsync(fileUri);
+      
+      // Parse the JSON data
+      const routineData = JSON.parse(fileContents);
+      
+      // Validate the imported data has the expected format
+      if (!routineData.name || !Array.isArray(routineData.exercises)) {
+        Alert.alert('Invalid File', 'The selected file is not a valid routine file.');
+        return;
+      }
+      
+      // Open the database
+      const db = await getDatabase();
+      let newRoutineId: number = 0;
+      
+      try {
+        // Insert the routine
+        const routineResult = await db.runAsync(
+          'INSERT INTO routines (name, description, created_at) VALUES (?, ?, ?)',
+          [routineData.name, routineData.description || null, Date.now()]
+        );
+        
+        newRoutineId = routineResult.lastInsertRowId;
+        
+        // Get exercise IDs by name and insert routine exercises
+        for (let i = 0; i < routineData.exercises.length; i++) {
+          const exercise = routineData.exercises[i];
+          
+          // Find the exercise in the database by name
+          const exerciseResult = await db.getFirstAsync<{ id: number }>(
+            'SELECT id FROM exercises WHERE name = ?',
+            [exercise.name]
+          );
+          
+          // If exercise exists, add it to the routine
+          if (exerciseResult) {
+            const exerciseId = exerciseResult.id;
+            
+            await db.runAsync(
+              'INSERT INTO routine_exercises (routine_id, exercise_id, order_num, sets) VALUES (?, ?, ?, ?)',
+              [newRoutineId, exerciseId, i, exercise.sets || 3]
+            );
+          }
+        }
+        
+        Alert.alert(
+          'Import Successful', 
+          `Routine "${routineData.name}" has been imported with ${routineData.exercises.length} exercises.`,
+          [
+            { 
+              text: 'View Routine', 
+              onPress: () => router.push(`/routine/${newRoutineId}`) 
+            },
+            { text: 'OK' }
+          ]
+        );
+      } catch (error) {
+        // If there's an error in the import process, clean up any partial data
+        if (newRoutineId > 0) {
+          await db.runAsync('DELETE FROM routines WHERE id = ?', [newRoutineId]);
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error importing routine:', error);
+      Alert.alert('Import Failed', 'An error occurred while importing the routine.');
+    }
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
@@ -462,6 +547,23 @@ export default function ProfileScreen() {
             <FontAwesome5 name="database" size={18} color={colors.primary} style={styles.sectionIcon} />
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
           </View>
+          
+          <TouchableOpacity
+            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            activeOpacity={0.7}
+            onPress={handleImportRoutine}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="file-import" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Import Routine</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Import a routine shared by others
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
           
           <TouchableOpacity
             style={[styles.settingItem, { borderBottomColor: colors.border }]}

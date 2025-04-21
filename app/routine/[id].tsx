@@ -1,12 +1,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, FlatList } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
-import { useFocusEffect } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 type Routine = {
   id: number;
@@ -38,6 +39,7 @@ export default function RoutineDetailScreen() {
   const [exercises, setExercises] = useState<RoutineExercise[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>('default');
 
   useFocusEffect(
@@ -228,6 +230,57 @@ export default function RoutineDetailScreen() {
     return muscleColors[muscle] || '#4CAF50';
   };
 
+  const shareRoutine = async () => {
+    if (!routine) return;
+    
+    try {
+      setIsSharing(true);
+      
+      // Create an object with all the routine information
+      const routineData = {
+        name: routine.name,
+        description: routine.description,
+        created_at: routine.created_at,
+        exercises: exercises.map(exercise => ({
+          name: exercise.name,
+          sets: exercise.sets,
+          primary_muscle: exercise.primary_muscle,
+          category: exercise.category
+        }))
+      };
+      
+      // Convert the object to a JSON string
+      const jsonData = JSON.stringify(routineData, null, 2);
+      
+      // Generate a filename based on the routine name (sanitize it)
+      const sanitizedName = routine.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const fileName = `${sanitizedName}_routine.json`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Write the data to a file
+      await FileSystem.writeAsStringAsync(fileUri, jsonData);
+      
+      // Check if sharing is available
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      
+      if (isSharingAvailable) {
+        // Share the file
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: `Share ${routine.name} Routine`,
+          UTI: 'public.json' // for iOS
+        });
+      } else {
+        Alert.alert('Sharing Not Available', 'Sharing is not available on this device');
+      }
+    } catch (error) {
+      console.error('Error sharing routine:', error);
+      Alert.alert('Error', 'Failed to share routine');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -269,15 +322,26 @@ export default function RoutineDetailScreen() {
             <View style={styles.headerActions}>
               <TouchableOpacity 
                 style={styles.headerButton}
+                onPress={shareRoutine}
+                disabled={isSharing}
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <FontAwesome name="share-alt" size={18} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.headerButton}
                 onPress={editRoutine}
-                disabled={isDeleting}
+                disabled={isDeleting || isSharing}
               >
                 <FontAwesome name="edit" size={18} color={colors.primary} />
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.headerButton}
                 onPress={deleteRoutine}
-                disabled={isDeleting}
+                disabled={isDeleting || isSharing}
               >
                 {isDeleting ? (
                   <ActivityIndicator size="small" color={colors.error} />
