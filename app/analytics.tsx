@@ -631,6 +631,35 @@ export default function WorkoutAnalyticsScreen() {
       '#FFD733', '#33FFEC', '#7BFF33', '#FF338A', '#33AAFF'
     ];
     
+    // Prepare stacked data for training types
+    const allVolumeDates = [...new Set(volumeTrends.slice(-6).map(d => d.date))];
+    
+    // Calculate volume trend (percentage change from first to last)
+    let volumeTrend = 0;
+    if (volumeTrends.length >= 2) {
+      const firstVolume = volumeTrends[0].volume;
+      const lastVolume = volumeTrends[volumeTrends.length - 1].volume;
+      volumeTrend = ((lastVolume - firstVolume) / firstVolume) * 100;
+    }
+    
+    // Get total volume
+    const totalVolume = trainingTypeVolumes.heavy + 
+                        trainingTypeVolumes.moderate + 
+                        trainingTypeVolumes.light + 
+                        trainingTypeVolumes.unspecified;
+    
+    // Calculate percentages
+    const heavyPercentage = totalVolume > 0 ? Math.round((trainingTypeVolumes.heavy / totalVolume) * 100) : 0;
+    const moderatePercentage = totalVolume > 0 ? Math.round((trainingTypeVolumes.moderate / totalVolume) * 100) : 0;
+    const lightPercentage = totalVolume > 0 ? Math.round((trainingTypeVolumes.light / totalVolume) * 100) : 0;
+    const unspecifiedPercentage = totalVolume > 0 ? Math.round((trainingTypeVolumes.unspecified / totalVolume) * 100) : 0;
+    
+    // Calculate background colors based on color scheme
+    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    const mediumBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const borderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    
+    // Prepare volume data for line chart
     const volumeData = {
       labels: volumeTrends.slice(-6).map(d => {
         const date = new Date(d.date);
@@ -645,14 +674,6 @@ export default function WorkoutAnalyticsScreen() {
       ],
       legend: ["Weekly Volume"]
     };
-    
-    // Calculate volume trend (percentage change from first to last)
-    let volumeTrend = 0;
-    if (volumeTrends.length >= 2) {
-      const firstVolume = volumeTrends[0].volume;
-      const lastVolume = volumeTrends[volumeTrends.length - 1].volume;
-      volumeTrend = ((lastVolume - firstVolume) / firstVolume) * 100;
-    }
     
     return (
       <View style={styles.tabContent}>
@@ -717,46 +738,165 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           <View style={styles.volumeStatsContainer}>
-            <View style={styles.volumeStat}>
-              <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
-                Total Volume
-              </Text>
-              <Text style={[styles.volumeStatValue, { color: colors.text }]}>
-                {totalStats.volume.toLocaleString()} kg
-              </Text>
+            <View style={styles.volumeSummaryHeader}>
+              <View style={styles.volumeStat}>
+                <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
+                  Total Volume
+                </Text>
+                <Text style={[styles.volumeStatValue, { color: colors.text }]}>
+                  {totalStats.volume.toLocaleString()} kg
+                </Text>
+              </View>
+              
+              <View style={styles.volumeStat}>
+                {volumeTrends.length > 0 && (
+                  <>
+                    <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
+                      Average Weekly
+                    </Text>
+                    <Text style={[styles.volumeStatValue, { color: colors.text }]}>
+                      {Math.round(volumeTrends.reduce((sum, item) => sum + item.volume, 0) / volumeTrends.length).toLocaleString()} kg
+                    </Text>
+                  </>
+                )}
+              </View>
             </View>
             
-            {volumeTrends.length > 0 && (
-              <>
-                <View style={styles.volumeStat}>
-                  <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
-                    Average Weekly Volume
-                  </Text>
-                  <Text style={[styles.volumeStatValue, { color: colors.text }]}>
-                    {Math.round(volumeTrends.reduce((sum, item) => sum + item.volume, 0) / volumeTrends.length).toLocaleString()} kg
-                  </Text>
-                </View>
+            {/* Training Type Distribution */}
+            {totalVolume > 0 && (
+              <View style={[styles.intensityDistributionCard, { backgroundColor: lightBackgroundColor }]}>
+                <Text style={[styles.intensitySectionTitle, { color: colors.text }]}>
+                  Training Intensity Distribution
+                </Text>
                 
-                <View style={styles.volumeStat}>
-                  <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
-                    Maximum Weekly Volume
-                  </Text>
-                  <Text style={[styles.volumeStatValue, { color: colors.text }]}>
-                    {Math.max(...volumeTrends.map(item => item.volume)).toLocaleString()} kg
-                  </Text>
+                <View style={styles.intensityLayout}>
+                  {/* Distribution Bars */}
+                  <View style={styles.intensityBarsContainer}>
+                    {trainingTypeVolumes.heavy > 0 && (
+                      <View style={styles.intensityBarRow}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#6F74DD' }]} />
+                        <Text style={[styles.intensityBarLabel, { color: colors.text }]}>Heavy</Text>
+                        <View style={[styles.intensityBarWrapper, { backgroundColor: mediumBackgroundColor }]}>
+                          <View 
+                            style={[
+                              styles.intensityBar, 
+                              { 
+                                backgroundColor: '#6F74DD',
+                                width: `${heavyPercentage}%` 
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={[styles.intensityBarPercent, { color: colors.text }]}>
+                          {heavyPercentage}%
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.moderate > 0 && (
+                      <View style={styles.intensityBarRow}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#FFB300' }]} />
+                        <Text style={[styles.intensityBarLabel, { color: colors.text }]}>Moderate</Text>
+                        <View style={[styles.intensityBarWrapper, { backgroundColor: mediumBackgroundColor }]}>
+                          <View 
+                            style={[
+                              styles.intensityBar, 
+                              { 
+                                backgroundColor: '#FFB300',
+                                width: `${moderatePercentage}%` 
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={[styles.intensityBarPercent, { color: colors.text }]}>
+                          {moderatePercentage}%
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.light > 0 && (
+                      <View style={styles.intensityBarRow}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#4CAF50' }]} />
+                        <Text style={[styles.intensityBarLabel, { color: colors.text }]}>Light</Text>
+                        <View style={[styles.intensityBarWrapper, { backgroundColor: mediumBackgroundColor }]}>
+                          <View 
+                            style={[
+                              styles.intensityBar, 
+                              { 
+                                backgroundColor: '#4CAF50',
+                                width: `${lightPercentage}%` 
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={[styles.intensityBarPercent, { color: colors.text }]}>
+                          {lightPercentage}%
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.unspecified > 0 && (
+                      <View style={styles.intensityBarRow}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#757575' }]} />
+                        <Text style={[styles.intensityBarLabel, { color: colors.text }]}>Other</Text>
+                        <View style={[styles.intensityBarWrapper, { backgroundColor: mediumBackgroundColor }]}>
+                          <View 
+                            style={[
+                              styles.intensityBar, 
+                              { 
+                                backgroundColor: '#757575',
+                                width: `${unspecifiedPercentage}%` 
+                              }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={[styles.intensityBarPercent, { color: colors.text }]}>
+                          {unspecifiedPercentage}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  {/* Distribution Values */}
+                  <View style={[styles.intensityValuesContainer, { borderTopColor: borderColor }]}>
+                    {trainingTypeVolumes.heavy > 0 && (
+                      <View style={styles.intensityValueRow}>
+                        <Text style={[styles.intensityValueLabel, { color: colors.subtext }]}>Heavy Volume:</Text>
+                        <Text style={[styles.intensityValueText, { color: colors.text }]}>
+                          {trainingTypeVolumes.heavy.toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.moderate > 0 && (
+                      <View style={styles.intensityValueRow}>
+                        <Text style={[styles.intensityValueLabel, { color: colors.subtext }]}>Moderate Volume:</Text>
+                        <Text style={[styles.intensityValueText, { color: colors.text }]}>
+                          {trainingTypeVolumes.moderate.toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.light > 0 && (
+                      <View style={styles.intensityValueRow}>
+                        <Text style={[styles.intensityValueLabel, { color: colors.subtext }]}>Light Volume:</Text>
+                        <Text style={[styles.intensityValueText, { color: colors.text }]}>
+                          {trainingTypeVolumes.light.toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {trainingTypeVolumes.unspecified > 0 && (
+                      <View style={styles.intensityValueRow}>
+                        <Text style={[styles.intensityValueLabel, { color: colors.subtext }]}>Other Volume:</Text>
+                        <Text style={[styles.intensityValueText, { color: colors.text }]}>
+                          {trainingTypeVolumes.unspecified.toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                
-                <View style={styles.volumeStat}>
-                  <Text style={[styles.volumeStatLabel, { color: colors.subtext }]}>
-                    Average Volume Per Workout
-                  </Text>
-                  <Text style={[styles.volumeStatValue, { color: colors.text }]}>
-                    {workoutSummaries.length > 0 
-                      ? Math.round(totalStats.volume / workoutSummaries.length).toLocaleString() 
-                      : 0} kg
-                  </Text>
-                </View>
-              </>
+              </View>
             )}
           </View>
         </View>
@@ -768,8 +908,16 @@ export default function WorkoutAnalyticsScreen() {
   const renderMusclesTab = () => {
     // Prepare chart colors
     const chartColors = [
-      '#FF5733', '#33A8FF', '#33FF57', '#A833FF', '#FF33A8', 
-      '#FFD733', '#33FFEC', '#7BFF33', '#FF338A', '#33AAFF'
+      '#6F74DD', // Heavy blue
+      '#FFB300', // Moderate amber
+      '#4CAF50', // Light green
+      '#FF5733', // Red-orange
+      '#33A8FF', // Sky blue
+      '#A833FF', // Purple
+      '#FF33A8', // Pink
+      '#FFD733', // Yellow
+      '#33FFEC', // Teal
+      '#7BFF33'  // Lime
     ];
     
     // Prepare pie chart data
@@ -792,6 +940,9 @@ export default function WorkoutAnalyticsScreen() {
         }
       ]
     };
+
+    // Calculate background colors based on color scheme
+    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
     
     return (
       <View style={styles.tabContent}>
@@ -825,7 +976,7 @@ export default function WorkoutAnalyticsScreen() {
                   Primary Focus:
                 </Text>
                 <Text style={[styles.focusValue, { color: colors.primary }]}>
-                  {muscleGroupVolumes.length > 0 ? muscleGroupVolumes[0].muscle : 'N/A'}
+                  {muscleGroupVolumes[0]?.muscle || 'N/A'}
                 </Text>
               </View>
             </>
@@ -845,31 +996,66 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           {muscleGroupVolumes.length > 0 ? (
-            <BarChart
-              data={barChartData}
-              width={windowWidth - 40}
-              height={220}
-              chartConfig={{
-                backgroundColor: colors.card,
-                backgroundGradientFrom: colors.card,
-                backgroundGradientTo: colors.card,
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '86, 171, 255' : '0, 112, 244'}, ${opacity})`,
-                labelColor: (opacity = 1) => colors.text,
-                style: {
-                  borderRadius: 16
-                },
-                barPercentage: 0.7
-              }}
-              style={{
-                marginVertical: 8,
-                borderRadius: 16
-              }}
-              showValuesOnTopOfBars={true}
-              fromZero={true}
-              yAxisLabel=""
-              yAxisSuffix=" kg"
-            />
+            <View style={styles.muscleDistributionContainer}>
+              {/* Top muscle groups with enhanced bars */}
+              <View style={styles.enhancedBarsContainer}>
+                {muscleGroupVolumes.slice(0, 6).map((muscle, index) => {
+                  // Calculate percentage of this muscle group's volume compared to the highest
+                  const maxVolume = Math.max(...muscleGroupVolumes.map(m => m.volume));
+                  const percentage = Math.round((muscle.volume / maxVolume) * 100);
+                  
+                  return (
+                    <View key={index} style={styles.enhancedBarRow}>
+                      <View style={[styles.muscleDot, { backgroundColor: chartColors[index % chartColors.length] }]} />
+                      <Text style={[styles.muscleBarLabel, { color: colors.text }]}>
+                        {muscle.muscle}
+                      </Text>
+                      <View style={[styles.muscleBarWrapper, { backgroundColor: lightBackgroundColor }]}>
+                        <View 
+                          style={[
+                            styles.muscleBar, 
+                            { 
+                              backgroundColor: chartColors[index % chartColors.length],
+                              width: `${percentage}%` 
+                            }
+                          ]} 
+                        />
+                      </View>
+                      <Text style={[styles.muscleBarValue, { color: colors.text }]}>
+                        {muscle.volume.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              
+              {/* Muscle groups balance indicators */}
+              <View style={[styles.muscleBalanceCard, { backgroundColor: lightBackgroundColor }]}>
+                <Text style={[styles.muscleBalanceTitle, { color: colors.text }]}>
+                  Muscle Balance
+                </Text>
+                
+                <View style={styles.muscleBalanceInfo}>
+                  <View style={styles.muscleBalanceStat}>
+                    <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
+                      Strongest:
+                    </Text>
+                    <Text style={[styles.muscleBalanceValue, { color: colors.text }]}>
+                      {muscleGroupVolumes[0]?.muscle || 'N/A'}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.muscleBalanceStat}>
+                    <Text style={[styles.muscleBalanceLabel, { color: colors.subtext }]}>
+                      Needs Focus:
+                    </Text>
+                    <Text style={[styles.muscleBalanceValue, { color: colors.text }]}>
+                      {muscleGroupVolumes.length > 3 ? muscleGroupVolumes[muscleGroupVolumes.length-1]?.muscle || 'N/A' : 'N/A'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
           ) : (
             <View style={styles.noDataContainer}>
               <MaterialCommunityIcons name="chart-bar" size={40} color={colors.subtext} />
@@ -885,6 +1071,20 @@ export default function WorkoutAnalyticsScreen() {
 
   // Add renderExercisesTab function
   const renderExercisesTab = () => {
+    // Calculate background colors based on color scheme
+    const cardBackgroundColor = colors.card;
+    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    const mediumBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const borderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    
+    // Define exercise type colors (matching our training intensity colors)
+    const exerciseColors = {
+      compound: '#6F74DD',   // Heavy blue - for compound movements
+      isolation: '#FFB300',  // Moderate orange - for isolation exercises
+      bodyweight: '#4CAF50', // Light green - for bodyweight exercises
+      other: '#757575'       // Gray - for other exercises
+    };
+    
     return (
       <View style={styles.tabContent}>
         <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
@@ -893,25 +1093,28 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           {exerciseTrends.length > 0 ? (
-            <ScrollView style={styles.exerciseTrendsContainer}>
+            <View style={styles.exerciseTrendsContainer}>
               {exerciseTrends.map((exercise, index) => {
                 // Skip exercises with no data
                 if (exercise.data.length === 0) return null;
                 
-                const volumeData = {
-                  labels: exercise.data.slice(-5).map(d => {
-                    const date = new Date(d.date);
-                    return `${date.getMonth()+1}/${date.getDate()}`;
-                  }),
-                  datasets: [
-                    {
-                      data: exercise.data.slice(-5).map(d => d.volume),
-                      color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
-                      strokeWidth: 2
-                    }
-                  ],
-                  legend: [exercise.name]
-                };
+                // Determine exercise type (simplified categorization)
+                const exerciseType = 
+                  exercise.name.toLowerCase().includes('bench') || 
+                  exercise.name.toLowerCase().includes('squat') || 
+                  exercise.name.toLowerCase().includes('deadlift') ||
+                  exercise.name.toLowerCase().includes('row') ||
+                  exercise.name.toLowerCase().includes('press') ? 'compound' : 
+                  exercise.name.toLowerCase().includes('curl') ||
+                  exercise.name.toLowerCase().includes('extension') ||
+                  exercise.name.toLowerCase().includes('fly') ||
+                  exercise.name.toLowerCase().includes('raise') ? 'isolation' : 
+                  exercise.name.toLowerCase().includes('push') ||
+                  exercise.name.toLowerCase().includes('pull') ||
+                  exercise.name.toLowerCase().includes('dip') ||
+                  exercise.name.toLowerCase().includes('up') ? 'bodyweight' : 'other';
+                
+                const exerciseColor = exerciseColors[exerciseType] || exerciseColors.other;
                 
                 // Calculate trend
                 let volumeTrend = 0;
@@ -923,67 +1126,110 @@ export default function WorkoutAnalyticsScreen() {
                     : 0;
                 }
                 
+                // Format the RGB values for chart colors - with null check
+                let colorRgbValues = '134, 65, 244'; // Default purple if extraction fails
+                try {
+                  if (exerciseColor) {
+                    const colorMatch = exerciseColor.replace('#', '').match(/.{2}/g);
+                    if (colorMatch) {
+                      colorRgbValues = colorMatch.map(hex => parseInt(hex, 16)).join(', ');
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error parsing color:', e);
+                }
+                
+                // Prepare volume data for the chart
+                const volumeData = {
+                  labels: exercise.data.slice(-5).map(d => {
+                    const date = new Date(d.date);
+                    return `${date.getMonth()+1}/${date.getDate()}`;
+                  }),
+                  datasets: [
+                    {
+                      data: exercise.data.slice(-5).map(d => d.volume),
+                      color: (opacity = 1) => `rgba(${colorRgbValues}, ${opacity})`,
+                      strokeWidth: 2
+                    }
+                  ],
+                  legend: [exercise.name]
+                };
+                
                 return (
-                  <View key={index} style={styles.exerciseTrendItem}>
-                    <View style={styles.exerciseTrendHeader}>
-                      <Text style={[styles.exerciseTrendName, { color: colors.text }]}>
-                        {exercise.name}
-                      </Text>
-                      <View style={styles.exerciseTrendStats}>
-                        <Text style={[styles.exerciseTrendStat, { color: colors.subtext }]}>
-                          Max Weight: {Math.max(...exercise.data.map(d => d.maxWeight))}{' kg'}
+                  <View key={index} style={[styles.exerciseCard, { backgroundColor: lightBackgroundColor }]}>
+                    <View style={styles.exerciseCardHeader}>
+                      <View style={styles.exerciseNameContainer}>
+                        <View style={[styles.exerciseTypeIndicator, { backgroundColor: exerciseColor }]} />
+                        <Text style={[styles.exerciseName, { color: colors.text }]}>
+                          {exercise.name}
                         </Text>
-                        <Text 
-                          style={[
-                            styles.exerciseTrendChange, 
-                            { color: volumeTrend >= 0 ? '#4CAF50' : '#F44336' }
-                          ]}
-                        >
-                          {volumeTrend >= 0 ? '+' : ''}{volumeTrend.toFixed(1)}%
-                        </Text>
+                      </View>
+                      <View style={styles.exerciseStats}>
+                        <View style={styles.exerciseStat}>
+                          <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>Max Weight</Text>
+                          <Text style={[styles.exerciseStatValue, { color: colors.text }]}>
+                            {Math.max(...exercise.data.map(d => d.maxWeight))}{' kg'}
+                          </Text>
+                        </View>
+                        <View style={styles.exerciseStat}>
+                          <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>Trend</Text>
+                          <Text 
+                            style={[
+                              styles.exerciseTrendValue, 
+                              { color: volumeTrend >= 0 ? '#4CAF50' : '#F44336' }
+                            ]}
+                          >
+                            {volumeTrend >= 0 ? '+' : ''}{volumeTrend.toFixed(1)}%
+                          </Text>
+                        </View>
                       </View>
                     </View>
                     
-                    <LineChart
-                      data={volumeData}
-                      width={windowWidth - 72}
-                      height={120}
-                      chartConfig={{
-                        backgroundColor: colors.card,
-                        backgroundGradientFrom: colors.card,
-                        backgroundGradientTo: colors.card,
-                        decimalPlaces: 0,
-                        color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
-                        labelColor: (opacity = 1) => colors.subtext,
-                        style: { borderRadius: 16 },
-                        propsForDots: {
-                          r: "4",
-                          strokeWidth: "1",
-                          stroke: colors.primary
-                        },
-                        propsForLabels: {
-                          fontSize: 10
-                        }
-                      }}
-                      bezier
-                      style={{
-                        marginTop: 8,
-                        borderRadius: 16
-                      }}
-                      withInnerLines={false}
-                      withOuterLines={false}
-                      withVerticalLines={false}
-                      withHorizontalLines={true}
-                      withVerticalLabels={true}
-                      withHorizontalLabels={true}
-                      fromZero={true}
-                      yAxisLabel=""
-                      yAxisSuffix=" kg"
-                    />
+                    <View style={styles.chartContainer}>
+                      <LineChart
+                        data={volumeData}
+                        width={windowWidth - 80}
+                        height={120}
+                        chartConfig={{
+                          backgroundColor: 'transparent',
+                          backgroundGradientFrom: colorScheme === 'dark' ? 'rgba(50, 50, 50, 0.8)' : 'rgba(240, 240, 240, 0.8)',
+                          backgroundGradientTo: colorScheme === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.8)',
+                          decimalPlaces: 0,
+                          color: (opacity = 1) => `rgba(${colorRgbValues}, ${opacity})`,
+                          labelColor: (opacity = 1) => colors.subtext,
+                          style: { 
+                            borderRadius: 8,
+                            padding: 4
+                          },
+                          propsForDots: {
+                            r: "4",
+                            strokeWidth: "1",
+                            stroke: exerciseColor
+                          },
+                          propsForLabels: {
+                            fontSize: 10
+                          }
+                        }}
+                        bezier
+                        style={{
+                          borderRadius: 12,
+                          paddingRight: 0,
+                          elevation: 0,
+                          shadowOpacity: 0
+                        }}
+                        withInnerLines={false}
+                        withOuterLines={false}
+                        withVerticalLabels={true}
+                        withHorizontalLabels={true}
+                        fromZero={true}
+                        yAxisLabel=""
+                        yAxisSuffix=" kg"
+                      />
+                    </View>
                   </View>
                 );
               })}
-            </ScrollView>
+            </View>
           ) : (
             <View style={styles.noDataContainer}>
               <MaterialCommunityIcons name="dumbbell" size={40} color={colors.subtext} />
@@ -1000,25 +1246,83 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           {exerciseTrends.length > 0 ? (
-            <View style={styles.exerciseStatsContainer}>
-              <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>
-                Most commonly trained exercises:
-              </Text>
-              
+            <View style={styles.exerciseDistributionContainer}>
               <View style={styles.exerciseList}>
-                {exerciseTrends.map((exercise, index) => (
-                  <View key={index} style={styles.exerciseItem}>
-                    <Text style={[styles.exerciseNumber, { backgroundColor: colors.primary, color: '#fff' }]}>
-                      {index + 1}
-                    </Text>
-                    <Text style={[styles.exerciseName, { color: colors.text }]}>
-                      {exercise.name}
-                    </Text>
-                    <Text style={[styles.exerciseVolume, { color: colors.primary }]}>
-                      {exercise.data.reduce((sum, d) => sum + d.volume, 0).toLocaleString()} kg
-                    </Text>
+                {exerciseTrends.map((exercise, index) => {
+                  // Determine exercise type (simplified categorization)
+                  const exerciseType = 
+                    exercise.name.toLowerCase().includes('bench') || 
+                    exercise.name.toLowerCase().includes('squat') || 
+                    exercise.name.toLowerCase().includes('deadlift') ||
+                    exercise.name.toLowerCase().includes('row') ||
+                    exercise.name.toLowerCase().includes('press') ? 'compound' : 
+                    exercise.name.toLowerCase().includes('curl') ||
+                    exercise.name.toLowerCase().includes('extension') ||
+                    exercise.name.toLowerCase().includes('fly') ||
+                    exercise.name.toLowerCase().includes('raise') ? 'isolation' : 
+                    exercise.name.toLowerCase().includes('push') ||
+                    exercise.name.toLowerCase().includes('pull') ||
+                    exercise.name.toLowerCase().includes('dip') ||
+                    exercise.name.toLowerCase().includes('up') ? 'bodyweight' : 'other';
+                  
+                  const exerciseColor = exerciseColors[exerciseType] || exerciseColors.other;
+                  const totalVolume = exercise.data.reduce((sum, d) => sum + d.volume, 0);
+                  const maxVolume = Math.max(...exerciseTrends.map(e => e.data.reduce((sum, d) => sum + d.volume, 0)));
+                  const percentage = Math.round((totalVolume / maxVolume) * 100);
+                  
+                  return (
+                    <View key={index} style={styles.exerciseDistributionItem}>
+                      <View style={styles.exerciseDistributionRank}>
+                        <Text style={[styles.exerciseDistributionNumber, { backgroundColor: exerciseColor, color: '#fff' }]}>
+                          {index + 1}
+                        </Text>
+                      </View>
+                      <View style={styles.exerciseDistributionInfo}>
+                        <Text style={[styles.exerciseDistributionName, { color: colors.text }]}>
+                          {exercise.name}
+                        </Text>
+                        <View style={[styles.exerciseDistributionBarWrapper, { backgroundColor: mediumBackgroundColor }]}>
+                          <View 
+                            style={[
+                              styles.exerciseDistributionBar, 
+                              { 
+                                backgroundColor: exerciseColor,
+                                width: `${percentage}%` 
+                              }
+                            ]} 
+                          />
+                        </View>
+                      </View>
+                      <Text style={[styles.exerciseDistributionVolume, { color: colors.text }]}>
+                        {totalVolume.toLocaleString()} kg
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              
+              <View style={[styles.exerciseTypeKey, { borderTopColor: borderColor }]}>
+                <Text style={[styles.exerciseTypeKeyTitle, { color: colors.text }]}>
+                  Exercise Types
+                </Text>
+                <View style={styles.exerciseTypeList}>
+                  <View style={styles.exerciseTypeItem}>
+                    <View style={[styles.exerciseTypeDot, { backgroundColor: exerciseColors.compound }]} />
+                    <Text style={[styles.exerciseTypeText, { color: colors.text }]}>Compound</Text>
                   </View>
-                ))}
+                  <View style={styles.exerciseTypeItem}>
+                    <View style={[styles.exerciseTypeDot, { backgroundColor: exerciseColors.isolation }]} />
+                    <Text style={[styles.exerciseTypeText, { color: colors.text }]}>Isolation</Text>
+                  </View>
+                  <View style={styles.exerciseTypeItem}>
+                    <View style={[styles.exerciseTypeDot, { backgroundColor: exerciseColors.bodyweight }]} />
+                    <Text style={[styles.exerciseTypeText, { color: colors.text }]}>Bodyweight</Text>
+                  </View>
+                  <View style={styles.exerciseTypeItem}>
+                    <View style={[styles.exerciseTypeDot, { backgroundColor: exerciseColors.other }]} />
+                    <Text style={[styles.exerciseTypeText, { color: colors.text }]}>Other</Text>
+                  </View>
+                </View>
               </View>
             </View>
           ) : (
@@ -1258,14 +1562,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   volumeStatsContainer: {
+    width: '100%',
+  },
+  volumeSummaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    flexWrap: 'wrap',
+    marginBottom: 8,
   },
   volumeStat: {
-    width: '48%',
-    marginBottom: 16,
     alignItems: 'center',
+    padding: 8,
   },
   volumeStatLabel: {
     fontSize: 14,
@@ -1275,6 +1581,65 @@ const styles = StyleSheet.create({
   volumeStatValue: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  intensityDistributionCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    width: '100%',
+  },
+  intensitySectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  intensityLayout: {
+    flexDirection: 'column',
+  },
+  intensityBarsContainer: {
+    marginBottom: 12,
+  },
+  intensityBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  intensityBarLabel: {
+    fontSize: 14,
+    width: 70,
+  },
+  intensityBarWrapper: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 8,
+  },
+  intensityBar: {
+    height: 8,
+    borderRadius: 4,
+  },
+  intensityBarPercent: {
+    fontSize: 14,
+    fontWeight: '500',
+    width: 40,
+    textAlign: 'right',
+  },
+  intensityValuesContainer: {
+    borderTopWidth: 1,
+    paddingTop: 12,
+  },
+  intensityValueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  intensityValueLabel: {
+    fontSize: 14,
+  },
+  intensityValueText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   focusContainer: {
     flexDirection: 'row',
@@ -1291,49 +1656,83 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   exerciseTrendsContainer: {
-    maxHeight: 400,
+    marginBottom: 16,
   },
-  exerciseTrendItem: {
-    marginBottom: 20,
-    paddingHorizontal: 8,
+  exerciseCard: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    overflow: 'hidden',
   },
-  exerciseTrendHeader: {
+  exerciseCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 10,
   },
-  exerciseTrendName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  exerciseTrendStats: {
+  exerciseNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
-  exerciseTrendStat: {
-    fontSize: 12,
+  exerciseTypeIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     marginRight: 8,
   },
-  exerciseTrendChange: {
-    fontSize: 12,
+  exerciseName: {
+    fontSize: 16,
     fontWeight: 'bold',
+    flex: 1,
   },
-  exerciseStatsContainer: {
-    padding: 8,
+  exerciseStats: {
+    flexDirection: 'row',
+  },
+  exerciseStat: {
+    alignItems: 'flex-end',
+    marginLeft: 16,
   },
   exerciseStatLabel: {
+    fontSize: 12,
+  },
+  exerciseStatValue: {
     fontSize: 14,
-    marginBottom: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  exerciseTrendValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  chartContainer: {
+    alignItems: 'center',
+    marginTop: 6,
+    marginHorizontal: -4,
+    borderRadius: 12,
+    overflow: 'hidden'
+  },
+  exerciseChart: {
+    borderRadius: 12,
+    paddingRight: 0,
+  },
+  exerciseDistributionContainer: {
+    padding: 4,
   },
   exerciseList: {
-    
+    marginBottom: 16,
   },
-  exerciseItem: {
+  exerciseDistributionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    paddingHorizontal: 4,
   },
-  exerciseNumber: {
+  exerciseDistributionRank: {
+    marginRight: 12,
+  },
+  exerciseDistributionNumber: {
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -1341,15 +1740,59 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontSize: 12,
     fontWeight: 'bold',
-    marginRight: 8,
   },
-  exerciseName: {
+  exerciseDistributionInfo: {
     flex: 1,
-    fontSize: 14,
+    marginRight: 12,
   },
-  exerciseVolume: {
+  exerciseDistributionName: {
     fontSize: 14,
-    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  exerciseDistributionBarWrapper: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  exerciseDistributionBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  exerciseDistributionVolume: {
+    fontSize: 14,
+    fontWeight: '500',
+    width: 80,
+    textAlign: 'right',
+  },
+  exerciseTypeKey: {
+    borderTopWidth: 1,
+    paddingTop: 12,
+    marginTop: 8,
+  },
+  exerciseTypeKeyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  exerciseTypeList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  exerciseTypeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '48%',
+    marginBottom: 6,
+  },
+  exerciseTypeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  exerciseTypeText: {
+    fontSize: 12,
   },
   volumeBreakdown: {
     marginTop: 10,
@@ -1374,6 +1817,69 @@ const styles = StyleSheet.create({
   },
   intensityValue: {
     fontSize: 12,
+    fontWeight: '500',
+  },
+  muscleDistributionContainer: {
+    width: '100%',
+  },
+  enhancedBarsContainer: {
+    marginBottom: 16,
+  },
+  enhancedBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  muscleDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 8,
+  },
+  muscleBarLabel: {
+    fontSize: 14,
+    width: 80, 
+    marginRight: 8,
+  },
+  muscleBarWrapper: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  muscleBar: {
+    height: 8,
+    borderRadius: 4,
+  },
+  muscleBarValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    width: 70,
+    textAlign: 'right',
+  },
+  muscleBalanceCard: {
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+  },
+  muscleBalanceTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  muscleBalanceInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  muscleBalanceStat: {
+    flex: 1,
+  },
+  muscleBalanceLabel: {
+    fontSize: 13,
+    marginBottom: 3,
+  },
+  muscleBalanceValue: {
+    fontSize: 15,
     fontWeight: '500',
   },
 }); 
