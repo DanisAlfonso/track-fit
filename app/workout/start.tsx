@@ -1214,11 +1214,12 @@ export default function StartWorkoutScreen() {
         // Save all sets for this exercise
         if (workoutExerciseId && exercise.sets_data) {
           for (const set of exercise.sets_data) {
+            
             if (set.id) {
               // Update existing set
               await db.runAsync(
-                `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, notes = ? WHERE id = ?`,
-                [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.notes || '', set.id]
+                `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, rest_time = ?, notes = ? WHERE id = ?`,
+                [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.rest_time, set.notes || '', set.id]
               );
             } else {
               // Create new set
@@ -1449,6 +1450,37 @@ export default function StartWorkoutScreen() {
     // Update the initial rest time for progress calculation
     const newTotalDuration = restEndTimeRef.current - restStartTimeRef.current;
     setInitialRestTime(newTotalDuration / 1000);
+    
+    
+    // Calculate the new rest time
+    const newRestTime = currentSet.rest_time + seconds;
+    
+    // Update currentSet state
+    setCurrentSet(prev => ({
+      ...prev,
+      rest_time: newRestTime
+    }));
+    
+    // We also need to update the exercises array to reflect this change
+    if (selectedExercise !== null) {
+      const updatedExercises = [...exercises];
+      const exercise = updatedExercises[selectedExercise];
+      
+      // Find the set index that matches the current set
+      const setIndex = exercise.sets_data.findIndex(s => s.set_number === currentSet.set_number);
+      
+      if (setIndex !== -1) {
+        // Update the rest_time in the exercises array
+        exercise.sets_data[setIndex].rest_time = newRestTime;
+        setExercises(updatedExercises);
+        
+      }
+    }
+    
+    // Save the updated rest time to the database
+    saveWorkoutProgress().catch(error => {
+      console.error('Failed to save updated rest time:', error);
+    });
     
     // The animation loop will automatically update the display on next frame
   };
