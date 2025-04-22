@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, Stack } from 'expo-router';
+import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
@@ -16,6 +16,7 @@ type Routine = {
 };
 
 export default function SelectRoutineScreen() {
+  const { exerciseId } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
@@ -23,10 +24,16 @@ export default function SelectRoutineScreen() {
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [addingExercise, setAddingExercise] = useState(false);
 
   useEffect(() => {
     loadRoutines();
-  }, []);
+    
+    // If exerciseId is provided, we're adding an exercise to a routine
+    if (exerciseId) {
+      setAddingExercise(true);
+    }
+  }, [exerciseId]);
 
   const loadRoutines = async () => {
     try {
@@ -39,9 +46,14 @@ export default function SelectRoutineScreen() {
         ORDER BY r.created_at DESC
       `);
       
-      // Filter out routines with no exercises
-      const validRoutines = results.filter(routine => routine.exerciseCount > 0);
-      setRoutines(validRoutines);
+      // For adding an exercise, we want all routines, even empty ones
+      if (addingExercise) {
+        setRoutines(results);
+      } else {
+        // Filter out routines with no exercises for starting a workout
+        const validRoutines = results.filter(routine => routine.exerciseCount > 0);
+        setRoutines(validRoutines);
+      }
     } catch (error) {
       console.error('Error loading routines:', error);
     } finally {
@@ -50,10 +62,57 @@ export default function SelectRoutineScreen() {
   };
 
   const selectRoutine = (routineId: number) => {
-    router.push({
-      pathname: "/workout/start",
-      params: { routineId }
-    });
+    if (addingExercise && exerciseId) {
+      // Add the exercise to the selected routine
+      addExerciseToRoutine(routineId, parseInt(String(exerciseId), 10));
+    } else {
+      // Start a workout with this routine
+      router.push({
+        pathname: "/workout/start",
+        params: { routineId }
+      });
+    }
+  };
+
+  const addExerciseToRoutine = async (routineId: number, exerciseId: number) => {
+    try {
+      const db = await getDatabase();
+      
+      // Get exercise name for the success message
+      const exerciseResult = await db.getFirstAsync<{ name: string }>(
+        'SELECT name FROM exercises WHERE id = ?',
+        [exerciseId]
+      );
+      
+      // Get routine name for the success message
+      const routineResult = await db.getFirstAsync<{ name: string }>(
+        'SELECT name FROM routines WHERE id = ?',
+        [routineId]
+      );
+      
+      // Get the current highest order number for this routine
+      const orderResult = await db.getFirstAsync<{ max_order: number | null }>(
+        'SELECT MAX(order_num) as max_order FROM routine_exercises WHERE routine_id = ?',
+        [routineId]
+      );
+      
+      const nextOrder = (orderResult?.max_order || 0) + 1;
+      
+      // Add the exercise to the routine with default 3 sets
+      await db.runAsync(
+        'INSERT INTO routine_exercises (routine_id, exercise_id, sets, order_num) VALUES (?, ?, ?, ?)',
+        [routineId, exerciseId, 3, nextOrder]
+      );
+      
+      Alert.alert(
+        'Success',
+        `${exerciseResult?.name} added to ${routineResult?.name}`,
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error) {
+      console.error('Error adding exercise to routine:', error);
+      Alert.alert('Error', 'Failed to add exercise to routine');
+    }
   };
 
   const renderRoutineItem = ({ item }: { item: Routine }) => (
@@ -100,7 +159,7 @@ export default function SelectRoutineScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
         options={{
-          title: "Select Routine",
+          title: addingExercise ? "Select Routine to Add Exercise" : "Select Routine",
           headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
@@ -109,7 +168,10 @@ export default function SelectRoutineScreen() {
       />
 
       <Text style={[styles.subtitle, { color: colors.subtext }]}>
-        Select a routine to start your workout
+        {addingExercise 
+          ? "Select a routine to add this exercise to"
+          : "Select a routine to start your workout"
+        }
       </Text>
 
       {loading ? (
@@ -131,7 +193,10 @@ export default function SelectRoutineScreen() {
               </View>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>No Routines Available</Text>
               <Text style={[styles.emptyText, { color: colors.subtext }]}>
-                You need to create a routine with exercises before starting a workout
+                {addingExercise
+                  ? "You need to create a routine first to add exercises to it"
+                  : "You need to create a routine with exercises before starting a workout"
+                }
               </Text>
               <TouchableOpacity
                 style={styles.emptyCreateButton}

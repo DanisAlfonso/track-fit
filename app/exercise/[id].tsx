@@ -31,6 +31,7 @@ export default function ExerciseDetailScreen() {
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [activeTab, setActiveTab] = useState('instructions'); // 'instructions' or 'muscles'
   const [isFavorited, setIsFavorited] = useState(false);
+  const [hasRoutines, setHasRoutines] = useState(false);
   
   // Animation values
   const imageOpacity = useSharedValue(0);
@@ -38,6 +39,7 @@ export default function ExerciseDetailScreen() {
   
   useEffect(() => {
     loadExerciseDetails();
+    checkForRoutines();
     
     // Start animations when component mounts
     imageOpacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
@@ -65,6 +67,21 @@ export default function ExerciseDetailScreen() {
       }
     } catch (error) {
       console.error('Error loading exercise details:', error);
+    }
+  };
+  
+  const checkForRoutines = async () => {
+    try {
+      const db = await getDatabase();
+      const result = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM routines'
+      );
+      
+      if (result && result.count > 0) {
+        setHasRoutines(true);
+      }
+    } catch (error) {
+      console.error('Error checking for routines:', error);
     }
   };
   
@@ -295,6 +312,21 @@ export default function ExerciseDetailScreen() {
             )}
           </View>
         )}
+        
+        {hasRoutines && (
+          <View style={styles.bottomButtonContainer}>
+            <TouchableOpacity 
+              style={[styles.addToRoutineButton, { backgroundColor: colors.secondary }]}
+              onPress={() => router.push({
+                pathname: '/routine/select',
+                params: { exerciseId: exercise.id }
+              })}
+            >
+              <FontAwesome name="plus" size={16} color="#fff" style={styles.historyIcon} />
+              <Text style={styles.historyButtonText}>Add to Routine</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
     </ScrollView>
   );
@@ -486,5 +518,22 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: '600',
+  },
+  bottomButtonContainer: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    marginBottom: 30,
+  },
+  addToRoutineButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 }); 
