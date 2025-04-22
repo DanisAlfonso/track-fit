@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -43,15 +43,26 @@ export default function HomeScreen() {
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
   const [stats, setStats] = useState<WorkoutStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
   const loadData = async () => {
     try {
-      setLoading(true);
+      // Only show loading indicator on initial load, not during refresh
+      if (!refreshing) {
+        setLoading(true);
+      }
+      
       const db = await getDatabase();
       
       // Load routines
@@ -271,7 +282,20 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.background }]} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+          title="Pull to refresh"
+          titleColor={colors.subtext}
+        />
+      }
+    >
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>TrackFit</Text>
         <Text style={[styles.subtitle, { color: colors.subtext }]}>Your Fitness Journey</Text>
