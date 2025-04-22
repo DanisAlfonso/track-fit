@@ -42,6 +42,7 @@ type WorkoutExercise = {
   category: string;
   sets_data: Set[];
   notes: string;
+  originalIndex?: number; // Optional property to store the original index
 };
 
 // Add SortOption type, similar to routine details screen
@@ -831,6 +832,9 @@ export default function StartWorkoutScreen() {
       ? colors.success 
       : (muscleColor || colors.primary);
 
+    // Use the original index if it exists (for grouped views), otherwise use the provided index
+    const exerciseIndex = item.originalIndex !== undefined ? item.originalIndex : index;
+
     // Function to render set items with the correct exercise index
     const renderExerciseSetItem = (setItem: Set, setIndex: number) => {
       // Get training type display
@@ -858,7 +862,7 @@ export default function StartWorkoutScreen() {
           ]}
           onPress={() => {
             if (workoutStarted) {
-              openSetModal(index, setIndex);
+              openSetModal(exerciseIndex, setIndex);
             }
           }}
           disabled={!workoutStarted}
@@ -954,7 +958,7 @@ export default function StartWorkoutScreen() {
             <View style={styles.setsManagementContainer}>
               <TouchableOpacity
                 style={styles.setManagementButton}
-                onPress={() => addSet(index)}
+                onPress={() => addSet(exerciseIndex)}
                 activeOpacity={0.8}
               >
                 <LinearGradient
@@ -971,7 +975,7 @@ export default function StartWorkoutScreen() {
               {item.sets_data.length > 1 && (
                 <TouchableOpacity
                   style={styles.setManagementButton}
-                  onPress={() => removeSet(index)}
+                  onPress={() => removeSet(exerciseIndex)}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
@@ -1000,7 +1004,7 @@ export default function StartWorkoutScreen() {
             placeholder="Add notes for this exercise..."
             placeholderTextColor={colors.subtext}
             value={item.notes}
-            onChangeText={(text) => updateExerciseNotes(index, text)}
+            onChangeText={(text) => updateExerciseNotes(exerciseIndex, text)}
             multiline
           />
         </View>
@@ -1259,7 +1263,11 @@ export default function StartWorkoutScreen() {
       if (!groups[muscle]) {
         groups[muscle] = [];
       }
-      groups[muscle].push(exercise);
+      groups[muscle].push({
+        ...exercise,
+        // Store the original index in the exercises array
+        originalIndex: exercises.findIndex(e => e.routine_exercise_id === exercise.routine_exercise_id)
+      });
     });
     
     return groups;
@@ -1274,7 +1282,11 @@ export default function StartWorkoutScreen() {
       if (!categories[category]) {
         categories[category] = [];
       }
-      categories[category].push(exercise);
+      categories[category].push({
+        ...exercise,
+        // Store the original index in the exercises array
+        originalIndex: exercises.findIndex(e => e.routine_exercise_id === exercise.routine_exercise_id)
+      });
     });
     
     return categories;
