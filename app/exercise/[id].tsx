@@ -80,10 +80,6 @@ export default function ExerciseDetailScreen() {
     }
   };
 
-  const navigateToRoutines = () => {
-    router.push('/(tabs)/routines');
-  };
-
   const confirmDelete = () => {
     Alert.alert(
       "Delete Exercise",
@@ -299,16 +295,6 @@ export default function ExerciseDetailScreen() {
             )}
           </View>
         )}
-        
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: colors.primary }]}
-            onPress={navigateToRoutines}
-          >
-            <FontAwesome name="plus" size={16} color="white" />
-            <Text style={styles.actionButtonText}>Add to Routine</Text>
-          </TouchableOpacity>
-        </View>
       </Animated.View>
     </ScrollView>
   );
@@ -449,26 +435,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   muscleText: {
-    fontSize: 16,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 8,
-    width: '100%',
-  },
-  actionButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginLeft: 8,
     fontSize: 16,
   },
   loadingText: {
