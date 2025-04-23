@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -9,7 +9,8 @@ import {
   Alert, 
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  TouchableNativeFeedback
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -17,6 +18,7 @@ import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/context/ThemeContext';
 
 type Exercise = {
   id: number;
@@ -41,12 +43,90 @@ type RoutineExercise = {
   routine_exercise_id: number;
 };
 
+// Ultra-reliable button for Samsung devices
+interface ReliableButtonProps {
+  onPress: () => void;
+  text: string;
+  isLoading: boolean;
+  style?: any;
+  textStyle?: any;
+}
+
+function ReliableButton({ onPress, text, isLoading, style, textStyle }: ReliableButtonProps) {
+  // Each tap attempt counter
+  const tapAttemptRef = useRef(0);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const handlePress = () => {
+    tapAttemptRef.current += 1;
+    console.log(`Button tapped (attempt #${tapAttemptRef.current})`);
+    
+    // Clear any existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    // Set a very short debounce to prevent multiple triggers
+    debounceTimerRef.current = setTimeout(() => {
+      console.log("Executing button action");
+      onPress();
+      // Reset counter after successful press
+      tapAttemptRef.current = 0;
+    }, 10);
+  };
+  
+  // For Android, ensure we have the right background for ripple effect
+  const background = Platform.OS === 'android' 
+    ? TouchableNativeFeedback.Ripple('#DDDDDD', false) 
+    : undefined;
+  
+  // Create the appropriate wrapper based on platform
+  if (Platform.OS === 'android') {
+    return (
+      <View style={[styles.reliableButtonWrapper, style]}>
+        <TouchableNativeFeedback 
+          background={background}
+          onPress={handlePress}
+          useForeground={true}
+          disabled={isLoading}
+        >
+          <View style={styles.reliableButtonContent}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={[styles.reliableButtonText, textStyle]}>{text}</Text>
+            )}
+          </View>
+        </TouchableNativeFeedback>
+      </View>
+    );
+  }
+  
+  // iOS and other platforms
+  return (
+    <TouchableOpacity 
+      onPress={handlePress}
+      disabled={isLoading}
+      activeOpacity={0.6}
+      style={[styles.reliableButtonContent, style]}
+    >
+      {isLoading ? (
+        <ActivityIndicator size="small" color="#FFFFFF" />
+      ) : (
+        <Text style={[styles.reliableButtonText, textStyle]}>{text}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 export default function EditRoutineScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -270,7 +350,7 @@ export default function EditRoutineScreen() {
           styles.exerciseItem, 
           { 
             backgroundColor: colors.card,
-            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
             borderLeftColor: getMuscleColor(item.primary_muscle),
             opacity: alreadySelected ? 0.8 : 1
           }
@@ -285,8 +365,8 @@ export default function EditRoutineScreen() {
               <View style={[
                 styles.exerciseTag, 
                 { 
-                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-                  borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+                  borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
                 }
               ]}>
                 <Text style={[styles.exerciseTagText, { color: colors.text }]}>{item.category}</Text>
@@ -302,7 +382,7 @@ export default function EditRoutineScreen() {
               ]}>
                 <Text style={[
                   styles.exerciseTagText, 
-                  { color: theme === 'dark' ? getMuscleColor(item.primary_muscle) : `${getMuscleColor(item.primary_muscle)}E0` }
+                  { color: currentTheme === 'dark' ? getMuscleColor(item.primary_muscle) : `${getMuscleColor(item.primary_muscle)}E0` }
                 ]}>
                   {item.primary_muscle}
                 </Text>
@@ -351,7 +431,7 @@ export default function EditRoutineScreen() {
         styles.selectedExerciseItem, 
         { 
           backgroundColor: colors.card,
-          borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+          borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
         }
       ]}>
         <View style={styles.selectedExerciseInfo}>
@@ -363,8 +443,8 @@ export default function EditRoutineScreen() {
                 style={[
                   styles.setsButton, 
                   { 
-                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                    borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                    borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
                   }
                 ]}
                 onPress={() => updateExerciseSets(index, item.sets - 1)}
@@ -376,8 +456,8 @@ export default function EditRoutineScreen() {
                 style={[
                   styles.setsButton, 
                   { 
-                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                    borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                    borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
                   }
                 ]}
                 onPress={() => updateExerciseSets(index, item.sets + 1)}
@@ -400,7 +480,7 @@ export default function EditRoutineScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
             title: "Edit Routine",
@@ -426,7 +506,7 @@ export default function EditRoutineScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
           title: "Edit Routine",
@@ -436,19 +516,6 @@ export default function EditRoutineScreen() {
           },
           headerTintColor: colors.text,
           headerShadowVisible: false,
-          headerRight: () => (
-            <TouchableOpacity 
-              style={[styles.saveButton, { opacity: isSaving ? 0.7 : 1 }]}
-              onPress={saveRoutine}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={[styles.saveButtonText, { color: colors.primary }]}>Save</Text>
-              )}
-            </TouchableOpacity>
-          ),
         }}
       />
       
@@ -462,7 +529,7 @@ export default function EditRoutineScreen() {
           
           <View style={[styles.inputContainer, { 
             backgroundColor: colors.card,
-            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
           }]}>
             <Text style={[styles.inputLabel, { color: colors.subtext }]}>Name</Text>
             <TextInput
@@ -476,7 +543,7 @@ export default function EditRoutineScreen() {
           
           <View style={[styles.inputContainer, { 
             backgroundColor: colors.card,
-            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
           }]}>
             <Text style={[styles.inputLabel, { color: colors.subtext }]}>Description (Optional)</Text>
             <TextInput
@@ -503,7 +570,7 @@ export default function EditRoutineScreen() {
           {selectedExercises.length === 0 ? (
             <View style={[styles.emptyContainer, { 
               backgroundColor: colors.card,
-              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+              borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
             }]}>
               <View style={[styles.emptyIconContainer, { backgroundColor: `${colors.primary}20` }]}>
                 <FontAwesome name="list" size={24} color={colors.primary} />
@@ -534,7 +601,7 @@ export default function EditRoutineScreen() {
           
           <View style={[styles.searchContainer, { 
             backgroundColor: colors.card,
-            borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
           }]}>
             <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
             <TextInput
@@ -572,6 +639,20 @@ export default function EditRoutineScreen() {
           )}
         </View>
       </ScrollView>
+      
+      {/* Bottom save button */}
+      <View style={[styles.bottomButtonContainer, { 
+        backgroundColor: colors.background,
+        borderTopWidth: 1,
+        borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+      }]}>
+        <ReliableButton
+          onPress={saveRoutine}
+          text="Save Routine"
+          isLoading={isSaving}
+          style={{ backgroundColor: colors.primary }}
+        />
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -817,12 +898,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 12,
   },
-  saveButton: {
+  bottomButtonContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
-  saveButtonText: {
+  reliableButtonWrapper: {
+    borderRadius: 8, 
+    overflow: 'hidden',
+  },
+  reliableButtonContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 44,
+    borderRadius: 8,
+  },
+  reliableButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 }); 

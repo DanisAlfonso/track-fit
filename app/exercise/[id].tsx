@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, Alert } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator, Dimensions } from 'react-native';
+import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
@@ -8,6 +8,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase, isExerciseFavorited, toggleFavorite, deleteExercise } from '@/utils/database';
 import { getExerciseInstructions, getExerciseImage } from '@/data/exercises';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '@/context/ThemeContext';
 
 // Exercise types match our database schema
 type Exercise = {
@@ -24,8 +25,10 @@ export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   const { width } = useWindowDimensions();
   
   const [exercise, setExercise] = useState<Exercise | null>(null);
@@ -159,7 +162,8 @@ export default function ExerciseDetailScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
           title: exercise.name,
@@ -195,146 +199,162 @@ export default function ExerciseDetailScreen() {
         }}
       />
       
-      <Text style={[styles.exerciseTitle, { color: colors.text }]}>{exercise.name}</Text>
-      <Text style={[styles.exerciseCategory, { color: colors.subtext }]}>
-        {exercise.category} • {exercise.primary_muscle}
-      </Text>
-      
-      <TouchableOpacity 
-        style={[styles.historyButton, { backgroundColor: colors.primary }]}
-        onPress={() => router.push(`/exercise/history/${exercise.id}`)}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
       >
-        <FontAwesome name="history" size={16} color="#fff" style={styles.historyIcon} />
-        <Text style={styles.historyButtonText}>View Exercise History</Text>
-      </TouchableOpacity>
-      
-      <Animated.View style={[styles.animationContainer, imageAnimatedStyle]}>
-        <View style={[styles.animationBox, { backgroundColor: colors.card }]}>
-          {exercise.image_uri ? (
-            <>
-              <Image 
-                source={{ uri: exercise.image_uri }}
-                style={styles.customExerciseImage}
-                resizeMode="cover"
-              />
-              <View style={styles.imageTypeIndicator}>
-                <FontAwesome name="image" size={14} color="white" style={styles.imageTypeIcon} />
-                <Text style={styles.imageTypeText}>Custom Image</Text>
-              </View>
-            </>
-          ) : (
-            <>
-              <Image 
-                source={getExerciseImage(exercise.name)}
-                style={styles.exerciseAnimation}
-                resizeMode="contain"
-              />
-              <Text style={[styles.animationText, { color: colors.primary }]}>
-                Exercise Animation
-              </Text>
-            </>
-          )}
-        </View>
-      </Animated.View>
-      
-      <Animated.View style={[styles.contentContainer, contentAnimatedStyle]}>
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity 
-            style={[
-              styles.tab, 
-              activeTab === 'instructions' && [styles.activeTab, { borderBottomColor: colors.primary }]
-            ]}
-            onPress={() => setActiveTab('instructions')}
-          >
-            <Text 
-              style={[
-                styles.tabText, 
-                { color: activeTab === 'instructions' ? colors.primary : colors.subtext }
-              ]}
-            >
-              Instructions
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.tab, 
-              activeTab === 'muscles' && [styles.activeTab, { borderBottomColor: colors.primary }]
-            ]}
-            onPress={() => setActiveTab('muscles')}
-          >
-            <Text 
-              style={[
-                styles.tabText,
-                { color: activeTab === 'muscles' ? colors.primary : colors.subtext }
-              ]}
-            >
-              Muscles
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[styles.exerciseTitle, { color: colors.text }]}>{exercise.name}</Text>
+        <Text style={[styles.exerciseCategory, { color: colors.subtext }]}>
+          {exercise.category} • {exercise.primary_muscle}
+        </Text>
         
-        {activeTab === 'instructions' && (
-          <View style={styles.instructionsContainer}>
-            {getExerciseInstructions(exercise.name).map((instruction, index) => (
-              <View key={index} style={styles.instructionItem}>
-                <View style={[styles.instructionNumber, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
-                </View>
-                <Text style={[styles.instructionText, { color: colors.text }]}>
-                  {instruction}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-        
-        {activeTab === 'muscles' && (
-          <View style={styles.musclesContainer}>
-            <View style={styles.muscleSection}>
-              <Text style={[styles.muscleSectionTitle, { color: colors.primary }]}>Primary Muscle</Text>
-              <View style={[styles.muscleItem, { backgroundColor: colors.card }]}>
-                <FontAwesome name="bullseye" size={16} color={colors.primary} style={styles.muscleIcon} />
-                <Text style={[styles.muscleText, { color: colors.text }]}>{exercise.primary_muscle}</Text>
-              </View>
-            </View>
+        <TouchableOpacity 
+          style={[styles.historyButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.push(`/exercise/history/${exercise.id}`)}
+        >
+          <FontAwesome name="history" size={16} color="#fff" style={styles.historyIcon} />
+          <Text style={styles.historyButtonText}>View Exercise History</Text>
+        </TouchableOpacity>
             
-            {exercise.secondary_muscles && (
-              <View style={styles.muscleSection}>
-                <Text style={[styles.muscleSectionTitle, { color: colors.primary }]}>Secondary Muscles</Text>
-                {exercise.secondary_muscles.split(',').map((muscle, index) => (
-                  <View key={index} style={[styles.muscleItem, { backgroundColor: colors.card }]}>
-                    <FontAwesome name="dot-circle-o" size={16} color={colors.primary} style={styles.muscleIcon} />
-                    <Text style={[styles.muscleText, { color: colors.text }]}>{muscle.trim()}</Text>
-                  </View>
-                ))}
-              </View>
+        <Animated.View style={[styles.animationContainer, imageAnimatedStyle]}>
+          <View style={[styles.animationBox, { backgroundColor: colors.card }]}>
+            {exercise.image_uri ? (
+              <>
+                <Image 
+                  source={{ uri: exercise.image_uri }}
+                  style={styles.customExerciseImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageTypeIndicator}>
+                  <FontAwesome name="image" size={14} color="white" style={styles.imageTypeIcon} />
+                  <Text style={styles.imageTypeText}>Custom Image</Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <Image 
+                  source={getExerciseImage(exercise.name)}
+                  style={styles.exerciseAnimation}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.animationText, { color: colors.primary }]}>
+                  Exercise Animation
+                </Text>
+              </>
             )}
           </View>
-        )}
+        </Animated.View>
         
-        {hasRoutines && (
-          <View style={styles.bottomButtonContainer}>
+        <Animated.View style={[styles.contentContainer, contentAnimatedStyle]}>
+          <View style={styles.tabsContainer}>
             <TouchableOpacity 
-              style={[styles.addToRoutineButton, { backgroundColor: colors.secondary }]}
-              onPress={() => router.push({
-                pathname: '/routine/select',
-                params: { exerciseId: exercise.id }
-              })}
+              style={[
+                styles.tab, 
+                activeTab === 'instructions' && [styles.activeTab, { borderBottomColor: colors.primary }]
+              ]}
+              onPress={() => setActiveTab('instructions')}
             >
-              <FontAwesome name="plus" size={16} color="#fff" style={styles.historyIcon} />
-              <Text style={styles.historyButtonText}>Add to Routine</Text>
+              <Text 
+                style={[
+                  styles.tabText, 
+                  { color: activeTab === 'instructions' ? colors.primary : colors.subtext }
+                ]}
+              >
+                Instructions
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.tab, 
+                activeTab === 'muscles' && [styles.activeTab, { borderBottomColor: colors.primary }]
+              ]}
+              onPress={() => setActiveTab('muscles')}
+            >
+              <Text 
+                style={[
+                  styles.tabText,
+                  { color: activeTab === 'muscles' ? colors.primary : colors.subtext }
+                ]}
+              >
+                Muscles
+              </Text>
             </TouchableOpacity>
           </View>
-        )}
-      </Animated.View>
-    </ScrollView>
+          
+          {activeTab === 'instructions' && (
+            <View style={styles.instructionsContainer}>
+              {getExerciseInstructions(exercise.name).map((instruction, index) => (
+                <View key={index} style={styles.instructionItem}>
+                  <View style={[styles.instructionNumber, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={[styles.instructionText, { color: colors.text }]}>
+                    {instruction}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+          
+          {activeTab === 'muscles' && (
+            <View style={styles.musclesContainer}>
+              <View style={styles.muscleSection}>
+                <Text style={[styles.muscleSectionTitle, { color: colors.primary }]}>Primary Muscle</Text>
+                <View style={[styles.muscleItem, { backgroundColor: colors.card }]}>
+                  <FontAwesome name="bullseye" size={16} color={colors.primary} style={styles.muscleIcon} />
+                  <Text style={[styles.muscleText, { color: colors.text }]}>{exercise.primary_muscle}</Text>
+                </View>
+              </View>
+              
+              {exercise.secondary_muscles && (
+                <View style={styles.muscleSection}>
+                  <Text style={[styles.muscleSectionTitle, { color: colors.primary }]}>Secondary Muscles</Text>
+                  {exercise.secondary_muscles.split(',').map((muscle, index) => (
+                    <View key={index} style={[styles.muscleItem, { backgroundColor: colors.card }]}>
+                      <FontAwesome name="dot-circle-o" size={16} color={colors.primary} style={styles.muscleIcon} />
+                      <Text style={[styles.muscleText, { color: colors.text }]}>{muscle.trim()}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        </Animated.View>
+      </ScrollView>
+      
+      {hasRoutines && (
+        <View style={[styles.bottomButtonContainer, { 
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+        }]}>
+          <TouchableOpacity 
+            style={[styles.addToRoutineButton, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push({
+              pathname: '/routine/select',
+              params: { exerciseId: exercise.id }
+            })}
+          >
+            <FontAwesome name="plus" size={16} color="#fff" style={styles.historyIcon} />
+            <Text style={styles.historyButtonText}>Add to Routine</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 100, // Extra padding to account for the fixed button
   },
   header: {
     flexDirection: 'row',
@@ -520,20 +540,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   bottomButtonContainer: {
-    marginTop: 20,
-    paddingHorizontal: 16,
-    marginBottom: 30,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    borderTopWidth: 1,
   },
   addToRoutineButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: 14,
+    borderRadius: 8,
   },
 }); 

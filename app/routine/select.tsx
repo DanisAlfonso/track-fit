@@ -6,6 +6,8 @@ import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
 
 type Routine = {
   id: number;
@@ -19,8 +21,10 @@ export default function SelectRoutineScreen() {
   const { exerciseId } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +161,7 @@ export default function SelectRoutineScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
           title: addingExercise ? "Select Routine to Add Exercise" : "Select Routine",

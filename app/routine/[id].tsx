@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, FlatList } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, FlatList, Platform, ActionSheetIOS } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -8,6 +8,7 @@ import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { useTheme } from '@/context/ThemeContext';
 
 type Routine = {
   id: number;
@@ -32,8 +33,10 @@ export default function RoutineDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
 
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [exercises, setExercises] = useState<RoutineExercise[]>([]);
@@ -101,44 +104,6 @@ export default function RoutineDetailScreen() {
       pathname: "/workout/start",
       params: { routineId: routine.id }
     });
-  };
-
-  const editRoutine = () => {
-    if (!routine) return;
-    router.push(`/routine/edit/${routine.id}`);
-  };
-
-  const deleteRoutine = async () => {
-    if (!routine) return;
-    
-    Alert.alert(
-      'Delete Routine',
-      `Are you sure you want to delete "${routine.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            
-            try {
-              const db = await getDatabase();
-              await db.runAsync('DELETE FROM routines WHERE id = ?', [routine.id]);
-              
-              Alert.alert('Success', 'Routine deleted successfully', [
-                { text: 'OK', onPress: () => router.back() }
-              ]);
-            } catch (error) {
-              console.error('Error deleting routine:', error);
-              Alert.alert('Error', 'Failed to delete routine');
-            } finally {
-              setIsDeleting(false);
-            }
-          }
-        }
-      ]
-    );
   };
 
   const formatDate = (timestamp: number) => {
@@ -284,7 +249,7 @@ export default function RoutineDetailScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
             title: "Routine Details",
@@ -309,7 +274,7 @@ export default function RoutineDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
           title: routine.name,
@@ -318,43 +283,11 @@ export default function RoutineDetailScreen() {
             backgroundColor: colors.background,
           },
           headerTintColor: colors.text,
-          headerRight: () => (
-            <View style={styles.headerActions}>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={shareRoutine}
-                disabled={isSharing}
-              >
-                {isSharing ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <FontAwesome name="share-alt" size={18} color={colors.primary} />
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={editRoutine}
-                disabled={isDeleting || isSharing}
-              >
-                <FontAwesome name="edit" size={18} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.headerButton}
-                onPress={deleteRoutine}
-                disabled={isDeleting || isSharing}
-              >
-                {isDeleting ? (
-                  <ActivityIndicator size="small" color={colors.error} />
-                ) : (
-                  <FontAwesome name="trash" size={18} color={colors.error} />
-                )}
-              </TouchableOpacity>
-            </View>
-          ),
         }}
       />
       
       <ScrollView style={styles.scrollView}>
+        {/* Simple header section without long-press or action buttons */}
         <View style={styles.headerSection}>
           <Text style={[styles.routineName, { color: colors.text }]}>{routine.name}</Text>
           {routine.description && (
@@ -478,13 +411,17 @@ export default function RoutineDetailScreen() {
         </View>
       </ScrollView>
       
-      <View style={[styles.footer, { borderTopColor: colors.border }]}>
-        <TouchableOpacity
-          style={[styles.startButton, { backgroundColor: colors.primary }]}
+      <View style={[styles.bottomButtonContainer, { 
+        backgroundColor: colors.background,
+        borderTopWidth: 1,
+        borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+      }]}>
+        <TouchableOpacity 
+          style={[styles.startWorkoutButton, { backgroundColor: colors.primary }]}
           onPress={startWorkout}
         >
-          <FontAwesome name="play" size={16} color="white" style={styles.startButtonIcon} />
-          <Text style={styles.startButtonText}>Start Workout</Text>
+          <FontAwesome name="play-circle" size={18} color="white" style={{ marginRight: 8 }} />
+          <Text style={styles.startWorkoutButtonText}>Start Workout</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -637,30 +574,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  footer: {
+  bottomButtonContainer: {
     padding: 16,
     borderTopWidth: 1,
   },
-  startButton: {
+  startWorkoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 8,
   },
-  startButtonIcon: {
-    marginRight: 8,
-  },
-  startButtonText: {
+  startWorkoutButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerButton: {
-    padding: 8,
-    marginLeft: 8,
   },
 }); 

@@ -12,11 +12,12 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { FontAwesome5, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getDatabase } from '@/utils/database';
 import { formatDate, formatRelativeDate, calculateDuration } from '@/utils/dateUtils';
+import { useTheme } from '@/context/ThemeContext';
 
 // Types for our data
 interface PersonalRecord {
@@ -53,7 +54,10 @@ interface ProgressItem {
 
 export default function ProgressScreen() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme || 'light'];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   const router = useRouter();
   
   const [loading, setLoading] = useState(true);
@@ -652,15 +656,15 @@ export default function ProgressScreen() {
         options={{
           title: 'Your Progress',
           headerStyle: {
-            backgroundColor: 'transparent',
+            backgroundColor: colors.background,
           },
           headerTransparent: true,
-          headerTintColor: 'white',
+          headerTintColor: colors.text,
           headerBackVisible: true,
         }}
       />
       
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       
       {/* Header with Gradient */}
       <LinearGradient
