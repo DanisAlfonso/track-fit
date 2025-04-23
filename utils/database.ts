@@ -245,7 +245,6 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Face Pull', category: 'Compound', primary_muscle: 'Upper Back', secondary_muscle: 'Rear Deltoids,Biceps' },
     { name: 'Lat Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
     { name: 'Leg Extension', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: '' },
-    { name: 'Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     { name: 'Hip Thrust', category: 'Compound', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings' },
     { name: 'Plank', category: 'Isolation', primary_muscle: 'Core', secondary_muscle: 'Shoulders' },
     { name: 'Russian Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
@@ -368,6 +367,7 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Landmine Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
     { name: 'Standing Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     { name: 'Prone Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+    { name: 'Single-Arm Overhead Triceps Press', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
   ];
 
   try {
@@ -632,7 +632,6 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Face Pull', category: 'Compound', primary_muscle: 'Upper Back', secondary_muscle: 'Rear Deltoids,Biceps' },
       { name: 'Lat Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Leg Extension', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: '' },
-      { name: 'Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Hip Thrust', category: 'Compound', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings' },
       { name: 'Plank', category: 'Isolation', primary_muscle: 'Core', secondary_muscle: 'Shoulders' },
       { name: 'Russian Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
@@ -755,6 +754,7 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Landmine Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
       { name: 'Standing Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Prone Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Single-Arm Overhead Triceps Press', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     ];
     
     // Filter out exercises that already exist
@@ -788,5 +788,242 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
   } catch (error) {
     console.error('Error adding new exercises:', error);
     throw error;
+  }
+};
+
+// Add a new function to sync exercises with the master list
+export const syncExercises = async (): Promise<void> => {
+  const database = await getDatabase();
+  
+  try {
+    console.log('Starting exercise synchronization...');
+    
+    // Get all existing exercises from the database
+    const existingExercises = await database.getAllAsync<{ id: number, name: string }>(
+      'SELECT id, name FROM exercises'
+    );
+    
+    // Create a Set of existing exercise names for quick lookup
+    const existingExerciseNames = new Set(existingExercises.map(e => e.name));
+    
+    // Create a Map of existing exercise IDs by name for quick lookup
+    const existingExerciseIds = new Map(existingExercises.map(e => [e.name, e.id]));
+    
+    // Define the master list of exercises that should be in the database
+    // This is the single source of truth - keep in sync with insertDefaultExercises
+    const masterExerciseList = [
+      { name: 'Bench Press', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Deadlift', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Hamstrings,Glutes' },
+      { name: 'Pull-up', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Overhead Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Bicep Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Leg Press', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
+      { name: 'Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
+      { name: 'Romanian Deadlift', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscle: 'Glutes,Back' },
+      { name: 'Barbell Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Dumbbell Shoulder Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Incline Bench Press', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders,Triceps' },
+      { name: 'Decline Bench Press', category: 'Compound', primary_muscle: 'Lower Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Dumbbell Fly', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Face Pull', category: 'Compound', primary_muscle: 'Upper Back', secondary_muscle: 'Rear Deltoids,Biceps' },
+      { name: 'Lat Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Leg Extension', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: '' },
+      // { name: 'Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' }, -- Removed
+      { name: 'Hip Thrust', category: 'Compound', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings' },
+      { name: 'Plank', category: 'Isolation', primary_muscle: 'Core', secondary_muscle: 'Shoulders' },
+      { name: 'Russian Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
+      // New exercises - traditional gym only
+      { name: 'Dumbbell Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Cable Fly', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Seated Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Hammer Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
+      { name: 'Skull Crusher', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Front Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
+      { name: 'Reverse Fly', category: 'Isolation', primary_muscle: 'Rear Deltoids', secondary_muscle: 'Upper Back' },
+      { name: 'Bulgarian Split Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Step Up', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Hanging Leg Raise', category: 'Isolation', primary_muscle: 'Abs', secondary_muscle: 'Hip Flexors' },
+      { name: 'Cable Crunch', category: 'Isolation', primary_muscle: 'Abs', secondary_muscle: '' },
+      { name: 'Side Plank', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
+      { name: 'Good Morning', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscle: 'Glutes,Back' },
+      { name: 'Cable Pull-Through', category: 'Compound', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings' },
+      { name: 'Seated Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
+      { name: 'Standing Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
+      { name: 'Arnold Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Dumbbell Pullover', category: 'Compound', primary_muscle: 'Lats', secondary_muscle: 'Chest,Triceps' },
+      { name: 'Wrist Curl with Dumbbells', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Wrist Curl with Barbell', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Wrist Curl with Cable', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Reverse Wrist Curl with Dumbbells', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Reverse Wrist Curl with Barbell', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Reverse Wrist Curl with Cable', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: '' },
+      { name: 'Shrug', category: 'Isolation', primary_muscle: 'Traps', secondary_muscle: '' },
+      { name: 'Upright Row', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Traps,Biceps' },
+      { name: 'Dips', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
+      { name: 'Push-up', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Chin-up', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Pistol Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Box Jump', category: 'Plyometric', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Burpee', category: 'Plyometric', primary_muscle: 'Full Body', secondary_muscle: '' },
+      { name: 'Mountain Climber', category: 'Cardio', primary_muscle: 'Core', secondary_muscle: 'Shoulders,Hip Flexors' },
+      { name: 'Jump Rope', category: 'Cardio', primary_muscle: 'Calves', secondary_muscle: 'Shoulders' },
+      { name: 'Battle Ropes', category: 'Cardio', primary_muscle: 'Shoulders', secondary_muscle: 'Core,Arms' },
+      { name: 'Kettlebell Swing', category: 'Compound', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings,Shoulders' },
+      { name: 'Turkish Get-up', category: 'Compound', primary_muscle: 'Full Body', secondary_muscle: '' },
+      { name: 'Farmer\'s Walk with Dumbbells', category: 'Compound', primary_muscle: 'Forearms', secondary_muscle: 'Traps,Core' },
+      { name: 'Farmer\'s Walk with Kettlebells', category: 'Compound', primary_muscle: 'Forearms', secondary_muscle: 'Traps,Core' },
+      { name: 'Farmer\'s Walk with Trap Bar', category: 'Compound', primary_muscle: 'Forearms', secondary_muscle: 'Traps,Core' },
+      { name: 'Sled Push', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Shoulders' },
+      { name: 'Sled Pull', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Legs,Core' },
+      { name: 'Medicine Ball Slam', category: 'Plyometric', primary_muscle: 'Core', secondary_muscle: 'Shoulders' },
+      { name: 'Wall Ball', category: 'Compound', primary_muscle: 'Legs', secondary_muscle: 'Shoulders,Core' },
+      { name: 'Preacher Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'Concentration Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'EZ Bar Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
+      { name: 'Close-Grip Bench Press', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
+      { name: 'Tricep Kickback', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Overhead Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Cable Tricep Pushdown', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Pec Deck', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: '' },
+      { name: 'Cable Crossover', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Machine Chest Press', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Smith Machine Bench Press', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'T-Bar Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Wide-Grip Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps' },
+      { name: 'Close-Grip Pulldown', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps' },
+      { name: 'Machine Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps' },
+      { name: 'Cable Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Machine Shoulder Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Smith Machine Shoulder Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Reverse Pec Deck', category: 'Isolation', primary_muscle: 'Rear Deltoids', secondary_muscle: 'Upper Back' },
+      { name: 'Machine Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
+      { name: 'Cable Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
+      { name: 'Smith Machine Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Hack Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'V-Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Goblet Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Sissy Squat', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: '' },
+      { name: 'Leg Press Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
+      { name: 'Smith Machine Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
+      { name: 'Ab Crunch Machine', category: 'Isolation', primary_muscle: 'Abs', secondary_muscle: '' },
+      { name: 'Cable Woodchoppers', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
+      { name: 'Decline Sit-up', category: 'Isolation', primary_muscle: 'Abs', secondary_muscle: 'Hip Flexors' },
+      { name: 'Machine Back Extension', category: 'Isolation', primary_muscle: 'Lower Back', secondary_muscle: 'Glutes' },
+      { name: 'Hyperextension', category: 'Isolation', primary_muscle: 'Lower Back', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Machine Abductor', category: 'Isolation', primary_muscle: 'Hip Abductors', secondary_muscle: '' },
+      { name: 'Machine Adductor', category: 'Isolation', primary_muscle: 'Hip Adductors', secondary_muscle: '' },
+      { name: 'Glute Kickback Machine', category: 'Isolation', primary_muscle: 'Glutes', secondary_muscle: 'Hamstrings' },
+      { name: 'Smith Machine Lunges', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Walking Lunges', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Reverse Lunges', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Side Lunges', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hip Adductors' },
+      { name: 'Front Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Core' },
+      { name: 'Sumo Deadlift', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscle: 'Glutes,Quadriceps' },
+      { name: 'Deficit Deadlift', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Hamstrings,Glutes' },
+      { name: 'Rack Pull', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Hamstrings,Glutes' },
+      { name: 'Stiff-Legged Deadlift', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscle: 'Glutes,Back' },
+      { name: 'Single-Leg Deadlift', category: 'Compound', primary_muscle: 'Hamstrings', secondary_muscle: 'Glutes,Back' },
+      { name: 'Bent Over Dumbbell Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Single-Arm Dumbbell Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Incline Dumbbell Press', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders,Triceps' },
+      { name: 'Decline Dumbbell Press', category: 'Compound', primary_muscle: 'Lower Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Dumbbell Bench Press', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Incline Dumbbell Fly', category: 'Isolation', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Decline Dumbbell Fly', category: 'Isolation', primary_muscle: 'Lower Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Pec Deck Fly', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
+      { name: 'Military Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: 'Push Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps,Legs' },
+      { name: 'Seated Military Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
+      { name: '21s Bicep Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
+      { name: 'Reverse Curl with Dumbbells', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: 'Biceps' },
+      { name: 'Reverse Curl with Barbell', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: 'Biceps' },
+      { name: 'Reverse Curl with Cable', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: 'Biceps' },
+      { name: 'Reverse Curl with EZ Bar', category: 'Isolation', primary_muscle: 'Forearms', secondary_muscle: 'Biceps' },
+      { name: 'Spider Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'Zottman Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
+      { name: 'Drag Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Shoulders' },
+      { name: 'Diamond Push-up', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
+      { name: 'Ab Rollout', category: 'Compound', primary_muscle: 'Abs', secondary_muscle: 'Shoulders,Hip Flexors' },
+      { name: 'Machine Crunch', category: 'Isolation', primary_muscle: 'Abs', secondary_muscle: '' },
+      { name: 'Landmine Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Chest,Triceps' },
+      { name: 'Landmine Row', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
+      { name: 'Landmine Squat', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
+      { name: 'Landmine Twist', category: 'Isolation', primary_muscle: 'Obliques', secondary_muscle: 'Core' },
+      { name: 'Standing Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Prone Leg Curl', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Single-Arm Overhead Triceps Press', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+    ];
+    
+    // Create a set of names from the master list for quick lookups
+    const masterExerciseNames = new Set(masterExerciseList.map(e => e.name));
+    
+    // Find exercises to add (in master list but not in database)
+    const exercisesToAdd = masterExerciseList.filter(exercise => !existingExerciseNames.has(exercise.name));
+    
+    // Find exercises to remove (in database but not in master list)
+    const exercisesToRemove = existingExercises.filter(exercise => !masterExerciseNames.has(exercise.name));
+    
+    // Begin a transaction for all changes
+    await database.withTransactionAsync(async () => {
+      // First, add new exercises
+      if (exercisesToAdd.length > 0) {
+        console.log(`Adding ${exercisesToAdd.length} new exercises...`);
+        
+        for (const exercise of exercisesToAdd) {
+          await database.runAsync(
+            `INSERT INTO exercises (name, category, primary_muscle, secondary_muscle, created_at) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              exercise.name,
+              exercise.category,
+              exercise.primary_muscle,
+              exercise.secondary_muscle, 
+              Date.now()
+            ]
+          );
+        }
+        
+        console.log(`${exercisesToAdd.length} new exercises added successfully`);
+      }
+      
+      // Then, remove exercises that are no longer in the master list
+      if (exercisesToRemove.length > 0) {
+        console.log(`Removing ${exercisesToRemove.length} exercises...`);
+        
+        for (const exercise of exercisesToRemove) {
+          // First check if this exercise is used in any routines
+          const routineCount = await database.getFirstAsync<{count: number}>(
+            'SELECT COUNT(*) as count FROM routine_exercises WHERE exercise_id = ?',
+            [exercise.id]
+          );
+          
+          // If the exercise is used in routines, we need to replace it
+          if (routineCount && routineCount.count > 0) {
+            console.log(`Exercise "${exercise.name}" is used in ${routineCount.count} routines. Removing...`);
+            
+            // Delete from routine_exercises (cascade should handle the rest)
+            await database.runAsync(
+              'DELETE FROM routine_exercises WHERE exercise_id = ?',
+              [exercise.id]
+            );
+          }
+          
+          // Delete the exercise itself
+          await database.runAsync(
+            'DELETE FROM exercises WHERE id = ?',
+            [exercise.id]
+          );
+        }
+        
+        console.log(`${exercisesToRemove.length} exercises removed successfully`);
+      }
+    });
+    
+    console.log('Exercise synchronization completed successfully');
+  } catch (error) {
+    console.error('Error syncing exercises:', error);
   }
 }; 

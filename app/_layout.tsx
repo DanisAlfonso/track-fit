@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useCallback } from 'react';
 import { useColorScheme, Alert, View, Platform } from 'react-native';
-import { initDatabase, insertDefaultExercises, migrateDatabase, updateExercisesWithNewOnes } from '@/utils/database';
+import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises } from '@/utils/database';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -39,10 +39,10 @@ export default function RootLayout() {
         await insertDefaultExercises();
         console.log('Default exercises inserted successfully');
         
-        // Check for and add any new exercises
-        console.log('Checking for new exercises...');
-        await updateExercisesWithNewOnes();
-        console.log('Exercise updates completed');
+        // Synchronize exercises with master list (adding new ones and removing deprecated ones)
+        console.log('Synchronizing exercises...');
+        await syncExercises();
+        console.log('Exercise synchronization completed');
         
         // Artificial delay for a smoother splash screen experience
         // Only apply in production to avoid slowing down development
