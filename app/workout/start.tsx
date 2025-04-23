@@ -9,6 +9,7 @@ import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useWorkout } from '@/context/WorkoutContext';
 import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/profile';
+import { useTheme } from '@/context/ThemeContext';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -65,8 +66,10 @@ export default function StartWorkoutScreen() {
   const { routineId, workoutId: existingWorkoutId } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   const workoutStartTime = useRef<number | null>(null);
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
@@ -939,7 +942,7 @@ export default function StartWorkoutScreen() {
           </View>
         </View>
         
-        <View style={[styles.setsContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
+        <View style={[styles.setsContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
           <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets</Text>
           
           <FlatList
@@ -999,7 +1002,7 @@ export default function StartWorkoutScreen() {
             style={[styles.notesInput, { 
               color: colors.text, 
               borderColor: colors.border,
-              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+              backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
             }]}
             placeholder="Add notes for this exercise..."
             placeholderTextColor={colors.subtext}
@@ -1524,7 +1527,7 @@ export default function StartWorkoutScreen() {
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
         <Stack.Screen 
           options={{
             title: "Loading Workout",
@@ -1545,14 +1548,14 @@ export default function StartWorkoutScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen 
         options={{
-          title: workoutStarted ? `Workout: ${routineName}` : 'Start Workout',
+          title: routineName || "Start Workout",
+          headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
           },
-          headerTintColor: colors.text,
           headerRight: () => (
             workoutStarted && (
               <TouchableOpacity 
@@ -1747,7 +1750,7 @@ export default function StartWorkoutScreen() {
                 style={[styles.workoutNotes, { 
                   color: colors.text, 
                   borderColor: colors.border,
-                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                 }]}
                 placeholder="Add notes for this workout..."
                 placeholderTextColor={colors.subtext}
@@ -1761,7 +1764,7 @@ export default function StartWorkoutScreen() {
           {/* Quick muscle group navigation */}
           {sortOption === 'muscle' && Object.keys(muscleGroups).length > 1 && (
             <View style={[styles.muscleNavContainer, { 
-              backgroundColor: theme === 'dark' ? 'rgba(30, 30, 35, 0.95)' : 'rgba(248, 248, 248, 0.95)',
+              backgroundColor: currentTheme === 'dark' ? 'rgba(30, 30, 35, 0.95)' : 'rgba(248, 248, 248, 0.95)',
               borderColor: colors.border,
               marginTop: 12,
             }]}>
@@ -1777,7 +1780,7 @@ export default function StartWorkoutScreen() {
                       styles.muscleNavItem,
                       { 
                         borderColor: getMuscleColor(muscle),
-                        backgroundColor: theme === 'dark' ? 'rgba(45, 45, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                        backgroundColor: currentTheme === 'dark' ? 'rgba(45, 45, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
                       }
                     ]}
                     onPress={() => scrollToMuscle(muscle)}
@@ -1864,7 +1867,7 @@ export default function StartWorkoutScreen() {
           )}
           
           <View style={[styles.finishButtonContainer, { 
-            backgroundColor: theme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
+            backgroundColor: currentTheme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
             borderTopColor: colors.border
           }]}>
             <TouchableOpacity 
@@ -1930,7 +1933,7 @@ export default function StartWorkoutScreen() {
                   { 
                     color: colors.text, 
                     borderColor: touchedFields.reps && currentSet.reps === 0 ? colors.error : colors.border,
-                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                   }
                 ]}
                 keyboardType="number-pad"
@@ -1957,7 +1960,7 @@ export default function StartWorkoutScreen() {
                   { 
                     color: colors.text, 
                     borderColor: touchedFields.weight && currentSet.weight === 0 ? colors.error : colors.border,
-                    backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                   }
                 ]}
                 keyboardType="decimal-pad"
@@ -2030,7 +2033,7 @@ export default function StartWorkoutScreen() {
                 style={[styles.input, { 
                   color: colors.text, 
                   borderColor: colors.border,
-                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
                 }]}
                 keyboardType="number-pad"
                 value={currentSet.rest_time.toString()}

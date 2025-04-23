@@ -3,11 +3,12 @@ import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
-import { useColorScheme } from '../../hooks/useColorScheme';
+import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { formatDate, calculateDuration } from '../../utils/dateUtils';
 import { getDatabase } from '../../utils/database';
 import { LineChart } from 'react-native-chart-kit';
+import { useTheme } from '@/context/ThemeContext';
 
 // Types
 interface Set {
@@ -76,7 +77,10 @@ export default function WorkoutDetailScreen() {
   const workoutId = params.id as string;
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme || 'light'];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   
   // State
   const [workout, setWorkout] = useState<Workout | null>(null);
@@ -699,21 +703,16 @@ export default function WorkoutDetailScreen() {
   };
 
   return (
-    <>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
-      <Stack.Screen
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
+      <Stack.Screen 
         options={{
-          title: 'Workout Details',
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons 
-                name="arrow-back" 
-                size={24} 
-                color={colors.text} 
-                style={{ marginLeft: 8 }}
-              />
-            </TouchableOpacity>
-          ),
+          title: "Workout Details",
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.text,
         }}
       />
       
@@ -741,7 +740,7 @@ export default function WorkoutDetailScreen() {
           </>
         )}
       </ScrollView>
-    </>
+    </View>
   );
 }
 

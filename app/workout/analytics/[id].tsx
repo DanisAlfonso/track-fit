@@ -3,12 +3,13 @@ import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, AntDesign } from '@expo/vector-icons';
 import Colors from '../../../constants/Colors';
-import { useColorScheme } from '../../../hooks/useColorScheme';
+import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { formatDate, calculateDuration } from '../../../utils/dateUtils';
 import { getDatabase } from '../../../utils/database';
 import { LineChart, BarChart, PieChart, ContributionGraph } from 'react-native-chart-kit';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 // Types
 interface Set {
@@ -60,7 +61,10 @@ export default function WorkoutAnalyticsScreen() {
   const workoutId = params.id as string;
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme || 'light'];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   
   const windowWidth = Dimensions.get('window').width;
   
@@ -408,7 +412,7 @@ export default function WorkoutAnalyticsScreen() {
                   backgroundGradientFrom: colors.card,
                   backgroundGradientTo: colors.card,
                   decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
+                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
                   labelColor: (opacity = 1) => colors.text,
                   style: { borderRadius: 16 },
                   propsForDots: {
@@ -534,8 +538,8 @@ export default function WorkoutAnalyticsScreen() {
                   backgroundColor: colors.card,
                   backgroundGradientFrom: colors.card,
                   backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
+                  color: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
                 }}
                 accessor="volume"
                 backgroundColor="transparent"
@@ -589,7 +593,7 @@ export default function WorkoutAnalyticsScreen() {
                             {muscleName}
                           </Text>
                         </View>
-                        <View style={[styles.muscleBarWrapper, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+                        <View style={[styles.muscleBarWrapper, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
                           <View 
                             style={[
                               styles.muscleBar, 
@@ -615,7 +619,7 @@ export default function WorkoutAnalyticsScreen() {
               </View>
               
               {/* Muscle balance insights */}
-              <View style={[styles.muscleBalanceCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <View style={[styles.muscleBalanceCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
                 <Text style={[styles.muscleBalanceTitle, { color: colors.text }]}>
                   Muscle Balance Insights
                 </Text>
@@ -786,7 +790,7 @@ export default function WorkoutAnalyticsScreen() {
               <View style={[
                 styles.volumeBreakdownContainer, 
                 { 
-                  backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
                   borderColor: colors.border,
                   borderWidth: 1
                 }
@@ -958,8 +962,8 @@ export default function WorkoutAnalyticsScreen() {
                   backgroundColor: colors.card,
                   backgroundGradientFrom: colors.card,
                   backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
+                  color: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
                 }}
                 accessor="volume"
                 backgroundColor="transparent"
@@ -1076,22 +1080,15 @@ export default function WorkoutAnalyticsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen
         options={{
-          title: 'Workout Analytics',
-          headerLeft: () => (
-            <TouchableOpacity 
-              style={styles.headerButton} 
-              onPress={() => router.back()}
-            >
-              <Ionicons 
-                name="arrow-back" 
-                size={24} 
-                color={colors.text} 
-              />
-            </TouchableOpacity>
-          ),
+          title: 'Workout Analysis',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.background,
+          },
+          headerTintColor: colors.text,
         }}
       />
       

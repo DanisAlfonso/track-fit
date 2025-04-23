@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { formatDate, formatRelativeDate, calculateDuration } from '../utils/dateUtils';
 import { getDatabase } from '../utils/database';
 import { LineChart, BarChart, PieChart, ContributionGraph } from 'react-native-chart-kit';
+import { useTheme } from '@/context/ThemeContext';
 
 // Types
 interface WorkoutSummary {
@@ -50,7 +51,10 @@ interface TrainingTypeDistribution {
 export default function WorkoutAnalyticsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme || 'light'];
+  const { theme } = useTheme();
+  const systemTheme = colorScheme ?? 'light';
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const colors = Colors[currentTheme];
   
   const windowWidth = Dimensions.get('window').width;
   
@@ -468,7 +472,7 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           <View style={styles.statsGrid}>
-            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
               <View style={styles.statIconContainer}>
                 <MaterialCommunityIcons name="calendar-check" size={24} color={colors.primary} />
               </View>
@@ -480,7 +484,7 @@ export default function WorkoutAnalyticsScreen() {
               </Text>
             </View>
             
-            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
               <View style={styles.statIconContainer}>
                 <MaterialCommunityIcons name="weight-lifter" size={24} color={colors.primary} />
               </View>
@@ -537,7 +541,7 @@ export default function WorkoutAnalyticsScreen() {
               )}
             </View>
             
-            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
               <View style={styles.statIconContainer}>
                 <Ionicons name="time-outline" size={24} color={colors.primary} />
               </View>
@@ -549,7 +553,7 @@ export default function WorkoutAnalyticsScreen() {
               </Text>
             </View>
             
-            <View style={[styles.statCard, { backgroundColor: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
               <View style={styles.statIconContainer}>
                 <MaterialCommunityIcons name="repeat" size={24} color={colors.primary} />
               </View>
@@ -655,9 +659,9 @@ export default function WorkoutAnalyticsScreen() {
     const unspecifiedPercentage = totalVolume > 0 ? Math.round((trainingTypeVolumes.unspecified / totalVolume) * 100) : 0;
     
     // Calculate background colors based on color scheme
-    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
-    const mediumBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
-    const borderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const lightBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    const mediumBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const borderColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
     
     // Prepare volume data for line chart
     const volumeData = {
@@ -668,7 +672,7 @@ export default function WorkoutAnalyticsScreen() {
       datasets: [
         {
           data: volumeTrends.slice(-6).map(d => d.volume),
-          color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
+          color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
           strokeWidth: 2
         }
       ],
@@ -693,7 +697,7 @@ export default function WorkoutAnalyticsScreen() {
                   backgroundGradientFrom: colors.card,
                   backgroundGradientTo: colors.card,
                   decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
+                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
                   labelColor: (opacity = 1) => colors.text,
                   style: { borderRadius: 16 },
                   propsForDots: {
@@ -942,7 +946,7 @@ export default function WorkoutAnalyticsScreen() {
     };
 
     // Calculate background colors based on color scheme
-    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    const lightBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
     
     return (
       <View style={styles.tabContent}>
@@ -961,8 +965,8 @@ export default function WorkoutAnalyticsScreen() {
                   backgroundColor: colors.card,
                   backgroundGradientFrom: colors.card,
                   backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
+                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
                 }}
                 accessor="volume"
                 backgroundColor="transparent"
@@ -1110,9 +1114,9 @@ export default function WorkoutAnalyticsScreen() {
   const renderExercisesTab = () => {
     // Calculate background colors based on color scheme
     const cardBackgroundColor = colors.card;
-    const lightBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
-    const mediumBackgroundColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
-    const borderColor = colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const lightBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    const mediumBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    const borderColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
     
     // Define exercise type colors (matching our training intensity colors)
     const exerciseColors = {
@@ -1229,8 +1233,8 @@ export default function WorkoutAnalyticsScreen() {
                         height={120}
                         chartConfig={{
                           backgroundColor: 'transparent',
-                          backgroundGradientFrom: colorScheme === 'dark' ? 'rgba(50, 50, 50, 0.8)' : 'rgba(240, 240, 240, 0.8)',
-                          backgroundGradientTo: colorScheme === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.8)',
+                          backgroundGradientFrom: currentTheme === 'dark' ? 'rgba(50, 50, 50, 0.8)' : 'rgba(240, 240, 240, 0.8)',
+                          backgroundGradientTo: currentTheme === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.8)',
                           decimalPlaces: 0,
                           color: (opacity = 1) => `rgba(${colorRgbValues}, ${opacity})`,
                           labelColor: (opacity = 1) => colors.subtext,
@@ -1377,7 +1381,7 @@ export default function WorkoutAnalyticsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen
         options={{
           title: 'Workout Analytics',
