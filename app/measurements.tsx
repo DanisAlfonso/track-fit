@@ -10,7 +10,8 @@ import {
   Modal,
   ActivityIndicator,
   Dimensions,
-  Animated
+  Animated,
+  RefreshControl
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -71,6 +72,7 @@ export default function MeasurementsScreen() {
   
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedTab, setSelectedTab] = useState<MeasurementType>('weight');
   const [newEntry, setNewEntry] = useState<MeasurementEntry>({
@@ -95,6 +97,26 @@ export default function MeasurementsScreen() {
   // Animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
   
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      // Reload weight unit preference
+      const unit = await getWeightUnitPreference();
+      setWeightUnit(unit);
+      
+      // Reload data
+      await loadTrackedMeasurements();
+      await loadMeasurementData();
+      handleTabSelection();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      Alert.alert('Error', 'Failed to refresh your measurement data');
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+  
   // Load data on initial render
   useEffect(() => {
     loadData();
@@ -108,6 +130,10 @@ export default function MeasurementsScreen() {
       const refreshData = async () => {
         try {
           setLoading(true);
+          // Load weight unit preference again when screen gains focus
+          const unit = await getWeightUnitPreference();
+          setWeightUnit(unit);
+          
           await loadTrackedMeasurements();
           await loadMeasurementData();
           handleTabSelection(); // Check if we need to handle special cases after loading data
@@ -365,6 +391,53 @@ export default function MeasurementsScreen() {
       day: 'numeric'
     });
   };
+
+  // Format measurement values for display
+  const formatMeasurementValue = (value: number, unit: string, type: MeasurementType): string => {
+    // For weight measurements, format with 1 decimal place for cleaner display
+    if (type === 'weight') {
+      if (unit === 'kg' || unit === 'lb') {
+        return value.toFixed(1);
+      }
+    }
+    
+    // For other measurements, maintain current display
+    return value.toString();
+  };
+
+  // Convert measurement value based on current weight unit preference
+  const convertMeasurementValue = (measurement: Measurement): number => {
+    // Only convert weight measurements
+    if (measurement.type !== 'weight') {
+      return measurement.value;
+    }
+
+    // If measurement unit matches current preference, no conversion needed
+    if (measurement.unit === weightUnit) {
+      return measurement.value;
+    }
+
+    // Convert from kg to lb
+    if (measurement.unit === 'kg' && weightUnit === 'lb') {
+      return kgToLb(measurement.value);
+    }
+
+    // Convert from lb to kg
+    if (measurement.unit === 'lb' && weightUnit === 'kg') {
+      return lbToKg(measurement.value);
+    }
+
+    // Default fallback
+    return measurement.value;
+  };
+
+  // Get appropriate unit to display based on measurement type and current preferences
+  const getDisplayUnit = (measurement: Measurement): string => {
+    if (measurement.type === 'weight') {
+      return weightUnit; // Always show in current preference unit
+    }
+    return measurement.unit; // For non-weight, use original unit
+  };
   
   const getMeasurementColor = (type: MeasurementType): string => {
     switch(type) {
@@ -396,10 +469,12 @@ export default function MeasurementsScreen() {
     // Special case for single data point
     if (filteredData.length === 1) {
       const dateLabel = formatDate(filteredData[0].date).substring(0, 6);
+      // Convert value if needed
+      const convertedValue = convertMeasurementValue(filteredData[0]);
       return {
         labels: [dateLabel, dateLabel], // Duplicate the label to show a point
         datasets: [{ 
-          data: [filteredData[0].value, filteredData[0].value], // Duplicate the value to show a flat line
+          data: [convertedValue, convertedValue], // Duplicate the value to show a flat line
           color: () => getMeasurementColor(type),
           strokeWidth: 3
         }]
@@ -412,7 +487,7 @@ export default function MeasurementsScreen() {
     return {
       labels: chartData.map(item => formatDate(item.date).substring(0, 6)),
       datasets: [{
-        data: chartData.map(item => item.value),
+        data: chartData.map(item => convertMeasurementValue(item)),
         color: () => getMeasurementColor(type),
         strokeWidth: 3
       }]
@@ -423,8 +498,8 @@ export default function MeasurementsScreen() {
     if (measurements.length < 2) return colors.text;
     
     // Measurements are sorted by date DESC, so first is latest
-    const latest = measurements[0].value;
-    const previous = measurements[1].value;
+    const latest = convertMeasurementValue(measurements[0]);
+    const previous = convertMeasurementValue(measurements[1]);
     
     // For weight, lower is generally better
     if (measurements[0].type === 'weight') {
@@ -439,13 +514,17 @@ export default function MeasurementsScreen() {
     if (measurements.length < 2) return "N/A";
     
     // Measurements are sorted by date DESC, so first is latest
-    const latest = measurements[0].value;
-    const previous = measurements[1].value;
+    const latest = convertMeasurementValue(measurements[0]);
+    const previous = convertMeasurementValue(measurements[1]);
     const diff = latest - previous;
     const percentChange = ((diff / previous) * 100).toFixed(1);
     
     const changeSymbol = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
-    return `${changeSymbol} ${Math.abs(diff).toFixed(1)} ${measurements[0].unit} (${diff > 0 ? '+' : ''}${percentChange}%)`;
+    
+    // Format the difference value using the new formatter
+    const formattedDiff = formatMeasurementValue(Math.abs(diff), getDisplayUnit(measurements[0]), measurements[0].type);
+    
+    return `${changeSymbol} ${formattedDiff} ${getDisplayUnit(measurements[0])} (${diff > 0 ? '+' : ''}${percentChange}%)`;
   };
 
   const renderMeasurementTabs = () => {
@@ -572,8 +651,12 @@ export default function MeasurementsScreen() {
                   <View style={styles.progressSummary}>
                     <Text style={[styles.latestLabel, { color: colors.subtext }]}>Latest</Text>
                     <Text style={[styles.latestValue, { color: colors.text }]}>
-                      {measurements.filter(m => m.type === selectedTab)[0].value} 
-                      {' '}{measurements.filter(m => m.type === selectedTab)[0].unit}
+                      {formatMeasurementValue(
+                        convertMeasurementValue(measurements.filter(m => m.type === selectedTab)[0]),
+                        getDisplayUnit(measurements.filter(m => m.type === selectedTab)[0]),
+                        selectedTab as MeasurementType
+                      )} 
+                      {' '}{getDisplayUnit(measurements.filter(m => m.type === selectedTab)[0])}
                     </Text>
                   </View>
                   
@@ -607,7 +690,11 @@ export default function MeasurementsScreen() {
             {measurements.filter(m => m.type === 'height').length > 0 ? (
               <View style={styles.heightValueContainer}>
                 <Text style={[styles.heightValue, { color: colors.text }]}>
-                  {measurements.filter(m => m.type === 'height')[0].value} cm
+                  {formatMeasurementValue(
+                    convertMeasurementValue(measurements.filter(m => m.type === 'height')[0]),
+                    getDisplayUnit(measurements.filter(m => m.type === 'height')[0]),
+                    'height'
+                  )} {getDisplayUnit(measurements.filter(m => m.type === 'height')[0])}
                 </Text>
                 <Text style={[styles.heightNote, { color: colors.subtext }]}>
                   Height is tracked for statistical purposes only
@@ -643,7 +730,11 @@ export default function MeasurementsScreen() {
                     </View>
                     <View style={styles.historyValue}>
                       <Text style={[styles.historyValueText, { color: colors.text }]}>
-                        {measurement.value} {measurement.unit}
+                        {formatMeasurementValue(
+                          convertMeasurementValue(measurement),
+                          getDisplayUnit(measurement), 
+                          measurement.type
+                        )} {getDisplayUnit(measurement)}
                       </Text>
                     </View>
                     <TouchableOpacity 
@@ -905,6 +996,14 @@ export default function MeasurementsScreen() {
             style={styles.mainScrollView}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.mainScrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
           >
             <LinearGradient
               colors={[colors.primary, colors.secondary || colors.primary]}
@@ -912,6 +1011,11 @@ export default function MeasurementsScreen() {
             >
               <Text style={styles.headerText}>Body Measurements</Text>
               <Text style={styles.headerSubtext}>Track your progress over time</Text>
+              {weightUnit === 'kg' ? (
+                <Text style={styles.headerUnitText}>Showing measurements in kg</Text>
+              ) : (
+                <Text style={styles.headerUnitText}>Showing measurements in lb</Text>
+              )}
             </LinearGradient>
             
             {renderMeasurementTabs()}
@@ -969,6 +1073,12 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
     marginTop: 4,
+  },
+  headerUnitText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginTop: 2,
   },
   content: {
     padding: 16,
