@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback, Vibration } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback, Vibration, AppState, AppStateStatus } from 'react-native';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -74,6 +74,14 @@ export default function StartWorkoutScreen() {
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
   const timerAnimation = useRef(new Animated.Value(0)).current;
+  const appStateRef = useRef(AppState.currentState);
+  const lastBackgroundTime = useRef<number | null>(null);
+  const lastSaveAttempt = useRef<number>(0);
+  const saveInProgress = useRef<boolean>(false);
+  const [appStateEvents, setAppStateEvents] = useState<{background: number, foreground: number}>({
+    background: 0,
+    foreground: 0
+  });
 
   // Get workout context functions
   const { 
@@ -184,17 +192,52 @@ export default function StartWorkoutScreen() {
   // Update workout duration every second
   useEffect(() => {
     if (workoutStarted && workoutStartTime.current) {
-      workoutTimer.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - workoutStartTime.current!) / 1000);
+      // Use a more reliable method to track time that accounts for background state
+      const calculateElapsedTime = () => {
+        if (!workoutStartTime.current) return;
+        
+        const elapsed = Math.floor((Date.now() - workoutStartTime.current) / 1000);
         setWorkoutDuration(elapsed);
-      }, 1000);
+      };
+      
+      // Initial calculation
+      calculateElapsedTime();
+      
+      // Set up interval
+      workoutTimer.current = setInterval(calculateElapsedTime, 1000);
     }
     return () => {
       if (workoutTimer.current) {
         clearInterval(workoutTimer.current);
+        workoutTimer.current = null;
       }
     };
   }, [workoutStarted]);
+
+  // Periodically save workout progress even if app stays in foreground
+  useEffect(() => {
+    let autoSaveTimer: NodeJS.Timeout | null = null;
+    
+    if (workoutId && workoutStarted) {
+      // Auto-save every 2 minutes
+      autoSaveTimer = setInterval(() => {
+        // Only attempt to save if not currently saving and if it's been at least 30 seconds since last attempt
+        const now = Date.now();
+        if (!saveInProgress.current && now - lastSaveAttempt.current >= 30000) {
+          console.log('Auto-saving workout progress...');
+          saveWorkoutProgress(false).catch(error => {
+            console.error('Auto-save failed:', error);
+          });
+        }
+      }, 2 * 60 * 1000); // 2 minutes
+    }
+    
+    return () => {
+      if (autoSaveTimer) {
+        clearInterval(autoSaveTimer);
+      }
+    };
+  }, [workoutId, workoutStarted]);
 
   // When leaving the screen, handle minimization
   useEffect(() => {
@@ -202,7 +245,7 @@ export default function StartWorkoutScreen() {
       // Only minimize if we have an active workout and we're not finishing
       if (workoutId && workoutStarted) {
         // Save progress before minimizing
-        saveWorkoutProgress().then(() => {
+        saveWorkoutProgress(true).then(() => {
           minimizeWorkout();
         }).catch(error => {
           console.error('Failed to save workout:', error);
@@ -1168,92 +1211,125 @@ export default function StartWorkoutScreen() {
     );
   };
 
-  // Function to save workout progress to the database
-  const saveWorkoutProgress = async () => {
+  // Function to save workout progress to the database with retry logic
+  const saveWorkoutProgress = async (isUrgent: boolean = false): Promise<void> => {
     if (!workoutId) return;
+    
+    // Mark that a save attempt is in progress
+    saveInProgress.current = true;
+    lastSaveAttempt.current = Date.now();
     
     try {
       const db = await getDatabase();
       
       // Update workout duration and notes
-      const now = new Date();
-      const durationMs = now.getTime() - new Date(workoutStartTime.current!).getTime();
+      const now = Date.now();
+      const durationMs = now - workoutStartTime.current!;
       const durationSec = Math.floor(durationMs / 1000);
       
-      await db.runAsync(
-        'UPDATE workouts SET duration = ?, notes = ? WHERE id = ?',
-        [durationSec, workoutNotes, workoutId]
-      );
-      
-      // Save each exercise and its sets
-      for (const exercise of exercises) {
-        // Skip exercises with no sets or all sets are empty
-        const hasCompletedSets = exercise.sets_data.some(set => set.completed);
-        const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
-        
-        if (!hasCompletedSets && !hasAnySetData) {
-          continue; // Skip this exercise entirely
-        }
-        
-        // Ensure the workout_exercise record exists
-        let workoutExerciseId = null;
-        const existingExercise = await db.getFirstAsync<{id: number}>(
-          `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
-          [workoutId, exercise.exercise_id]
-        );
-        
-        if (existingExercise) {
-          workoutExerciseId = existingExercise.id;
-          // Update existing workout exercise
+      // Save progress with retry logic
+      const saveWithRetry = async (retryCount = 0, maxRetries = isUrgent ? 5 : 3) => {
+        try {
+          // First update the main workout record
           await db.runAsync(
-            `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
-            [exercise.completedSets, exercise.notes || '', workoutExerciseId]
+            'UPDATE workouts SET duration = ?, notes = ? WHERE id = ?',
+            [durationSec, workoutNotes, workoutId]
           );
-        } else {
-          // Create new workout exercise record
-          const result = await db.runAsync(
-            `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
-            [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
-          );
-          workoutExerciseId = Number(result.lastInsertRowId);
-        }
-        
-        // Save all sets for this exercise
-        if (workoutExerciseId && exercise.sets_data) {
-          for (const set of exercise.sets_data) {
+          
+          // Save each exercise and its sets
+          for (const exercise of exercises) {
+            // Skip exercises with no sets or all sets are empty
+            const hasCompletedSets = exercise.sets_data.some(set => set.completed);
+            const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
             
-            if (set.id) {
-              // Update existing set
+            if (!hasCompletedSets && !hasAnySetData && !exercise.notes) {
+              continue; // Skip this exercise entirely
+            }
+            
+            // Ensure the workout_exercise record exists
+            let workoutExerciseId = null;
+            const existingExercise = await db.getFirstAsync<{id: number}>(
+              `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
+              [workoutId, exercise.exercise_id]
+            );
+            
+            if (existingExercise) {
+              workoutExerciseId = existingExercise.id;
+              // Update existing workout exercise
               await db.runAsync(
-                `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, rest_time = ?, notes = ? WHERE id = ?`,
-                [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.rest_time, set.notes || '', set.id]
+                `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
+                [exercise.completedSets, exercise.notes || '', workoutExerciseId]
               );
             } else {
-              // Create new set
+              // Create new workout exercise record
               const result = await db.runAsync(
-                `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  workoutExerciseId, 
-                  set.set_number, 
-                  set.reps, 
-                  set.weight, 
-                  set.rest_time || 60, 
-                  set.completed ? 1 : 0,
-                  set.training_type || null,
-                  set.notes || ''
-                ]
+                `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
+                [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
               );
-              
-              // Update the set with its ID
-              set.id = Number(result.lastInsertRowId);
+              workoutExerciseId = Number(result.lastInsertRowId);
+            }
+            
+            // Save all sets for this exercise
+            if (workoutExerciseId && exercise.sets_data) {
+              for (const set of exercise.sets_data) {
+                try {
+                  // Skip empty sets that haven't been completed
+                  if (!set.completed && set.reps === 0 && set.weight === 0 && !set.notes) {
+                    continue;
+                  }
+                  
+                  if (set.id) {
+                    // Update existing set
+                    await db.runAsync(
+                      `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, rest_time = ?, notes = ? WHERE id = ?`,
+                      [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.rest_time || 60, set.notes || '', set.id]
+                    );
+                  } else {
+                    // Create new set
+                    const result = await db.runAsync(
+                      `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                      [
+                        workoutExerciseId, 
+                        set.set_number, 
+                        set.reps, 
+                        set.weight, 
+                        set.rest_time || 60, 
+                        set.completed ? 1 : 0,
+                        set.training_type || null,
+                        set.notes || ''
+                      ]
+                    );
+                    
+                    // Update the set with its ID
+                    set.id = Number(result.lastInsertRowId);
+                  }
+                } catch (setError) {
+                  console.error('Error saving set:', setError);
+                  // Continue with other sets even if one fails
+                }
+              }
             }
           }
+          console.log('Workout progress saved successfully');
+        } catch (error) {
+          console.error(`Error saving workout progress (attempt ${retryCount + 1}):`, error);
+          if (retryCount < maxRetries) {
+            // Wait a bit before retrying, with exponential backoff
+            const delay = Math.min(500 * Math.pow(2, retryCount), 5000);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return saveWithRetry(retryCount + 1, maxRetries);
+          } else {
+            throw error;
+          }
         }
-      }
+      };
       
-      console.log('Workout progress saved successfully');
+      await saveWithRetry();
     } catch (error) {
-      console.error('Error saving workout progress:', error);
+      console.error('Error saving workout progress after retries:', error);
+      // Even though we had an error, we don't want to alert during normal saving
+    } finally {
+      saveInProgress.current = false;
     }
   };
 
@@ -1522,6 +1598,219 @@ export default function StartWorkoutScreen() {
   // Function to measure and store position of muscle groups
   const measureMusclePosition = (muscle: string, y: number) => {
     musclePositions.current[muscle] = y;
+  };
+
+  // Handle app state changes
+  const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
+    const now = Date.now();
+    
+    if (appStateRef.current.match(/active/) && nextAppState.match(/inactive|background/)) {
+      // App is going to background
+      console.log('App is going to background, saving workout state...');
+      lastBackgroundTime.current = now;
+      
+      setAppStateEvents(prev => ({
+        ...prev,
+        background: prev.background + 1
+      }));
+      
+      // Save workout progress immediately when app goes to background
+      if (workoutId && workoutStarted) {
+        saveWorkoutProgress(true).catch(error => {
+          console.error('Failed to save workout before going to background:', error);
+        });
+      }
+    } else if (nextAppState === 'active' && appStateRef.current.match(/inactive|background/)) {
+      // App is coming back to foreground
+      console.log('App is returning to foreground');
+      
+      setAppStateEvents(prev => ({
+        ...prev,
+        foreground: prev.foreground + 1
+      }));
+      
+      // If app was in background for more than 5 minutes, refresh the workout data
+      if (lastBackgroundTime.current && (now - lastBackgroundTime.current > 5 * 60 * 1000)) {
+        console.log('App was in background for a long time, refreshing workout data');
+        
+        if (workoutId && workoutStarted) {
+          // Recalculate workout duration based on actual start time
+          if (workoutStartTime.current) {
+            const elapsed = Math.floor((now - workoutStartTime.current) / 1000);
+            setWorkoutDuration(elapsed);
+          }
+          
+          // Reload workout data from database to ensure we have latest state
+          if (workoutId) {
+            refreshWorkoutDataFromDatabase(workoutId)
+              .catch(error => {
+                console.error('Failed to refresh workout data:', error);
+              });
+          }
+        }
+      }
+    }
+    
+    appStateRef.current = nextAppState;
+  }, [workoutId, workoutStarted]);
+  
+  // Set up AppState change listener
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [handleAppStateChange]);
+
+  // Function to reload workout data from database
+  const refreshWorkoutDataFromDatabase = async (workoutId: number) => {
+    try {
+      console.log('Refreshing workout data from database for workout', workoutId);
+      const db = await getDatabase();
+      
+      // Get all workout exercises
+      const exerciseRecords = await db.getAllAsync<{
+        id: number;
+        exercise_id: number;
+        sets_completed: number;
+        notes: string | null;
+      }>('SELECT id, exercise_id, sets_completed, notes FROM workout_exercises WHERE workout_id = ?', [workoutId]);
+      
+      // Temp map to store workout exercise records by exercise_id
+      const exerciseMap = new Map();
+      for (const record of exerciseRecords) {
+        exerciseMap.set(record.exercise_id, record);
+      }
+      
+      // Update exercises with latest data from database
+      const updatedExercises = [...exercises];
+      let dataChanged = false;
+      
+      for (let i = 0; i < updatedExercises.length; i++) {
+        const exercise = updatedExercises[i];
+        const dbRecord = exerciseMap.get(exercise.exercise_id);
+        
+        if (dbRecord) {
+          // Update notes
+          if (exercise.notes !== (dbRecord.notes || '')) {
+            exercise.notes = dbRecord.notes || '';
+            dataChanged = true;
+          }
+          
+          // Get all sets for this exercise
+          const sets = await db.getAllAsync<Set>(
+            `SELECT id, set_number, reps, weight, rest_time, completed, training_type, notes
+             FROM sets
+             WHERE workout_exercise_id = ?
+             ORDER BY set_number`,
+            [dbRecord.id]
+          );
+          
+          if (sets.length > 0) {
+            // Map existing sets by set_number for comparison
+            const existingSetsMap = new Map();
+            exercise.sets_data.forEach(set => {
+              existingSetsMap.set(set.set_number, set);
+            });
+            
+            // Update sets with data from database
+            const updatedSets: Set[] = [];
+            let setsChanged = false;
+            
+            for (const dbSet of sets) {
+              const existingSet = existingSetsMap.get(dbSet.set_number);
+              
+              if (existingSet) {
+                // Check if any properties have changed
+                if (existingSet.reps !== dbSet.reps || 
+                    existingSet.weight !== dbSet.weight ||
+                    existingSet.completed !== !!dbSet.completed ||
+                    existingSet.training_type !== dbSet.training_type ||
+                    existingSet.notes !== (dbSet.notes || '')) {
+                  setsChanged = true;
+                }
+                
+                // Update with latest data from database
+                updatedSets.push({
+                  ...dbSet,
+                  completed: !!dbSet.completed,
+                  notes: dbSet.notes || ''
+                });
+              } else {
+                // New set added in database
+                updatedSets.push({
+                  ...dbSet,
+                  completed: !!dbSet.completed,
+                  notes: dbSet.notes || ''
+                });
+                setsChanged = true;
+              }
+            }
+            
+            // Add any missing sets from the original data
+            for (const existingSet of exercise.sets_data) {
+              if (!sets.some(s => s.set_number === existingSet.set_number)) {
+                updatedSets.push(existingSet);
+                setsChanged = true;
+              }
+            }
+            
+            // Sort sets by set_number
+            updatedSets.sort((a, b) => a.set_number - b.set_number);
+            
+            if (setsChanged) {
+              exercise.sets_data = updatedSets;
+              exercise.completedSets = updatedSets.filter(s => s.completed).length;
+              dataChanged = true;
+            }
+          }
+        }
+      }
+      
+      // Only update state if data has changed
+      if (dataChanged) {
+        console.log('Workout data refreshed with changes');
+        setExercises(updatedExercises);
+      } else {
+        console.log('No changes detected in workout data');
+      }
+      
+    } catch (error) {
+      console.error('Error refreshing workout data:', error);
+      throw error;
+    }
+  };
+
+  // Render a diagnostic display for development mode
+  const renderDiagnostics = () => {
+    if (!__DEV__ || !workoutStarted) return null;
+    
+    return (
+      <View style={{
+        position: 'absolute',
+        bottom: 120,
+        left: 16,
+        right: 16,
+        backgroundColor: colors.primary + '20',
+        padding: 12,
+        borderRadius: 12,
+        zIndex: 999,
+      }}>
+        <Text style={{ color: colors.text, fontWeight: 'bold', marginBottom: 4 }}>
+          App State Diagnostics
+        </Text>
+        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
+          Background events: {appStateEvents.background}
+        </Text>
+        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
+          Foreground events: {appStateEvents.foreground}
+        </Text>
+        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
+          Last save: {lastSaveAttempt.current ? new Date(lastSaveAttempt.current).toLocaleTimeString() : 'Never'}
+        </Text>
+      </View>
+    );
   };
 
   if (isLoading) {
@@ -2053,6 +2342,7 @@ export default function StartWorkoutScreen() {
           </View>
         </View>
       </Modal>
+      {renderDiagnostics()}
     </View>
   );
 }
@@ -2711,5 +3001,24 @@ const styles = StyleSheet.create({
   muscleNavText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Diagnostic display styles
+  diagnosticContainer: {
+    position: 'absolute',
+    bottom: 120,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(100, 100, 255, 0.15)',
+    padding: 12,
+    borderRadius: 12,
+    zIndex: 999,
+  },
+  diagnosticTitle: {
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  diagnosticText: {
+    fontSize: 12,
+    marginBottom: 2,
   },
 })
