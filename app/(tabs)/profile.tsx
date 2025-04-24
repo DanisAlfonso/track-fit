@@ -14,7 +14,9 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
+export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
+export type LengthUnit = 'cm' | 'in';
 const USER_NAME_KEY = 'user_name';
 
 export const getWeightUnitPreference = async (): Promise<WeightUnit> => {
@@ -35,6 +37,24 @@ export const setWeightUnitPreference = async (value: WeightUnit): Promise<void> 
   }
 };
 
+export const getLengthUnitPreference = async (): Promise<LengthUnit> => {
+  try {
+    const storedValue = await AsyncStorage.getItem(LENGTH_UNIT_STORAGE_KEY);
+    return storedValue as LengthUnit || 'cm'; // Default to cm if no preference is set
+  } catch (error) {
+    console.error('Error fetching length unit preference:', error);
+    return 'cm'; // Default to cm on error
+  }
+};
+
+export const setLengthUnitPreference = async (value: LengthUnit): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(LENGTH_UNIT_STORAGE_KEY, value);
+  } catch (error) {
+    console.error('Error saving length unit preference:', error);
+  }
+};
+
 // Conversion functions
 export const kgToLb = (kg: number): number => {
   return kg * 2.20462;
@@ -44,6 +64,14 @@ export const lbToKg = (lb: number): number => {
   return lb / 2.20462;
 };
 
+export const cmToInches = (cm: number): number => {
+  return cm / 2.54;
+};
+
+export const inchesToCm = (inches: number): number => {
+  return inches * 2.54;
+};
+
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const { theme, setTheme } = useTheme();
@@ -51,6 +79,7 @@ export default function ProfileScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const [useKilograms, setUseKilograms] = useState(true);
+  const [useCentimeters, setUseCentimeters] = useState(true);
   const [userName, setUserName] = useState('Fitness Enthusiast');
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [workoutStats, setWorkoutStats] = useState({
@@ -73,8 +102,12 @@ export default function ProfileScreen() {
   
   const loadData = async () => {
     // Load weight unit preference
-    const unit = await getWeightUnitPreference();
-    setUseKilograms(unit === 'kg');
+    const weightUnit = await getWeightUnitPreference();
+    setUseKilograms(weightUnit === 'kg');
+    
+    // Load length unit preference
+    const lengthUnit = await getLengthUnitPreference();
+    setUseCentimeters(lengthUnit === 'cm');
     
     // Load user name if saved
     try {
@@ -152,6 +185,11 @@ export default function ProfileScreen() {
   const toggleWeightUnit = async (value: boolean) => {
     setUseKilograms(value);
     await setWeightUnitPreference(value ? 'kg' : 'lb');
+  };
+
+  const toggleLengthUnit = async (value: boolean) => {
+    setUseCentimeters(value);
+    await setLengthUnitPreference(value ? 'cm' : 'in');
   };
 
   // Generate streak indicator dots
@@ -878,11 +916,11 @@ export default function ProfileScreen() {
       
       {/* Settings Sections */}
       <View style={styles.settingsSections}>
-        {/* Workout Preferences Section */}
+        {/* Measurement Units Section (renamed from Workout Preferences) */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
           <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
-            <FontAwesome5 name="sliders-h" size={18} color={colors.primary} style={styles.sectionIcon} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Workout Preferences</Text>
+            <FontAwesome5 name="ruler-combined" size={18} color={colors.primary} style={styles.sectionIcon} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Measurement Units</Text>
           </View>
           
           <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
@@ -914,6 +952,39 @@ export default function ProfileScreen() {
                 style={[styles.unitLabel, { color: useKilograms ? colors.primary : colors.subtext }]}
               >
                 kg
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.settingItem}>
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="ruler" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Length Unit</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Set your preferred unit for body measurements
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.weightUnitToggle}>
+              <Text
+                style={[styles.unitLabel, { color: !useCentimeters ? colors.primary : colors.subtext }]}
+              >
+                in
+              </Text>
+              <Switch
+                value={useCentimeters}
+                onValueChange={toggleLengthUnit}
+                trackColor={{ false: Platform.OS === 'ios' ? colors.border : colors.border, true: colors.primary }}
+                thumbColor={Platform.OS === 'ios' ? 'white' : useCentimeters ? 'white' : colors.card}
+                ios_backgroundColor={colors.border}
+                style={styles.switch}
+              />
+              <Text
+                style={[styles.unitLabel, { color: useCentimeters ? colors.primary : colors.subtext }]}
+              >
+                cm
               </Text>
             </View>
           </View>

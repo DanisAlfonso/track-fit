@@ -21,7 +21,16 @@ import { LineChart } from 'react-native-chart-kit';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { useTheme } from '@/context/ThemeContext';
-import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from './(tabs)/profile';
+import { 
+  getWeightUnitPreference, 
+  getLengthUnitPreference, 
+  WeightUnit, 
+  LengthUnit, 
+  kgToLb, 
+  lbToKg,
+  cmToInches,
+  inchesToCm
+} from './(tabs)/profile';
 
 // Define types for measurements
 type MeasurementType = 'weight' | 'height' | 'chest' | 'waist' | 'hips' | 'biceps' | 'thighs' | 'calves' | 'custom';
@@ -71,6 +80,7 @@ export default function MeasurementsScreen() {
   const colors = Colors[currentTheme];
   
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
+  const [lengthUnit, setLengthUnit] = useState<LengthUnit>('cm');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -78,20 +88,20 @@ export default function MeasurementsScreen() {
   const [newEntry, setNewEntry] = useState<MeasurementEntry>({
     type: 'weight',
     value: '',
-    unit: 'kg'
+    unit: weightUnit
   });
   
   // State to store all measurement data and what user is tracking
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [userMeasurements, setUserMeasurements] = useState<MeasurementDisplay[]>([
-    { key: 'weight', label: 'Weight', icon: 'weight', unit: 'kg', isTracking: true },
-    { key: 'height', label: 'Height', icon: 'ruler-vertical', unit: 'cm', isTracking: true },
-    { key: 'chest', label: 'Chest', icon: 'tshirt', unit: 'cm', isTracking: false },
-    { key: 'waist', label: 'Waist', icon: 'ruler', unit: 'cm', isTracking: false },
-    { key: 'hips', label: 'Hips', icon: 'ruler', unit: 'cm', isTracking: false },
-    { key: 'biceps', label: 'Biceps', icon: 'dumbbell', unit: 'cm', isTracking: false },
-    { key: 'thighs', label: 'Thighs', icon: 'running', unit: 'cm', isTracking: false },
-    { key: 'calves', label: 'Calves', icon: 'shoe-prints', unit: 'cm', isTracking: false }
+    { key: 'weight', label: 'Weight', icon: 'weight', unit: weightUnit, isTracking: true },
+    { key: 'height', label: 'Height', icon: 'ruler-vertical', unit: lengthUnit, isTracking: true },
+    { key: 'chest', label: 'Chest', icon: 'tshirt', unit: lengthUnit, isTracking: false },
+    { key: 'waist', label: 'Waist', icon: 'ruler', unit: lengthUnit, isTracking: false },
+    { key: 'hips', label: 'Hips', icon: 'ruler', unit: lengthUnit, isTracking: false },
+    { key: 'biceps', label: 'Biceps', icon: 'dumbbell', unit: lengthUnit, isTracking: false },
+    { key: 'thighs', label: 'Thighs', icon: 'running', unit: lengthUnit, isTracking: false },
+    { key: 'calves', label: 'Calves', icon: 'shoe-prints', unit: lengthUnit, isTracking: false }
   ]);
   
   // Animation
@@ -102,8 +112,12 @@ export default function MeasurementsScreen() {
     setRefreshing(true);
     try {
       // Reload weight unit preference
-      const unit = await getWeightUnitPreference();
-      setWeightUnit(unit);
+      const weightUnitPref = await getWeightUnitPreference();
+      setWeightUnit(weightUnitPref);
+      
+      // Reload length unit preference
+      const lengthUnitPref = await getLengthUnitPreference();
+      setLengthUnit(lengthUnitPref);
       
       // Reload data
       await loadTrackedMeasurements();
@@ -131,8 +145,12 @@ export default function MeasurementsScreen() {
         try {
           setLoading(true);
           // Load weight unit preference again when screen gains focus
-          const unit = await getWeightUnitPreference();
-          setWeightUnit(unit);
+          const weightUnitPref = await getWeightUnitPreference();
+          setWeightUnit(weightUnitPref);
+          
+          // Load length unit preference again when screen gains focus
+          const lengthUnitPref = await getLengthUnitPreference();
+          setLengthUnit(lengthUnitPref);
           
           await loadTrackedMeasurements();
           await loadMeasurementData();
@@ -170,11 +188,36 @@ export default function MeasurementsScreen() {
     }
   }, [userMeasurements, selectedTab]);
   
+  // Update the measurements unit when preferences change
+  useEffect(() => {
+    const updatedMeasurements = [...userMeasurements];
+    updatedMeasurements.forEach(m => {
+      if (m.key === 'weight') {
+        m.unit = weightUnit;
+      } else if (m.key !== 'custom') {
+        m.unit = lengthUnit;
+      }
+    });
+    setUserMeasurements(updatedMeasurements);
+  }, [weightUnit, lengthUnit]);
+  
+  // Update newEntry when unit preferences change
+  useEffect(() => {
+    setNewEntry(prev => ({
+      ...prev,
+      unit: prev.type === 'weight' ? weightUnit : 
+            (prev.type !== 'custom' ? lengthUnit : prev.unit)
+    }));
+  }, [weightUnit, lengthUnit]);
+  
   const loadData = async () => {
     try {
       setLoading(true);
-      const unit = await getWeightUnitPreference();
-      setWeightUnit(unit);
+      const weightUnitPref = await getWeightUnitPreference();
+      setWeightUnit(weightUnitPref);
+      
+      const lengthUnitPref = await getLengthUnitPreference();
+      setLengthUnit(lengthUnitPref);
       
       // Load user tracked measurements preference from database
       await loadTrackedMeasurements();
@@ -292,6 +335,15 @@ export default function MeasurementsScreen() {
           valueToSave = kgToLb(valueToSave);
           unitToSave = 'lb';
         }
+      } else if (newEntry.type !== 'weight' && newEntry.type !== 'custom') {
+        // For non-weight measurements - handle inches/cm conversion
+        if (newEntry.unit === 'in' && lengthUnit === 'cm') {
+          valueToSave = inchesToCm(valueToSave);
+          unitToSave = 'cm';
+        } else if (newEntry.unit === 'cm' && lengthUnit === 'in') {
+          valueToSave = cmToInches(valueToSave);
+          unitToSave = 'in';
+        }
       }
       
       // Save new measurement
@@ -396,9 +448,20 @@ export default function MeasurementsScreen() {
 
   // Format measurement values for display
   const formatMeasurementValue = (value: number, unit: string, type: MeasurementType): string => {
-    // For weight measurements, format with 1 decimal place for cleaner display
+    // For weight measurements, format with 1 decimal place
     if (type === 'weight') {
       if (unit === 'kg' || unit === 'lb') {
+        return value.toFixed(1);
+      }
+    }
+    // For length measurements
+    else if (type !== 'custom') {
+      if (unit === 'cm') {
+        // For centimeters, show whole numbers (or 1 decimal if needed)
+        return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+      }
+      else if (unit === 'in') {
+        // For inches, show 1 decimal place max to keep it clean
         return value.toFixed(1);
       }
     }
@@ -407,26 +470,43 @@ export default function MeasurementsScreen() {
     return value.toString();
   };
 
-  // Convert measurement value based on current weight unit preference
+  // Convert measurement value based on current unit preferences
   const convertMeasurementValue = (measurement: Measurement): number => {
-    // Only convert weight measurements
-    if (measurement.type !== 'weight') {
-      return measurement.value;
-    }
+    // For weight measurements
+    if (measurement.type === 'weight') {
+      // If measurement unit matches current preference, no conversion needed
+      if (measurement.unit === weightUnit) {
+        return measurement.value;
+      }
 
-    // If measurement unit matches current preference, no conversion needed
-    if (measurement.unit === weightUnit) {
-      return measurement.value;
-    }
+      // Convert from kg to lb
+      if (measurement.unit === 'kg' && weightUnit === 'lb') {
+        return Math.round(kgToLb(measurement.value) * 10) / 10; // Round to 1 decimal
+      }
 
-    // Convert from kg to lb
-    if (measurement.unit === 'kg' && weightUnit === 'lb') {
-      return kgToLb(measurement.value);
+      // Convert from lb to kg
+      if (measurement.unit === 'lb' && weightUnit === 'kg') {
+        return Math.round(lbToKg(measurement.value) * 10) / 10; // Round to 1 decimal
+      }
     }
+    // For other body measurements (excluding custom and height for now)
+    else if (measurement.type !== 'custom') {
+      // If measurement unit matches current preference, no conversion needed
+      if ((measurement.unit === 'cm' && lengthUnit === 'cm') || 
+          (measurement.unit === 'in' && lengthUnit === 'in')) {
+        return measurement.value;
+      }
 
-    // Convert from lb to kg
-    if (measurement.unit === 'lb' && weightUnit === 'kg') {
-      return lbToKg(measurement.value);
+      // Convert from cm to inches
+      if (measurement.unit === 'cm' && lengthUnit === 'in') {
+        return Math.round(cmToInches(measurement.value) * 10) / 10; // Round to 1 decimal
+      }
+
+      // Convert from inches to cm
+      if (measurement.unit === 'in' && lengthUnit === 'cm') {
+        // Round to whole number for cm
+        return Math.round(inchesToCm(measurement.value));
+      }
     }
 
     // Default fallback
@@ -437,8 +517,11 @@ export default function MeasurementsScreen() {
   const getDisplayUnit = (measurement: Measurement): string => {
     if (measurement.type === 'weight') {
       return weightUnit; // Always show in current preference unit
+    } 
+    else if (measurement.type !== 'custom') {
+      return lengthUnit; // For non-weight/non-custom, use length unit preference
     }
-    return measurement.unit; // For non-weight, use original unit
+    return measurement.unit; // For custom, use original unit
   };
   
   const getMeasurementColor = (type: MeasurementType): string => {
@@ -624,7 +707,8 @@ export default function MeasurementsScreen() {
                     backgroundColor: colors.card,
                     backgroundGradientFrom: colors.card,
                     backgroundGradientTo: colors.card,
-                    decimalPlaces: 1,
+                    decimalPlaces: selectedTab === 'weight' ? 1 : 
+                                 (lengthUnit === 'in' ? 1 : 0),
                     color: () => getMeasurementColor(selectedTab), 
                     labelColor: () => colors.text,
                     style: {
@@ -800,7 +884,8 @@ export default function MeasurementsScreen() {
                   onPress={() => setNewEntry({
                     ...newEntry,
                     type: measure.key,
-                    unit: measure.unit
+                    unit: measure.key === 'weight' ? weightUnit : 
+                          (measure.key !== 'custom' ? lengthUnit : measure.unit)
                   })}
                 >
                   <FontAwesome5
@@ -878,7 +963,44 @@ export default function MeasurementsScreen() {
                 </View>
               )}
               
-              {newEntry.type !== 'weight' && (
+              {newEntry.type !== 'weight' && newEntry.type !== 'custom' && (
+                <View style={styles.unitSelector}>
+                  <TouchableOpacity
+                    style={[
+                      styles.unitOption,
+                      newEntry.unit === 'cm' && { backgroundColor: colors.primary }
+                    ]}
+                    onPress={() => setNewEntry({ ...newEntry, unit: 'cm' })}
+                  >
+                    <Text
+                      style={[
+                        styles.unitText,
+                        { color: newEntry.unit === 'cm' ? 'white' : colors.text }
+                      ]}
+                    >
+                      cm
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.unitOption,
+                      newEntry.unit === 'in' && { backgroundColor: colors.primary }
+                    ]}
+                    onPress={() => setNewEntry({ ...newEntry, unit: 'in' })}
+                  >
+                    <Text
+                      style={[
+                        styles.unitText,
+                        { color: newEntry.unit === 'in' ? 'white' : colors.text }
+                      ]}
+                    >
+                      in
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {newEntry.type === 'custom' && (
                 <View style={styles.unitDisplay}>
                   <Text style={[styles.unitDisplayText, { color: colors.text }]}>
                     {userMeasurements.find(m => m.key === newEntry.type)?.unit}
@@ -1013,11 +1135,10 @@ export default function MeasurementsScreen() {
             >
               <Text style={styles.headerText}>Body Measurements</Text>
               <Text style={styles.headerSubtext}>Track your progress over time</Text>
-              {weightUnit === 'kg' ? (
-                <Text style={styles.headerUnitText}>Showing measurements in kg</Text>
-              ) : (
-                <Text style={styles.headerUnitText}>Showing measurements in lb</Text>
-              )}
+              <Text style={styles.headerUnitText}>
+                Weight: {weightUnit === 'kg' ? 'kilograms' : 'pounds'} | 
+                Length: {lengthUnit === 'cm' ? 'centimeters' : 'inches'}
+              </Text>
             </LinearGradient>
             
             {renderMeasurementTabs()}
