@@ -1784,33 +1784,7 @@ export default function StartWorkoutScreen() {
 
   // Render a diagnostic display for development mode
   const renderDiagnostics = () => {
-    if (!__DEV__ || !workoutStarted) return null;
-    
-    return (
-      <View style={{
-        position: 'absolute',
-        bottom: 120,
-        left: 16,
-        right: 16,
-        backgroundColor: colors.primary + '20',
-        padding: 12,
-        borderRadius: 12,
-        zIndex: 999,
-      }}>
-        <Text style={{ color: colors.text, fontWeight: 'bold', marginBottom: 4 }}>
-          App State Diagnostics
-        </Text>
-        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
-          Background events: {appStateEvents.background}
-        </Text>
-        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
-          Foreground events: {appStateEvents.foreground}
-        </Text>
-        <Text style={{ color: colors.text, fontSize: 12, marginBottom: 2 }}>
-          Last save: {lastSaveAttempt.current ? new Date(lastSaveAttempt.current).toLocaleTimeString() : 'Never'}
-        </Text>
-      </View>
-    );
+    return null; // Hide diagnostics panel completely
   };
 
   if (isLoading) {
