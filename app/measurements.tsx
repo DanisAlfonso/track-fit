@@ -155,10 +155,12 @@ export default function MeasurementsScreen() {
   // If height is the only tracked measurement, show it, otherwise select first non-height option
   useEffect(() => {
     const trackedMeasurements = userMeasurements.filter(m => m.isTracking);
-    if (selectedTab === 'height' && trackedMeasurements.length > 1) {
-      const nonHeightOption = trackedMeasurements.find(m => m.key !== 'height');
-      if (nonHeightOption) {
-        setSelectedTab(nonHeightOption.key);
+    
+    // Only switch from height automatically if it's not being tracked anymore
+    if (selectedTab === 'height' && !trackedMeasurements.some(m => m.key === 'height')) {
+      const otherOption = trackedMeasurements[0];
+      if (otherOption) {
+        setSelectedTab(otherOption.key);
       }
     }
     
@@ -550,8 +552,8 @@ export default function MeasurementsScreen() {
       );
     }
     
-    // Filter out height from tab selection if it's the only measurement
-    const displayedMeasurements = trackedMeasurements.filter(m => m.key !== 'height' || trackedMeasurements.length === 1);
+    // Show all tracked measurements, including height
+    const displayedMeasurements = trackedMeasurements;
     
     return (
       <View style={styles.content}>
