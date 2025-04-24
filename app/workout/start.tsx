@@ -2166,7 +2166,7 @@ export default function StartWorkoutScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={[colors.success, colors.success === Colors.light.success ? '#3a9d3d' : '#3a9d3d']}
+                colors={[colors.primary, colors.secondary]}
                 style={styles.finishButtonGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
