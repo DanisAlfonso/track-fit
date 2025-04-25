@@ -6,7 +6,6 @@ import {
   ScrollView, 
   TouchableOpacity, 
   TextInput, 
-  Alert,
   Modal,
   ActivityIndicator,
   Dimensions,
@@ -21,6 +20,7 @@ import { LineChart } from 'react-native-chart-kit';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 import { 
   getWeightUnitPreference, 
   getLengthUnitPreference, 
@@ -75,6 +75,7 @@ export default function MeasurementsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -125,7 +126,7 @@ export default function MeasurementsScreen() {
       handleTabSelection();
     } catch (error) {
       console.error('Error refreshing data:', error);
-      Alert.alert('Error', 'Failed to refresh your measurement data');
+      showToast('Failed to refresh your measurement data', 'error');
     } finally {
       setRefreshing(false);
     }
@@ -238,7 +239,7 @@ export default function MeasurementsScreen() {
       await loadMeasurementData();
     } catch (error) {
       console.error('Error loading measurements:', error);
-      Alert.alert('Error', 'Failed to load your measurement data');
+      showToast('Failed to load your measurement data', 'error');
     } finally {
       setLoading(false);
       Animated.timing(fadeAnim, {
@@ -327,7 +328,7 @@ export default function MeasurementsScreen() {
   
   const saveMeasurement = async () => {
     if (!newEntry.value || isNaN(parseFloat(newEntry.value))) {
-      Alert.alert('Invalid Entry', 'Please enter a valid number');
+      showToast('Please enter a valid number', 'error');
       return;
     }
     
@@ -389,10 +390,11 @@ export default function MeasurementsScreen() {
       
       // Reset form and close modal
       setAddModalVisible(false);
+      showToast('Measurement saved successfully', 'success');
       
     } catch (error) {
       console.error('Error saving measurement:', error);
-      Alert.alert('Error', 'Failed to save your measurement');
+      showToast('Failed to save your measurement', 'error');
     } finally {
       setLoading(false);
     }
@@ -425,7 +427,7 @@ export default function MeasurementsScreen() {
       }
     } catch (error) {
       console.error('Error toggling measurement tracking:', error);
-      Alert.alert('Error', 'Failed to update your preferences');
+      showToast('Failed to update your preferences', 'error');
     }
   };
   
@@ -438,9 +440,10 @@ export default function MeasurementsScreen() {
       
       // Reload data
       await loadMeasurementData();
+      showToast('Measurement deleted', 'success');
     } catch (error) {
       console.error('Error deleting measurement:', error);
-      Alert.alert('Error', 'Failed to delete measurement');
+      showToast('Failed to delete measurement', 'error');
     }
   };
   
@@ -833,17 +836,14 @@ export default function MeasurementsScreen() {
                     <TouchableOpacity 
                       style={styles.historyDelete}
                       onPress={() => {
-                        Alert.alert(
-                          'Delete Measurement',
-                          'Are you sure you want to delete this measurement?',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { 
-                              text: 'Delete', 
-                              style: 'destructive',
-                              onPress: () => deleteMeasurement(measurement.id)
-                            }
-                          ]
+                        showToast(
+                          'Delete this measurement?',
+                          'info',
+                          8000,
+                          {
+                            label: 'Delete',
+                            onPress: () => deleteMeasurement(measurement.id)
+                          }
                         );
                       }}
                     >
@@ -1045,21 +1045,19 @@ export default function MeasurementsScreen() {
     if (trackedMeasurements.length === 0 && measurements.length > 0) {
       const typesWithData = [...new Set(measurements.map(m => m.type))];
       if (typesWithData.length > 0) {
-        Alert.alert(
-          'Data Available',
-          'You have measurement data available but no measurements enabled for tracking. Would you like to enable tracking for your existing data?',
-          [
-            { text: 'Not Now', style: 'cancel' },
-            { 
-              text: 'Enable Tracking', 
-              onPress: async () => {
-                // Enable tracking for all measurement types that have data
-                for (const type of typesWithData) {
-                  await toggleTrackMeasurement(type as MeasurementType, true);
-                }
+        showToast(
+          'You have measurement data available but no measurements enabled for tracking.',
+          'info',
+          10000,
+          {
+            label: 'Enable Tracking',
+            onPress: async () => {
+              // Enable tracking for all measurement types that have data
+              for (const type of typesWithData) {
+                await toggleTrackMeasurement(type as MeasurementType, true);
               }
             }
-          ]
+          }
         );
       }
       return;
@@ -1071,25 +1069,19 @@ export default function MeasurementsScreen() {
         measurements.some(m => m.type === selectedTab)) {
       // Ask user if they want to re-enable tracking for this measurement
       const measurementName = userMeasurements.find(m => m.key === selectedTab)?.label || selectedTab;
-      Alert.alert(
-        'Enable Tracking?',
-        `You have data for ${measurementName} but tracking is disabled. Would you like to enable tracking for this measurement?`,
-        [
-          { 
-            text: 'Switch to Other Measurement', 
-            onPress: () => {
-              // Switch to first tracked measurement
-              setSelectedTab(trackedMeasurements[0].key);
-            }
-          },
-          { 
-            text: 'Enable Tracking', 
-            onPress: async () => {
-              await toggleTrackMeasurement(selectedTab, true);
-            }
+      showToast(
+        `You have data for ${measurementName} but tracking is disabled.`,
+        'info',
+        10000,
+        {
+          label: 'Enable Tracking',
+          onPress: async () => {
+            await toggleTrackMeasurement(selectedTab, true);
           }
-        ]
+        }
       );
+      // Also switch to a tracked measurement
+      setSelectedTab(trackedMeasurements[0].key);
     }
   };
   
