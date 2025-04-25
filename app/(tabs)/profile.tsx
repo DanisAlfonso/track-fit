@@ -18,6 +18,10 @@ export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
 export type WeightUnit = 'kg' | 'lb';
 export type LengthUnit = 'cm' | 'in';
 const USER_NAME_KEY = 'user_name';
+const USER_AGE_KEY = 'user_age';
+const USER_GENDER_KEY = 'user_gender';
+const USER_FITNESS_GOAL_KEY = 'user_fitness_goal';
+const USER_ACTIVITY_LEVEL_KEY = 'user_activity_level';
 
 export const getWeightUnitPreference = async (): Promise<WeightUnit> => {
   try {
@@ -81,6 +85,10 @@ export default function ProfileScreen() {
   const [useKilograms, setUseKilograms] = useState(true);
   const [useCentimeters, setUseCentimeters] = useState(true);
   const [userName, setUserName] = useState('Fitness Enthusiast');
+  const [userAge, setUserAge] = useState('');
+  const [userGender, setUserGender] = useState('');
+  const [userFitnessGoal, setUserFitnessGoal] = useState('');
+  const [userActivityLevel, setUserActivityLevel] = useState('');
   const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [workoutStats, setWorkoutStats] = useState({
     totalWorkouts: 0,
@@ -89,6 +97,9 @@ export default function ProfileScreen() {
     streakDays: 0
   });
   const router = useRouter();
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [weightUnit, setWeightUnit] = useState('kg');
+  const [lengthUnit, setLengthUnit] = useState('cm');
 
   useEffect(() => {
     loadData();
@@ -109,12 +120,24 @@ export default function ProfileScreen() {
     const lengthUnit = await getLengthUnitPreference();
     setUseCentimeters(lengthUnit === 'cm');
     
-    // Load user name if saved
+    // Load user profile data
     try {
       const name = await AsyncStorage.getItem(USER_NAME_KEY);
       if (name) setUserName(name);
+      
+      const age = await AsyncStorage.getItem(USER_AGE_KEY);
+      if (age) setUserAge(age);
+      
+      const gender = await AsyncStorage.getItem(USER_GENDER_KEY);
+      if (gender) setUserGender(gender);
+      
+      const fitnessGoal = await AsyncStorage.getItem(USER_FITNESS_GOAL_KEY);
+      if (fitnessGoal) setUserFitnessGoal(fitnessGoal);
+      
+      const activityLevel = await AsyncStorage.getItem(USER_ACTIVITY_LEVEL_KEY);
+      if (activityLevel) setUserActivityLevel(activityLevel);
     } catch (error) {
-      console.error('Error loading user name:', error);
+      console.error('Error loading user profile data:', error);
     }
     
     // Load workout stats
@@ -860,6 +883,15 @@ export default function ProfileScreen() {
         style={styles.headerGradient}
       >
         <View style={styles.profileHeader}>
+          <TouchableOpacity 
+            style={styles.editProfileButton}
+            onPress={() => router.push('/profile/edit')}
+            accessibilityLabel="Edit profile"
+            accessibilityHint="Navigate to the edit profile screen"
+          >
+            <FontAwesome5 name="edit" size={16} color="white" />
+          </TouchableOpacity>
+          
           <View style={styles.avatarContainer}>
             <LinearGradient
               colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)']}
@@ -869,6 +901,36 @@ export default function ProfileScreen() {
             </LinearGradient>
           </View>
           <Text style={[styles.profileName, {color: 'white'}]}>{userName}</Text>
+          
+          {/* Replace horizontal pills with vertical icon layout */}
+          {(userAge || userGender || userFitnessGoal || userActivityLevel) && (
+            <View style={styles.profileInfoVertical}>
+              {userAge && (
+                <View style={styles.infoItem}>
+                  <FontAwesome5 name="calendar-alt" size={14} color="white" style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{userAge} years</Text>
+                </View>
+              )}
+              {userGender && (
+                <View style={styles.infoItem}>
+                  <FontAwesome5 name={userGender === 'Male' ? 'mars' : userGender === 'Female' ? 'venus' : 'genderless'} size={14} color="white" style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{userGender}</Text>
+                </View>
+              )}
+              {userFitnessGoal && (
+                <View style={styles.infoItem}>
+                  <FontAwesome5 name="bullseye" size={14} color="white" style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{userFitnessGoal}</Text>
+                </View>
+              )}
+              {userActivityLevel && (
+                <View style={styles.infoItem}>
+                  <FontAwesome5 name="running" size={14} color="white" style={styles.infoIcon} />
+                  <Text style={styles.infoText}>{userActivityLevel}</Text>
+                </View>
+              )}
+            </View>
+          )}
           
           {/* Streak indicator */}
           <View style={styles.streakContainer}>
@@ -921,6 +983,54 @@ export default function ProfileScreen() {
       
       {/* Settings Sections */}
       <View style={styles.settingsSections}>
+        {/* Personal Information Section */}
+        <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
+            <FontAwesome5 name="user" size={18} color={colors.primary} style={styles.sectionIcon} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Personal Information</Text>
+          </View>
+          
+          <TouchableOpacity
+            style={styles.settingItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/profile/edit')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <View style={[styles.iconBadge, { backgroundColor: colors.primaryLight || 'rgba(78, 84, 200, 0.1)' }]}>
+                <FontAwesome5 name="user-edit" size={16} color={colors.primary} style={styles.settingIcon} />
+              </View>
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Edit Profile</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Update your personal information and fitness goals
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.arrowContainer, { backgroundColor: `${colors.border}30` }]}>
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+            </View>
+          </TouchableOpacity>
+          
+          <Divider />
+          
+          <TouchableOpacity
+            style={styles.settingItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/measurements')}
+          >
+            <View style={styles.settingLabelContainer}>
+              <FontAwesome5 name="ruler" size={18} color={colors.primary} style={styles.settingIcon} />
+              <View>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Body Measurements</Text>
+                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
+                  Track weight, height, and body measurements
+                </Text>
+              </View>
+            </View>
+            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+          </TouchableOpacity>
+        </View>
+
         {/* Unit Preferences Section */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
           <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
@@ -1003,25 +1113,6 @@ export default function ProfileScreen() {
             <FontAwesome5 name="cog" size={18} color={colors.primary} style={styles.sectionIcon} />
             <Text style={[styles.sectionTitle, { color: colors.text }]}>App Settings</Text>
           </View>
-          
-          <TouchableOpacity
-            style={styles.settingItem}
-            activeOpacity={0.7}
-            onPress={() => router.push('/measurements')}
-          >
-            <View style={styles.settingLabelContainer}>
-              <FontAwesome5 name="ruler" size={18} color={colors.primary} style={styles.settingIcon} />
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Body Measurements</Text>
-                <Text style={[styles.settingDescription, { color: colors.subtext }]}>
-                  Track weight, height, and body measurements
-                </Text>
-              </View>
-            </View>
-            <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
-          </TouchableOpacity>
-          
-          <Divider />
           
           <TouchableOpacity
             style={styles.settingItem}
@@ -1534,5 +1625,55 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     width: '100%',
+  },
+  editProfileButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    padding: 8,
+    borderRadius: 20,
+  },
+  profileInfoVertical: {
+    alignItems: 'flex-start',
+    marginTop: 15,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    width: '100%',
+    maxWidth: 250,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    width: '100%',
+  },
+  infoIcon: {
+    marginRight: 10,
+    width: 20,
+    textAlign: 'center',
+  },
+  infoText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  arrowContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 
