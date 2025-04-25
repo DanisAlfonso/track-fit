@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 type Workout = {
   id: number;
@@ -20,6 +21,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -52,61 +54,60 @@ export default function HistoryScreen() {
       setWorkouts(results);
     } catch (error) {
       console.error('Error loading workouts:', error);
-      Alert.alert('Error', 'Failed to load workout history');
+      showToast('Failed to load workout history', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
   const deleteWorkout = async (workoutId: number) => {
-    Alert.alert(
-      'Delete Workout',
+    showToast(
       'Are you sure you want to delete this workout? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
+      'info',
+      10000,
+      {
+        label: 'Delete',
+        onPress: async () => {
+          try {
+            setIsDeleting(true);
+            const db = await getDatabase();
+            
+            // Transaction to ensure all related data is deleted
+            await db.runAsync('BEGIN TRANSACTION');
+            
             try {
-              setIsDeleting(true);
-              const db = await getDatabase();
+              // Delete workout exercises first due to foreign key constraint
+              await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutId]);
               
-              // Transaction to ensure all related data is deleted
-              await db.runAsync('BEGIN TRANSACTION');
+              // Then delete the workout
+              await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutId]);
               
-              try {
-                // Delete workout exercises first due to foreign key constraint
-                await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutId]);
-                
-                // Then delete the workout
-                await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutId]);
-                
-                // Commit the transaction
-                await db.runAsync('COMMIT');
-                
-                // Refresh the workout list
-                await loadWorkouts();
-                
-                // Navigate back to the home screen to refresh it, then back to history
-                router.push('/');
-                setTimeout(() => {
-                  router.push('/history');
-                }, 100);
-              } catch (error) {
-                // Rollback in case of error
-                await db.runAsync('ROLLBACK');
-                throw error;
-              }
+              // Commit the transaction
+              await db.runAsync('COMMIT');
+              
+              // Refresh the workout list
+              await loadWorkouts();
+              
+              // Navigate back to the home screen to refresh it, then back to history
+              router.push('/');
+              setTimeout(() => {
+                router.push('/history');
+              }, 100);
+              
+              showToast('Workout deleted successfully', 'success');
             } catch (error) {
-              console.error('Error deleting workout:', error);
-              Alert.alert('Error', 'Failed to delete workout');
-            } finally {
-              setIsDeleting(false);
+              // Rollback in case of error
+              await db.runAsync('ROLLBACK');
+              throw error;
             }
-          },
-        },
-      ]
+          } catch (error) {
+            console.error('Error deleting workout:', error);
+            showToast('Failed to delete workout', 'error');
+          } finally {
+            setIsDeleting(false);
+          }
+        }
+      }
     );
   };
 
