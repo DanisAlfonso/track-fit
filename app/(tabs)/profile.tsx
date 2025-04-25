@@ -835,6 +835,11 @@ export default function ProfileScreen() {
     }
   };
 
+  // Create a divider component
+  const Divider = () => (
+    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+  );
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
@@ -916,14 +921,14 @@ export default function ProfileScreen() {
       
       {/* Settings Sections */}
       <View style={styles.settingsSections}>
-        {/* Unit Preferences Section (renamed from Measurement Units) */}
+        {/* Unit Preferences Section */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
           <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
             <FontAwesome5 name="ruler-combined" size={18} color={colors.primary} style={styles.sectionIcon} />
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Unit Preferences</Text>
           </View>
           
-          <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
+          <View style={styles.settingItem}>
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="weight" size={18} color={colors.primary} style={styles.settingIcon} />
               <View>
@@ -955,6 +960,8 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
+          
+          <Divider />
           
           <View style={styles.settingItem}>
             <View style={styles.settingLabelContainer}>
@@ -998,7 +1005,7 @@ export default function ProfileScreen() {
           </View>
           
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => router.push('/measurements')}
           >
@@ -1014,8 +1021,10 @@ export default function ProfileScreen() {
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
           >
@@ -1031,8 +1040,10 @@ export default function ProfileScreen() {
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => setThemeModalVisible(true)}
           >
@@ -1058,8 +1069,10 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => Alert.alert('Coming Soon', 'Language options will be available in a future update.')}
           >
@@ -1087,7 +1100,7 @@ export default function ProfileScreen() {
           </View>
           
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={handleImportRoutine}
           >
@@ -1103,8 +1116,10 @@ export default function ProfileScreen() {
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={handleImportData}
           >
@@ -1120,8 +1135,10 @@ export default function ProfileScreen() {
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={handleExportData}
           >
@@ -1136,6 +1153,8 @@ export default function ProfileScreen() {
             </View>
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
+          
+          <Divider />
           
           <TouchableOpacity 
             style={styles.dangerButton}
@@ -1153,7 +1172,7 @@ export default function ProfileScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
           </View>
           
-          <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
+          <View style={styles.settingItem}>
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="code" size={18} color={colors.primary} style={styles.settingIcon} />
               <View>
@@ -1165,8 +1184,10 @@ export default function ProfileScreen() {
             </View>
           </View>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => Linking.openURL('mailto:danisalfonso.dev@gmail.com')}
           >
@@ -1182,8 +1203,10 @@ export default function ProfileScreen() {
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
           
+          <Divider />
+          
           <TouchableOpacity
-            style={[styles.settingItem, { borderBottomColor: colors.border }]}
+            style={styles.settingItem}
             activeOpacity={0.7}
             onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=com.danisalfonso.trackfit')}
           >
@@ -1198,6 +1221,8 @@ export default function ProfileScreen() {
             </View>
             <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
           </TouchableOpacity>
+          
+          <Divider />
           
           <TouchableOpacity
             style={styles.settingItem}
@@ -1384,7 +1409,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingVertical: 18,
-    borderBottomWidth: 1,
   },
   settingLabelContainer: {
     flexDirection: 'row',
@@ -1506,5 +1530,9 @@ const styles = StyleSheet.create({
   settingInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  divider: {
+    height: 1,
+    width: '100%',
   },
 }); 
