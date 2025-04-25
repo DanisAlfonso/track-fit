@@ -52,11 +52,13 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Pause briefly at the top, then lower the dumbbells with control',
     'Repeat for the desired number of repetitions'
   ],
-  'Tricep Extension': [
-    'Stand with feet shoulder-width apart, holding a dumbbell with both hands behind your head',
-    'Extend your arms overhead until the dumbbell is directly above your head',
-    'Lower the dumbbell back behind your head with control',
-    'Repeat for the desired number of repetitions'
+  'Single Arm Tricep Extension (Dumbbell)': [
+    'Stand or sit with feet shoulder-width apart, holding a dumbbell in one hand',
+    'Raise your arm overhead with elbow pointing up and the dumbbell behind your head',
+    'Keeping your upper arm stationary, extend your forearm to lift the dumbbell',
+    'Slowly lower the dumbbell back behind your head with control',
+    'Complete all repetitions with one arm before switching to the other',
+    'Focus on isolating the tricep muscle throughout the movement'
   ],
   'Leg Press': [
     'Sit in the leg press machine with your back against the pad',
@@ -425,6 +427,24 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Hold the contraction briefly at the top',
     'Lower the dumbbell with control back to the starting position',
     'Complete all repetitions with one arm before switching to the other'
+  ],
+  'Overhead Tricep Extension (Cable)': [
+    'Stand facing away from a cable machine with a rope attachment set at a high position',
+    'Grasp the rope with both hands and position your elbows next to your head',
+    'Keep your upper arms stationary as you extend your forearms forward and down',
+    'Squeeze your triceps at full extension',
+    'Slowly return to the starting position, maintaining tension on the triceps',
+    'Keep your elbows close to your head throughout the movement'
+  ],
+  'Tricep Extension (EZ Bar)': [
+    'Stand with feet shoulder-width apart or sit on a bench with back support',
+    'Hold an EZ bar with an overhand grip, hands 8-12 inches apart',
+    'Raise the bar overhead with arms fully extended',
+    'While keeping your upper arms stationary and close to your head, bend at the elbows',
+    'Lower the bar behind your head in a controlled motion',
+    'Extend your arms back to the starting position by contracting your triceps',
+    'Maintain proper form with elbows pointed forward, not outward',
+    'Focus on the triceps doing the work rather than using momentum'
   ],
 };
 

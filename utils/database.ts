@@ -232,7 +232,7 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Pull-up', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
     { name: 'Overhead Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
     { name: 'Bicep Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
-    { name: 'Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+    { name: 'Single Arm Tricep Extension (Dumbbell)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     { name: 'Leg Press', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
     { name: 'Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
     { name: 'Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
@@ -298,7 +298,7 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'EZ Bar Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
     { name: 'Close-Grip Bench Press', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
     { name: 'Tricep Kickback', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
-    { name: 'Overhead Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+    { name: 'Overhead Tricep Extension (Cable)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     { name: 'Cable Tricep Pushdown', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     { name: 'Pec Deck', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: '' },
     { name: 'Cable Crossover', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
@@ -343,6 +343,7 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Leg Horizontal (Machine)', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: 'Hamstrings' },
     { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
     { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+    { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
   ];
 
   try {
@@ -594,7 +595,7 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Pull-up', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Overhead Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
       { name: 'Bicep Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
-      { name: 'Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Single Arm Tricep Extension (Dumbbell)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Leg Press', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
       { name: 'Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
@@ -660,7 +661,7 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'EZ Bar Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
       { name: 'Close-Grip Bench Press', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
       { name: 'Tricep Kickback', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
-      { name: 'Overhead Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Overhead Tricep Extension (Cable)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Cable Tricep Pushdown', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Pec Deck', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: '' },
       { name: 'Cable Crossover', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
@@ -705,6 +706,7 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Leg Horizontal (Machine)', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: 'Hamstrings' },
       { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     ];
     
     // Filter out exercises that already exist
@@ -768,7 +770,7 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'Pull-up', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Overhead Press', category: 'Compound', primary_muscle: 'Shoulders', secondary_muscle: 'Triceps' },
       { name: 'Bicep Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
-      { name: 'Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Single Arm Tricep Extension (Dumbbell)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Leg Press', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Lateral Raise', category: 'Isolation', primary_muscle: 'Shoulders', secondary_muscle: '' },
       { name: 'Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
@@ -834,7 +836,7 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'EZ Bar Curl', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: 'Forearms' },
       { name: 'Close-Grip Bench Press', category: 'Compound', primary_muscle: 'Triceps', secondary_muscle: 'Chest,Shoulders' },
       { name: 'Tricep Kickback', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
-      { name: 'Overhead Tricep Extension', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Overhead Tricep Extension (Cable)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Cable Tricep Pushdown', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
       { name: 'Pec Deck', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: '' },
       { name: 'Cable Crossover', category: 'Isolation', primary_muscle: 'Chest', secondary_muscle: 'Shoulders' },
@@ -879,6 +881,7 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'Leg Horizontal (Machine)', category: 'Isolation', primary_muscle: 'Quadriceps', secondary_muscle: 'Hamstrings' },
       { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
+      { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
     ];
     
     // Create a set of names from the master list for quick lookups
