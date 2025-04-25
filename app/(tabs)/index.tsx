@@ -8,6 +8,7 @@ import { getDatabase } from '@/utils/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import { format } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 type Routine = {
   id: number;
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { showToast } = useToast();
   
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
@@ -188,28 +190,20 @@ export default function HomeScreen() {
     }
     
     if (routines.length === 0) {
-      Alert.alert(
-        'No Routines Available',
-        'You need to create a routine before starting a workout.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Create Routine', onPress: navigateToCreateRoutine }
-        ]
-      );
+      showToast('You need to create a routine before starting a workout.', 'info', 5000, {
+        label: 'Create',
+        onPress: navigateToCreateRoutine
+      });
       return;
     }
 
     if (routines.length === 1) {
       const routine = routines[0];
       if (routine.exerciseCount === 0) {
-        Alert.alert(
-          'Empty Routine',
-          `The routine "${routine.name}" doesn't have any exercises. Please add exercises to it first.`,
-          [
-            { text: 'OK', style: 'cancel' },
-            { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${routine.id}`) }
-          ]
-        );
+        showToast(`The routine "${routine.name}" doesn't have any exercises yet.`, 'info', 5000, {
+          label: 'Edit',
+          onPress: () => router.push(`/routine/edit/${routine.id}`)
+        });
         return;
       }
       
@@ -256,18 +250,32 @@ export default function HomeScreen() {
         });
       } else {
         // Workout doesn't exist anymore, was probably deleted
-        Alert.alert('Workout Not Found', 'This workout has been deleted.');
+        showToast('This workout has been deleted.', 'error');
         // Refresh the data to remove the deleted workout from recent workouts
         loadData();
       }
     } catch (error) {
       console.error('Error checking workout existence:', error);
-      Alert.alert('Error', 'Failed to load workout details.');
+      showToast('Failed to load workout details.', 'error');
     }
   };
 
   const navigateToHistory = () => {
     router.push('/history');
+  };
+
+  const handleRoutinePress = (routine: Routine) => {
+    if (routine.exerciseCount > 0) {
+      router.push({
+        pathname: '/workout/start',
+        params: { routineId: routine.id }
+      });
+    } else {
+      showToast(`This routine doesn't have any exercises yet.`, 'info', 5000, {
+        label: 'Edit',
+        onPress: () => router.push(`/routine/edit/${routine.id}`)
+      });
+    }
   };
 
   if (loading) {
@@ -352,14 +360,10 @@ export default function HomeScreen() {
                   params: { routineId: todaysRoutine.id }
                 });
               } else {
-                Alert.alert(
-                  'Empty Routine',
-                  `This routine doesn't have any exercises. Please add exercises to it first.`,
-                  [
-                    { text: 'OK', style: 'cancel' },
-                    { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${todaysRoutine.id}`) }
-                  ]
-                );
+                showToast(`This routine doesn't have any exercises yet.`, 'info', 5000, {
+                  label: 'Edit',
+                  onPress: () => router.push(`/routine/edit/${todaysRoutine.id}`)
+                });
               }
             }}
             activeOpacity={0.7}
@@ -514,23 +518,7 @@ export default function HomeScreen() {
             <TouchableOpacity 
               key={routine.id}
               style={[styles.suggestedCard, { backgroundColor: colors.card }]}
-              onPress={() => {
-                if (routine.exerciseCount > 0) {
-                  router.push({
-                    pathname: '/workout/start',
-                    params: { routineId: routine.id }
-                  });
-                } else {
-                  Alert.alert(
-                    'Empty Routine',
-                    `This routine doesn't have any exercises. Please add exercises to it first.`,
-                    [
-                      { text: 'OK', style: 'cancel' },
-                      { text: 'Edit Routine', onPress: () => router.push(`/routine/edit/${routine.id}`) }
-                    ]
-                  );
-                }
-              }}
+              onPress={() => handleRoutinePress(routine)}
               activeOpacity={0.7}
             >
               <View style={styles.suggestedContent}>

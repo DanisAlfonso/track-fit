@@ -8,6 +8,7 @@ import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 import React from 'react';
 
 type Exercise = {
@@ -196,6 +197,7 @@ export default function ExercisesScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const router = useRouter();
+  const { showToast } = useToast();
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
@@ -293,7 +295,7 @@ export default function ExercisesScreen() {
       await loadFavorites();
     } catch (error) {
       console.error("Error refreshing exercises:", error);
-      Alert.alert("Error", "Failed to refresh exercises. Please try again.");
+      showToast("Failed to refresh exercises. Please try again.", "error");
     } finally {
       setRefreshing(false);
     }
@@ -334,37 +336,32 @@ export default function ExercisesScreen() {
       });
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      Alert.alert('Error', 'Failed to update favorite. Please try again.');
+      showToast('Failed to update favorite. Please try again.', 'error');
     }
   }, []);
 
   const confirmDelete = useCallback((exerciseId: number, exerciseName: string, event?: any) => {
     event?.stopPropagation?.();
     
-    Alert.alert(
-      "Delete Exercise",
-      `Are you sure you want to delete "${exerciseName}"? This action cannot be undone.`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteExercise(exerciseId);
-              // Refresh exercises list
-              await loadExercises();
-              Alert.alert("Success", "Exercise deleted successfully");
-            } catch (error) {
-              console.error('Error deleting exercise:', error);
-              Alert.alert("Error", "Failed to delete exercise. Please try again.");
-            }
+    // Use a toast with confirmation action instead of Alert
+    showToast(
+      `Delete "${exerciseName}"?`,
+      'info',
+      10000, // Longer duration for important action
+      {
+        label: 'Delete',
+        onPress: async () => {
+          try {
+            await deleteExercise(exerciseId);
+            // Refresh exercises list
+            await loadExercises();
+            showToast("Exercise deleted successfully", "success");
+          } catch (error) {
+            console.error('Error deleting exercise:', error);
+            showToast("Failed to delete exercise. Please try again.", "error");
           }
         }
-      ]
+      }
     );
   }, [loadExercises]);
 
