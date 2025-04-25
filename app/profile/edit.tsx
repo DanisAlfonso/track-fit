@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, TextInput, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Alert, Animated, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, TextInput, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Animated, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 import * as ImagePicker from 'expo-image-picker';
 
 // Storage keys for user profile data
@@ -21,6 +22,7 @@ const USER_PROFILE_PICTURE_KEY = 'user_profile_picture';
 export default function EditProfileScreen() {
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -97,7 +99,7 @@ export default function EditProfileScreen() {
       if (storedProfilePicture) setProfilePictureUri(storedProfilePicture);
     } catch (error) {
       console.error('Error loading profile data:', error);
-      Alert.alert('Error', 'Failed to load profile data');
+      showToast('Failed to load profile data', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -123,41 +125,53 @@ export default function EditProfileScreen() {
       // Navigate back to profile with success message
       router.back();
       
-      // We delay the alert to ensure it appears after navigation
+      // Show success toast after navigation
       setTimeout(() => {
-        Alert.alert('Success', 'Profile updated successfully');
+        showToast('Profile updated successfully', 'success');
       }, 300);
     } catch (error) {
       console.error('Error saving profile:', error);
-      Alert.alert('Error', 'Failed to save profile data');
+      showToast('Failed to save profile data', 'error');
     } finally {
       setIsSaving(false);
     }
   };
   
   const handleProfilePictureChange = async () => {
-    Alert.alert(
-      'Profile Picture',
-      'Choose an option',
-      [
-        {
-          text: 'Take Photo',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Choose from Library',
-          onPress: pickImage,
-        },
-        {
-          text: 'Remove Photo',
-          onPress: removeProfilePicture,
-          style: 'destructive',
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
+    showToast(
+      'Choose a profile picture option',
+      'info',
+      10000,
+      {
+        label: 'Options',
+        onPress: () => {
+          // Create a modal or custom UI for these options
+          // For now, we'll just show multiple toasts with different options
+          const showOptions = () => {
+            showToast('Take Photo', 'info', 6000, {
+              label: 'Take',
+              onPress: takePhoto
+            });
+            
+            setTimeout(() => {
+              showToast('Choose from Library', 'info', 6000, {
+                label: 'Choose',
+                onPress: pickImage
+              });
+            }, 300);
+            
+            setTimeout(() => {
+              showToast('Remove Photo', 'error', 6000, {
+                label: 'Remove',
+                onPress: removeProfilePicture
+              });
+            }, 600);
+          };
+          
+          // Small delay to ensure the first toast is closed
+          setTimeout(showOptions, 300);
+        }
+      }
     );
   };
 
@@ -166,7 +180,7 @@ export default function EditProfileScreen() {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'You need to grant camera permissions to take a photo.');
+        showToast('You need to grant camera permissions to take a photo', 'error');
         return;
       }
       
@@ -179,12 +193,13 @@ export default function EditProfileScreen() {
       if (!result.canceled) {
         const uri = result.assets[0].uri;
         setProfilePictureUri(uri);
+        showToast('Photo added successfully', 'success');
         // Note: We're not saving to AsyncStorage here, only updating local state
         // Changes will be saved when the user presses the Save button
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo.');
+      showToast('Failed to take photo', 'error');
     }
   };
 
@@ -193,7 +208,7 @@ export default function EditProfileScreen() {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'You need to grant gallery permissions to select a photo.');
+        showToast('You need to grant gallery permissions to select a photo', 'error');
         return;
       }
       
@@ -207,23 +222,25 @@ export default function EditProfileScreen() {
       if (!result.canceled) {
         const uri = result.assets[0].uri;
         setProfilePictureUri(uri);
+        showToast('Photo selected successfully', 'success');
         // Note: We're not saving to AsyncStorage here, only updating local state
         // Changes will be saved when the user presses the Save button
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to select image.');
+      showToast('Failed to select image', 'error');
     }
   };
 
   const removeProfilePicture = async () => {
     try {
       setProfilePictureUri(null);
+      showToast('Profile picture removed', 'success');
       // Note: We're not removing from AsyncStorage here, only updating local state
       // Changes will be saved when the user presses the Save button
     } catch (error) {
       console.error('Error removing profile picture:', error);
-      Alert.alert('Error', 'Failed to remove profile picture.');
+      showToast('Failed to remove profile picture', 'error');
     }
   };
 
