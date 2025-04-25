@@ -203,227 +203,260 @@ export default function EditProfileScreen() {
             }
           ]}
         >
-          {/* Name Input */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              Name
-            </Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: colors.text, 
-                  borderColor: colors.border, 
-                  backgroundColor: isDark ? colors.background : '#F5F5F7',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: isDark ? 0.2 : 0.05,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }
-              ]}
-              placeholder="Enter your name"
-              placeholderTextColor={isDark ? '#888888' : '#999999'}
-              value={nameInput}
-              onChangeText={setNameInput}
-              autoCapitalize="words"
-              accessibilityLabel="Name input field"
-            />
-          </View>
+          {/* Basic Information Section */}
+          <View style={styles.formSection}>
+            <View style={styles.sectionHeader}>
+              <FontAwesome5 name="user" size={16} color={colors.primary} style={styles.sectionIcon} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Basic Information</Text>
+            </View>
+            
+            {/* Name Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Name
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { 
+                    color: colors.text, 
+                    borderColor: colors.border, 
+                    backgroundColor: isDark ? colors.background : '#F5F5F7',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: isDark ? 0.2 : 0.05,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  }
+                ]}
+                placeholder="Enter your name"
+                placeholderTextColor={isDark ? '#888888' : '#999999'}
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoCapitalize="words"
+                accessibilityLabel="Name input field"
+              />
+            </View>
 
-          {/* Age Input */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              Age
-            </Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                { 
-                  color: colors.text, 
-                  borderColor: colors.border, 
-                  backgroundColor: isDark ? colors.background : '#F5F5F7',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: isDark ? 0.2 : 0.05,
-                  shadowRadius: 2,
-                  elevation: 2,
-                }
-              ]}
-              placeholder="Enter your age"
-              placeholderTextColor={isDark ? '#888888' : '#999999'}
-              value={ageInput}
-              onChangeText={setAgeInput}
-              keyboardType="number-pad"
-              maxLength={3}
-              accessibilityLabel="Age input field"
-            />
-          </View>
-
-          {/* Gender Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              Gender
-            </Text>
-            <View style={styles.optionsContainer}>
-              {genderOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionButton,
-                    {
-                      backgroundColor: genderInput === option
-                        ? colors.primary
-                        : isDark ? colors.background : '#F5F5F7',
-                      borderColor: genderInput === option
-                        ? colors.primary
-                        : colors.border,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: genderInput === option ? 0.2 : 0.05,
-                      shadowRadius: 2,
-                      elevation: genderInput === option ? 3 : 1,
-                    }
-                  ]}
-                  onPress={() => setGenderInput(option)}
-                  accessibilityLabel={`Gender option: ${option}`}
-                  accessibilityState={{ selected: genderInput === option }}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      {
-                        color: genderInput === option
-                          ? 'white'
-                          : colors.text,
-                        fontWeight: genderInput === option ? '600' : '400'
-                      }
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                  {genderInput === option && (
-                    <FontAwesome5 
-                      name="check" 
-                      size={12} 
-                      color="white" 
-                      style={{ marginLeft: 6 }} 
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
+            {/* Age Input */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Age
+              </Text>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { 
+                    color: colors.text, 
+                    borderColor: colors.border, 
+                    backgroundColor: isDark ? colors.background : '#F5F5F7',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: isDark ? 0.2 : 0.05,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  }
+                ]}
+                placeholder="Enter your age"
+                placeholderTextColor={isDark ? '#888888' : '#999999'}
+                value={ageInput}
+                onChangeText={setAgeInput}
+                keyboardType="number-pad"
+                maxLength={3}
+                accessibilityLabel="Age input field"
+              />
             </View>
           </View>
+          
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {/* Fitness Goal Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              Fitness Goal
-            </Text>
-            <View style={styles.optionsContainer}>
-              {fitnessGoalOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionButton,
-                    {
-                      backgroundColor: fitnessGoalInput === option
-                        ? colors.primary
-                        : isDark ? colors.background : '#F5F5F7',
-                      borderColor: fitnessGoalInput === option
-                        ? colors.primary
-                        : colors.border,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: fitnessGoalInput === option ? 0.2 : 0.05,
-                      shadowRadius: 2,
-                      elevation: fitnessGoalInput === option ? 3 : 1,
-                    }
-                  ]}
-                  onPress={() => setFitnessGoalInput(option)}
-                  accessibilityLabel={`Fitness goal option: ${option}`}
-                  accessibilityState={{ selected: fitnessGoalInput === option }}
-                >
-                  <Text
+          {/* Demographics Section */}
+          <View style={styles.formSection}>
+            <View style={styles.sectionHeader}>
+              <FontAwesome5 name="venus-mars" size={16} color={colors.primary} style={styles.sectionIcon} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Demographics</Text>
+            </View>
+            
+            {/* Gender Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Gender
+              </Text>
+              <View style={styles.optionsContainer}>
+                {genderOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option}
                     style={[
-                      styles.optionText,
+                      styles.optionButton,
                       {
-                        color: fitnessGoalInput === option
-                          ? 'white'
-                          : colors.text,
-                        fontWeight: fitnessGoalInput === option ? '600' : '400'
+                        backgroundColor: genderInput === option
+                          ? colors.primary
+                          : isDark ? colors.background : '#F5F5F7',
+                        borderColor: genderInput === option
+                          ? colors.primary
+                          : colors.border,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: genderInput === option ? 0.2 : 0.05,
+                        shadowRadius: 2,
+                        elevation: genderInput === option ? 3 : 1,
                       }
                     ]}
+                    onPress={() => setGenderInput(option)}
+                    accessibilityLabel={`Gender option: ${option}`}
+                    accessibilityState={{ selected: genderInput === option }}
                   >
-                    {option}
-                  </Text>
-                  {fitnessGoalInput === option && (
-                    <FontAwesome5 
-                      name="check" 
-                      size={12} 
-                      color="white" 
-                      style={{ marginLeft: 6 }} 
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {
+                          color: genderInput === option
+                            ? 'white'
+                            : colors.text,
+                          fontWeight: genderInput === option ? '600' : '400'
+                        }
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                    {genderInput === option && (
+                      <FontAwesome5 
+                        name="check" 
+                        size={12} 
+                        color="white" 
+                        style={{ marginLeft: 6 }} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
+          
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {/* Activity Level Selection */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>
-              Activity Level
-            </Text>
-            <View style={styles.optionsContainer}>
-              {activityLevelOptions.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.optionButton,
-                    {
-                      backgroundColor: activityLevelInput === option
-                        ? colors.primary
-                        : isDark ? colors.background : '#F5F5F7',
-                      borderColor: activityLevelInput === option
-                        ? colors.primary
-                        : colors.border,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: activityLevelInput === option ? 0.2 : 0.05,
-                      shadowRadius: 2,
-                      elevation: activityLevelInput === option ? 3 : 1,
-                    }
-                  ]}
-                  onPress={() => setActivityLevelInput(option)}
-                  accessibilityLabel={`Activity level option: ${option}`}
-                  accessibilityState={{ selected: activityLevelInput === option }}
-                >
-                  <Text
+          {/* Fitness Profile Section */}
+          <View style={styles.formSection}>
+            <View style={styles.sectionHeader}>
+              <FontAwesome5 name="dumbbell" size={16} color={colors.primary} style={styles.sectionIcon} />
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Fitness Profile</Text>
+            </View>
+            
+            {/* Fitness Goal Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Fitness Goal
+              </Text>
+              <View style={styles.optionsContainer}>
+                {fitnessGoalOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option}
                     style={[
-                      styles.optionText,
+                      styles.optionButton,
                       {
-                        color: activityLevelInput === option
-                          ? 'white'
-                          : colors.text,
-                        fontWeight: activityLevelInput === option ? '600' : '400'
+                        backgroundColor: fitnessGoalInput === option
+                          ? colors.primary
+                          : isDark ? colors.background : '#F5F5F7',
+                        borderColor: fitnessGoalInput === option
+                          ? colors.primary
+                          : colors.border,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: fitnessGoalInput === option ? 0.2 : 0.05,
+                        shadowRadius: 2,
+                        elevation: fitnessGoalInput === option ? 3 : 1,
                       }
                     ]}
+                    onPress={() => setFitnessGoalInput(option)}
+                    accessibilityLabel={`Fitness goal option: ${option}`}
+                    accessibilityState={{ selected: fitnessGoalInput === option }}
                   >
-                    {option}
-                  </Text>
-                  {activityLevelInput === option && (
-                    <FontAwesome5 
-                      name="check" 
-                      size={12} 
-                      color="white" 
-                      style={{ marginLeft: 6 }} 
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {
+                          color: fitnessGoalInput === option
+                            ? 'white'
+                            : colors.text,
+                          fontWeight: fitnessGoalInput === option ? '600' : '400'
+                        }
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                    {fitnessGoalInput === option && (
+                      <FontAwesome5 
+                        name="check" 
+                        size={12} 
+                        color="white" 
+                        style={{ marginLeft: 6 }} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Activity Level Selection */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Activity Level
+              </Text>
+              <View style={styles.optionsContainer}>
+                {activityLevelOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[
+                      styles.optionButton,
+                      {
+                        backgroundColor: activityLevelInput === option
+                          ? colors.primary
+                          : isDark ? colors.background : '#F5F5F7',
+                        borderColor: activityLevelInput === option
+                          ? colors.primary
+                          : colors.border,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: activityLevelInput === option ? 0.2 : 0.05,
+                        shadowRadius: 2,
+                        elevation: activityLevelInput === option ? 3 : 1,
+                      }
+                    ]}
+                    onPress={() => setActivityLevelInput(option)}
+                    accessibilityLabel={`Activity level option: ${option}`}
+                    accessibilityState={{ selected: activityLevelInput === option }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {
+                          color: activityLevelInput === option
+                            ? 'white'
+                            : colors.text,
+                          fontWeight: activityLevelInput === option ? '600' : '400'
+                        }
+                      ]}
+                    >
+                      {option}
+                    </Text>
+                    {activityLevelInput === option && (
+                      <FontAwesome5 
+                        name="check" 
+                        size={12} 
+                        color="white" 
+                        style={{ marginLeft: 6 }} 
+                      />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
           </View>
+          
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           {/* Save Button */}
           <TouchableOpacity
@@ -610,5 +643,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     flex: 1,
+  },
+  formSection: {
+    marginBottom: 8,
+  },
+  
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingLeft: 4,
+  },
+  
+  sectionIcon: {
+    marginRight: 8,
+  },
+  
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  
+  divider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 20,
+    opacity: 0.7,
   },
 }); 
