@@ -9,6 +9,7 @@ import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises } 
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { ToastProvider } from '@/context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Keep the splash screen visible while we fetch resources
@@ -83,7 +84,9 @@ export default function RootLayout() {
 function RootLayoutNav({ onReady }: { onReady: () => Promise<void> }) {
   return (
     <ThemeProvider>
-      <ThemedNavigator onReady={onReady} />
+      <ToastProvider>
+        <ThemedNavigator onReady={onReady} />
+      </ToastProvider>
     </ThemeProvider>
   );
 }

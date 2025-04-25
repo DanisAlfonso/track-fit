@@ -22,6 +22,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 // Ultra-reliable button for Samsung devices
 interface ReliableButtonProps {
@@ -137,6 +138,7 @@ export default function CreateRoutineScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { showToast } = useToast();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -300,13 +302,18 @@ export default function CreateRoutineScreen() {
         );
       }
       
-      console.log('All exercises inserted - showing success alert');
-      Alert.alert('Success', 'Routine created successfully', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      console.log('All exercises inserted - showing success toast');
+      
+      // Show toast instead of Alert - removed action button
+      showToast('Routine created successfully', 'success');
+      
+      // Navigate back after a short delay
+      setTimeout(() => {
+        router.back();
+      }, 500);
     } catch (error) {
       console.error('Error saving routine:', error);
-      Alert.alert('Error', 'Failed to save routine. Please try again.');
+      showToast('Failed to save routine. Please try again.', 'error');
     } finally {
       console.log('Setting loading state to false');
       setIsLoading(false);

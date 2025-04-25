@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useWorkout } from '@/context/WorkoutContext';
 import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/profile';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -67,6 +68,7 @@ export default function StartWorkoutScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -437,7 +439,7 @@ export default function StartWorkoutScreen() {
       
     } catch (error) {
       console.error('Error resuming workout:', error);
-      Alert.alert('Error', 'Failed to resume workout');
+      showToast('Failed to resume workout', 'error');
       router.replace({ pathname: '/(tabs)/routines' });
     } finally {
       setIsLoading(false);
@@ -505,12 +507,12 @@ export default function StartWorkoutScreen() {
         
         setExercises(workoutExercises);
       } else {
-        Alert.alert('Error', 'Routine not found');
+        showToast('Routine not found', 'error');
         router.back();
       }
     } catch (error) {
       console.error('Error loading routine exercises:', error);
-      Alert.alert('Error', 'Failed to load routine exercises');
+      showToast('Failed to load routine exercises', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -586,10 +588,10 @@ export default function StartWorkoutScreen() {
       // Register with global workout context
       startGlobalWorkout(newWorkoutId, routineName);
       
-      Alert.alert('Workout Started', 'Your workout has begun. Track your progress as you go!');
+      showToast('Your workout has begun. Track your progress as you go!', 'success');
     } catch (error) {
       console.error('Error starting workout:', error);
-      Alert.alert('Error', 'Failed to start workout. Please try again.');
+      showToast('Failed to start workout. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -645,13 +647,13 @@ export default function StartWorkoutScreen() {
     setTouchedFields({ reps: true, weight: true });
     
     // Validate reps and weight
-    if (currentSet.reps === 0) {
-      Alert.alert('Invalid Input', 'Please enter at least 1 repetition for this set.');
+    if (!currentSet.reps || currentSet.reps < 1) {
+      showToast('Please enter at least 1 repetition for this set.', 'error');
       return;
     }
     
-    if (currentSet.weight === 0) {
-      Alert.alert('Invalid Input', `Please enter a weight value greater than 0 ${weightUnit}.`);
+    if (!touchedFields.weight || currentSet.weight <= 0) {
+      showToast(`Please enter a weight value greater than 0 ${weightUnit}.`, 'error');
       return;
     }
     
@@ -716,112 +718,32 @@ export default function StartWorkoutScreen() {
   const finishWorkout = async () => {
     if (!workoutId) return;
     
-    Alert.alert(
-      'Finish Workout',
-      'Are you sure you want to finish this workout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Finish', 
-          style: 'destructive',
-          onPress: async () => {
-            setIsSaving(true);
+    // Show a toast with confirmation action instead of an alert
+    showToast(
+      'Ready to finish your workout?', 
+      'info', 
+      10000, // Longer duration for this important action
+      {
+        label: 'Finish',
+        onPress: async () => {
+          setIsSaving(true);
+          try {
+            // First save all incomplete sets
+            await saveWorkoutProgress(true);
             
-            try {
-              const db = await getDatabase();
-              
-              // Update workout with completion time and duration
-              await db.runAsync(
-                'UPDATE workouts SET date = ?, duration = ?, notes = ?, completed_at = ? WHERE id = ?',
-                [Date.now(), workoutDuration, workoutNotes, Date.now(), workoutId]
-              );
-              
-              // Save completed exercises and sets
-              for (const exercise of exercises) {
-                // Skip exercises with no sets or all sets are empty
-                const hasCompletedSets = exercise.sets_data.some(set => set.completed);
-                const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
-                
-                if (!hasCompletedSets && !hasAnySetData) {
-                  continue; // Skip this exercise entirely
-                }
-                
-                // Ensure the workout_exercise record exists
-                let workoutExerciseId = null;
-                const existingExercise = await db.getFirstAsync<{id: number}>(
-                  `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
-                  [workoutId, exercise.exercise_id]
-                );
-                
-                if (existingExercise) {
-                  workoutExerciseId = existingExercise.id;
-                  // Update existing workout exercise
-                  await db.runAsync(
-                    `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
-                    [exercise.completedSets, exercise.notes || '', workoutExerciseId]
-                  );
-                } else {
-                  // Create new workout exercise record
-                  const result = await db.runAsync(
-                    `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
-                    [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
-                  );
-                  workoutExerciseId = Number(result.lastInsertRowId);
-                }
-                
-                // Save all sets for this exercise
-                if (workoutExerciseId && exercise.sets_data) {
-                  for (const set of exercise.sets_data) {
-                    if (set.id) {
-                      // Update existing set
-                      await db.runAsync(
-                        `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, notes = ? WHERE id = ?`,
-                        [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.notes || '', set.id]
-                      );
-                    } else {
-                      // Create new set
-                      const result = await db.runAsync(
-                        `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                          workoutExerciseId, 
-                          set.set_number, 
-                          set.reps, 
-                          set.weight, 
-                          set.rest_time || 60, 
-                          set.completed ? 1 : 0,
-                          set.training_type || null,
-                          set.notes || ''
-                        ]
-                      );
-                      
-                      // Update the set with its ID
-                      set.id = Number(result.lastInsertRowId);
-                    }
-                  }
-                }
-              }
-              
-              // Clear the global workout
-              endGlobalWorkout();
-              
-              Alert.alert('Workout Completed', 'Great job! Your workout has been saved.', [
-                { 
-                  text: 'OK', 
-                  onPress: () => {
-                    // Navigate to the History screen instead of Routines
-                    router.replace({ pathname: '/history' });
-                  }
-                }
-              ]);
-            } catch (error) {
-              console.error('Error finishing workout:', error);
-              Alert.alert('Error', 'Failed to save workout. Please try again.');
-            } finally {
-              setIsSaving(false);
-            }
+            // Then mark the workout as complete
+            await saveWorkoutCompletion();
+            
+            // Clear the active workout from global context
+            endGlobalWorkout();
+          } catch (error) {
+            console.error('Error finishing workout:', error);
+            showToast('Failed to save workout. Please try again.', 'error');
+          } finally {
+            setIsSaving(false);
           }
         }
-      ]
+      }
     );
   };
 
@@ -1104,7 +1026,7 @@ export default function StartWorkoutScreen() {
       console.error('Failed to save after adding set:', error);
     });
     
-    Alert.alert('Set Added', `Set ${nextSetNumber} added to ${exercise.name}`);
+    showToast(`Set ${nextSetNumber} added to ${exercise.name}`, 'success');
   };
   
   // Function to remove the last set from an exercise
@@ -1114,14 +1036,14 @@ export default function StartWorkoutScreen() {
     
     // Don't allow removing sets if there's only one left
     if (exercise.sets_data.length <= 1) {
-      Alert.alert('Cannot Remove', 'Each exercise must have at least one set');
+      showToast('Each exercise must have at least one set', 'error');
       return;
     }
     
     // Check if the last set is completed
     const lastSet = exercise.sets_data[exercise.sets_data.length - 1];
     if (lastSet.completed) {
-      Alert.alert('Cannot Remove', 'Cannot remove a completed set. Only incomplete sets can be removed.');
+      showToast('Cannot remove a completed set. Only incomplete sets can be removed.', 'error');
       return;
     }
     
@@ -1141,7 +1063,7 @@ export default function StartWorkoutScreen() {
       console.error('Failed to save after removing set:', error);
     });
     
-    Alert.alert('Set Removed', `Last set removed from ${exercise.name}`);
+    showToast(`Last set removed from ${exercise.name}`, 'success');
   };
 
   // Modify minimizeWorkoutAndNavigate to save data before minimizing
@@ -1492,11 +1414,7 @@ export default function StartWorkoutScreen() {
     }, 600);
     
     // Show alert to user
-    Alert.alert(
-      'Rest Complete',
-      'Time to do your next set!',
-      [{ text: 'OK' }]
-    );
+    showToast('Time to do your next set!', 'info');
   };
   
   // Start the rest timer with the specified duration
@@ -1785,6 +1703,100 @@ export default function StartWorkoutScreen() {
   // Render a diagnostic display for development mode
   const renderDiagnostics = () => {
     return null; // Hide diagnostics panel completely
+  };
+
+  // Function to save workout completion details
+  const saveWorkoutCompletion = async () => {
+    if (!workoutId) return;
+    
+    try {
+      const db = await getDatabase();
+      
+      // Update workout with completion time and duration
+      await db.runAsync(
+        'UPDATE workouts SET date = ?, duration = ?, notes = ?, completed_at = ? WHERE id = ?',
+        [Date.now(), workoutDuration, workoutNotes, Date.now(), workoutId]
+      );
+      
+      // Save completed exercises and sets
+      for (const exercise of exercises) {
+        // Skip exercises with no sets or all sets are empty
+        const hasCompletedSets = exercise.sets_data.some(set => set.completed);
+        const hasAnySetData = exercise.sets_data.some(set => set.reps > 0 || set.weight > 0);
+        
+        if (!hasCompletedSets && !hasAnySetData) {
+          continue; // Skip this exercise entirely
+        }
+        
+        // Ensure the workout_exercise record exists
+        let workoutExerciseId = null;
+        const existingExercise = await db.getFirstAsync<{id: number}>(
+          `SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?`,
+          [workoutId, exercise.exercise_id]
+        );
+        
+        if (existingExercise) {
+          workoutExerciseId = existingExercise.id;
+          // Update existing workout exercise
+          await db.runAsync(
+            `UPDATE workout_exercises SET sets_completed = ?, notes = ? WHERE id = ?`,
+            [exercise.completedSets, exercise.notes || '', workoutExerciseId]
+          );
+        } else {
+          // Create new workout exercise record
+          const result = await db.runAsync(
+            `INSERT INTO workout_exercises (workout_id, exercise_id, sets_completed, notes) VALUES (?, ?, ?, ?)`,
+            [workoutId, exercise.exercise_id, exercise.completedSets, exercise.notes || '']
+          );
+          workoutExerciseId = Number(result.lastInsertRowId);
+        }
+        
+        // Save all sets for this exercise
+        if (workoutExerciseId && exercise.sets_data) {
+          for (const set of exercise.sets_data) {
+            if (set.id) {
+              // Update existing set
+              await db.runAsync(
+                `UPDATE sets SET reps = ?, weight = ?, completed = ?, training_type = ?, notes = ? WHERE id = ?`,
+                [set.reps, set.weight, set.completed ? 1 : 0, set.training_type || null, set.notes || '', set.id]
+              );
+            } else {
+              // Create new set
+              const result = await db.runAsync(
+                `INSERT INTO sets (workout_exercise_id, set_number, reps, weight, rest_time, completed, training_type, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  workoutExerciseId, 
+                  set.set_number, 
+                  set.reps, 
+                  set.weight, 
+                  set.rest_time || 60, 
+                  set.completed ? 1 : 0,
+                  set.training_type || null,
+                  set.notes || ''
+                ]
+              );
+              
+              // Update the set with its ID
+              set.id = Number(result.lastInsertRowId);
+            }
+          }
+        }
+      }
+      
+      // Show success message with button to view completed workout
+      showToast('Great job! Your workout has been saved.', 'success', 3000, {
+        label: 'View Details',
+        onPress: () => router.replace(`/workout/${workoutId}`)
+      });
+      
+      setTimeout(() => {
+        router.replace(`/workout/${workoutId}`);
+      }, 1000);
+    } catch (error) {
+      console.error('Error saving workout completion:', error);
+      showToast('Failed to save workout. Please try again.', 'error');
+      throw error; // Re-throw to be caught by the caller
+    }
   };
 
   if (isLoading) {

@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { BlurView } from 'expo-blur';
+import { useToast } from '@/context/ToastContext';
 
 type Routine = {
   id: number;
@@ -199,6 +200,7 @@ export default function RoutinesScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { showToast } = useToast();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,11 +345,11 @@ export default function RoutinesScreen() {
           UTI: 'public.json'
         });
       } else {
-        Alert.alert('Sharing Not Available', 'Sharing is not available on this device');
+        showToast('Sharing is not available on this device', 'error');
       }
     } catch (error) {
       console.error('Error sharing routine:', error);
-      Alert.alert('Error', 'Failed to share routine');
+      showToast('Failed to share routine', 'error');
     } finally {
       setIsSharing(false);
       setActiveRoutineId(null);
@@ -358,35 +360,33 @@ export default function RoutinesScreen() {
     const routineToDelete = routines.find(r => r.id === routineId);
     if (!routineToDelete) return;
     
-    Alert.alert(
-      'Delete Routine',
-      `Are you sure you want to delete "${routineToDelete.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            setIsDeleting(true);
-            setActiveRoutineId(routineId);
+    // Use a toast with confirmation action
+    showToast(
+      `Delete "${routineToDelete.name}"?`,
+      'info',
+      10000, // Longer duration since this is an important decision
+      {
+        label: 'Delete',
+        onPress: async () => {
+          setIsDeleting(true);
+          setActiveRoutineId(routineId);
+          
+          try {
+            const db = await getDatabase();
+            await db.runAsync('DELETE FROM routines WHERE id = ?', [routineId]);
             
-            try {
-              const db = await getDatabase();
-              await db.runAsync('DELETE FROM routines WHERE id = ?', [routineId]);
-              
-              loadRoutines();
-              
-              Alert.alert('Success', 'Routine deleted successfully');
-            } catch (error) {
-              console.error('Error deleting routine:', error);
-              Alert.alert('Error', 'Failed to delete routine');
-            } finally {
-              setIsDeleting(false);
-              setActiveRoutineId(null);
-            }
+            loadRoutines();
+            
+            showToast('Routine deleted successfully', 'success');
+          } catch (error) {
+            console.error('Error deleting routine:', error);
+            showToast('Failed to delete routine', 'error');
+          } finally {
+            setIsDeleting(false);
+            setActiveRoutineId(null);
           }
         }
-      ]
+      }
     );
   };
   
