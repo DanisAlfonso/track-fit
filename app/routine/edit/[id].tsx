@@ -6,7 +6,6 @@ import {
   TextInput, 
   TouchableOpacity, 
   ScrollView, 
-  Alert, 
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +18,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 type Exercise = {
   id: number;
@@ -124,6 +124,7 @@ export default function EditRoutineScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -192,12 +193,12 @@ export default function EditRoutineScreen() {
         
         setSelectedExercises(mappedExercises);
       } else {
-        Alert.alert('Error', 'Routine not found');
+        showToast('Routine not found', 'error');
         router.back();
       }
     } catch (error) {
       console.error('Error loading routine details:', error);
-      Alert.alert('Error', 'Failed to load routine details');
+      showToast('Failed to load routine details', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -211,7 +212,7 @@ export default function EditRoutineScreen() {
       setFilteredExercises(results);
     } catch (error) {
       console.error('Error loading exercises:', error);
-      Alert.alert('Error', 'Failed to load exercises. Please try again.');
+      showToast('Failed to load exercises. Please try again.', 'error');
     }
   };
 
@@ -249,12 +250,12 @@ export default function EditRoutineScreen() {
 
   const saveRoutine = async () => {
     if (!id || !name.trim()) {
-      Alert.alert('Error', 'Please enter a routine name');
+      showToast('Please enter a routine name', 'error');
       return;
     }
     
     if (selectedExercises.length === 0) {
-      Alert.alert('Error', 'Please add at least one exercise to your routine');
+      showToast('Please add at least one exercise to your routine', 'error');
       return;
     }
     
@@ -284,12 +285,11 @@ export default function EditRoutineScreen() {
         );
       }
       
-      Alert.alert('Success', 'Routine updated successfully', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      showToast('Routine updated successfully', 'success');
+      router.back();
     } catch (error) {
       console.error('Error updating routine:', error);
-      Alert.alert('Error', 'Failed to update routine. Please try again.');
+      showToast('Failed to update routine. Please try again.', 'error');
     } finally {
       setIsSaving(false);
     }
