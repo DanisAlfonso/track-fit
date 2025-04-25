@@ -16,6 +16,7 @@ import { useColorScheme } from 'react-native';
 import { getDatabase } from '@/utils/database';
 import Colors from '@/constants/Colors';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 import { Calendar, DateData } from 'react-native-calendars';
 
 type RoutineInfo = {
@@ -74,6 +75,7 @@ export default function WeeklyScheduleScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { showToast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [weekSchedule, setWeekSchedule] = useState<RoutineAssignment[]>([]);
@@ -106,7 +108,7 @@ export default function WeeklyScheduleScreen() {
       updateCalendarMarkers();
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load schedule data');
+      showToast('Failed to load schedule data', 'error');
     } finally {
       setLoading(false);
     }
@@ -322,36 +324,34 @@ export default function WeeklyScheduleScreen() {
       }
     } catch (error) {
       console.error('Error updating schedule:', error);
-      Alert.alert('Error', 'Failed to update schedule');
+      showToast('Failed to update schedule', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleClearSchedule = () => {
-    Alert.alert(
-      'Clear Schedule',
-      'Are you sure you want to clear the entire weekly schedule?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const db = await getDatabase();
-              await db.runAsync('DELETE FROM weekly_schedule');
-              await loadWeekSchedule();
-            } catch (error) {
-              console.error('Error clearing schedule:', error);
-              Alert.alert('Error', 'Failed to clear schedule');
-            } finally {
-              setLoading(false);
-            }
+    showToast(
+      'Clear entire weekly schedule?',
+      'info',
+      10000, // Longer duration for important action
+      {
+        label: 'Clear',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            const db = await getDatabase();
+            await db.runAsync('DELETE FROM weekly_schedule');
+            await loadWeekSchedule();
+            showToast('Schedule cleared successfully', 'success');
+          } catch (error) {
+            console.error('Error clearing schedule:', error);
+            showToast('Failed to clear schedule', 'error');
+          } finally {
+            setLoading(false);
           }
         }
-      ]
+      }
     );
   };
 
