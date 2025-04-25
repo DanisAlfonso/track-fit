@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, Alert, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, ActivityIndicator, Dimensions } from 'react-native';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -9,6 +9,7 @@ import { getDatabase, isExerciseFavorited, toggleFavorite, deleteExercise } from
 import { getExerciseInstructions, getExerciseImage } from '@/data/exercises';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 // Exercise types match our database schema
 type Exercise = {
@@ -26,6 +27,7 @@ export default function ExerciseDetailScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -101,35 +103,27 @@ export default function ExerciseDetailScreen() {
   };
 
   const confirmDelete = () => {
-    Alert.alert(
-      "Delete Exercise",
-      `Are you sure you want to delete "${exercise?.name}"? This action cannot be undone.`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              if (exercise) {
-                await deleteExercise(exercise.id);
-                Alert.alert("Success", "Exercise deleted successfully", [
-                  {
-                    text: "OK",
-                    onPress: () => router.back()
-                  }
-                ]);
-              }
-            } catch (error) {
-              console.error('Error deleting exercise:', error);
-              Alert.alert("Error", "Failed to delete exercise. Please try again.");
+    showToast(
+      `Are you sure you want to delete "${exercise?.name}"? This action cannot be undone.`, 
+      'info',
+      undefined,
+      {
+        label: "Delete",
+        onPress: async () => {
+          try {
+            if (exercise) {
+              await deleteExercise(exercise.id);
+              showToast("Exercise deleted successfully", 'success', undefined, {
+                label: "OK",
+                onPress: () => router.back()
+              });
             }
+          } catch (error) {
+            console.error('Error deleting exercise:', error);
+            showToast("Failed to delete exercise. Please try again.", 'error');
           }
         }
-      ]
+      }
     );
   };
   

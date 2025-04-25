@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 
 const muscleGroups = [
   'Chest',
@@ -49,6 +50,7 @@ export default function CreateExerciseScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { showToast } = useToast();
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -78,10 +80,7 @@ export default function CreateExerciseScreen() {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
     if (!permissionResult.granted) {
-      Alert.alert(
-        "Permission Required", 
-        "You need to grant permission to access your photos in order to add an image to your exercise."
-      );
+      showToast('You need to grant permission to access your photos in order to add an image to your exercise.', 'error');
       return;
     }
     
@@ -98,19 +97,23 @@ export default function CreateExerciseScreen() {
   };
 
   const removeImage = () => {
-    Alert.alert(
-      "Remove Image",
-      "Are you sure you want to remove this image?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => setImageUri(null) }
-      ]
+    showToast(
+      'Are you sure you want to remove this image?', 
+      'info', 
+      undefined,
+      {
+        label: "Remove",
+        onPress: () => {
+          setImageUri(null);
+          showToast('Image removed', 'success');
+        }
+      }
     );
   };
 
   const handleSubmit = async () => {
     if (!name || !category || !primaryMuscle) {
-      Alert.alert('Missing Information', 'Please fill in all required fields (Exercise Name, Category, and Primary Muscle)');
+      showToast('Please fill in all required fields (Exercise Name, Category, and Primary Muscle)', 'error');
       return;
     }
 
@@ -126,15 +129,11 @@ export default function CreateExerciseScreen() {
         imageUri || undefined
       );
 
-      Alert.alert('Success', 'Exercise created successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back()
-        }
-      ]);
+      showToast('Exercise created successfully', 'success');
+      router.back();
     } catch (error) {
       console.error('Error creating exercise:', error);
-      Alert.alert('Error', 'Failed to create exercise. Please try again.');
+      showToast('Failed to create exercise. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }
