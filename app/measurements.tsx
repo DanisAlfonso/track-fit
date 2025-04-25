@@ -201,6 +201,18 @@ export default function MeasurementsScreen() {
     setUserMeasurements(updatedMeasurements);
   }, [weightUnit, lengthUnit]);
   
+  // Function to update the newEntry state with the current selected tab type
+  const updateNewEntryForSelectedTab = () => {
+    // Get the appropriate unit based on the selected tab type
+    const unit = selectedTab === 'weight' ? weightUnit : lengthUnit;
+    
+    setNewEntry({
+      type: selectedTab,
+      value: '',
+      unit: unit
+    });
+  };
+
   // Update newEntry when unit preferences change
   useEffect(() => {
     setNewEntry(prev => ({
@@ -376,11 +388,6 @@ export default function MeasurementsScreen() {
       await loadMeasurementData();
       
       // Reset form and close modal
-      setNewEntry({
-        type: 'weight',
-        value: '',
-        unit: weightUnit
-      });
       setAddModalVisible(false);
       
     } catch (error) {
@@ -627,7 +634,7 @@ export default function MeasurementsScreen() {
           </Text>
           <TouchableOpacity
             style={[styles.emptyStateButton, { backgroundColor: colors.primary }]}
-            onPress={() => setAddModalVisible(true)}
+            onPress={openAddMeasurementModal}
           >
             <Text style={styles.emptyStateButtonText}>Add Measurement</Text>
           </TouchableOpacity>
@@ -692,7 +699,7 @@ export default function MeasurementsScreen() {
                 </Text>
                 <TouchableOpacity
                   style={[styles.emptyChartButton, { backgroundColor: colors.primary }]}
-                  onPress={() => setAddModalVisible(true)}
+                  onPress={openAddMeasurementModal}
                 >
                   <Text style={styles.emptyChartButtonText}>Add Measurement</Text>
                 </TouchableOpacity>
@@ -1086,6 +1093,14 @@ export default function MeasurementsScreen() {
     }
   };
   
+  // Replace the direct setAddModalVisible call with a function that updates both modal visibility and newEntry
+  const openAddMeasurementModal = () => {
+    // Update newEntry to match the currently selected tab
+    updateNewEntryForSelectedTab();
+    // Then open the modal
+    setAddModalVisible(true);
+  };
+  
   return (
     <>
       <Stack.Screen 
@@ -1149,7 +1164,7 @@ export default function MeasurementsScreen() {
         
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => setAddModalVisible(true)}
+          onPress={openAddMeasurementModal}
         >
           <FontAwesome5 name="plus" size={20} color="white" />
         </TouchableOpacity>
