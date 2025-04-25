@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, TextInput, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Alert, Animated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, TextInput, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator, Alert, Animated, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import * as ImagePicker from 'expo-image-picker';
 
 // Storage keys for user profile data
 const USER_NAME_KEY = 'user_name';
@@ -15,6 +16,7 @@ const USER_AGE_KEY = 'user_age';
 const USER_GENDER_KEY = 'user_gender';
 const USER_FITNESS_GOAL_KEY = 'user_fitness_goal';
 const USER_ACTIVITY_LEVEL_KEY = 'user_activity_level';
+const USER_PROFILE_PICTURE_KEY = 'user_profile_picture';
 
 export default function EditProfileScreen() {
   const colorScheme = useColorScheme();
@@ -37,6 +39,7 @@ export default function EditProfileScreen() {
   const [genderInput, setGenderInput] = useState('');
   const [fitnessGoalInput, setFitnessGoalInput] = useState('');
   const [activityLevelInput, setActivityLevelInput] = useState('');
+  const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -84,12 +87,14 @@ export default function EditProfileScreen() {
       const storedGender = await AsyncStorage.getItem(USER_GENDER_KEY);
       const storedFitnessGoal = await AsyncStorage.getItem(USER_FITNESS_GOAL_KEY);
       const storedActivityLevel = await AsyncStorage.getItem(USER_ACTIVITY_LEVEL_KEY);
+      const storedProfilePicture = await AsyncStorage.getItem(USER_PROFILE_PICTURE_KEY);
       
       if (storedName) setNameInput(storedName);
       if (storedAge) setAgeInput(storedAge);
       if (storedGender) setGenderInput(storedGender);
       if (storedFitnessGoal) setFitnessGoalInput(storedFitnessGoal);
       if (storedActivityLevel) setActivityLevelInput(storedActivityLevel);
+      if (storedProfilePicture) setProfilePictureUri(storedProfilePicture);
     } catch (error) {
       console.error('Error loading profile data:', error);
       Alert.alert('Error', 'Failed to load profile data');
@@ -107,6 +112,14 @@ export default function EditProfileScreen() {
       await AsyncStorage.setItem(USER_FITNESS_GOAL_KEY, fitnessGoalInput);
       await AsyncStorage.setItem(USER_ACTIVITY_LEVEL_KEY, activityLevelInput);
       
+      // Handle profile picture separately
+      if (profilePictureUri) {
+        await AsyncStorage.setItem(USER_PROFILE_PICTURE_KEY, profilePictureUri);
+      } else {
+        // If profilePictureUri is null, remove the entry from AsyncStorage
+        await AsyncStorage.removeItem(USER_PROFILE_PICTURE_KEY);
+      }
+      
       // Navigate back to profile with success message
       router.back();
       
@@ -119,6 +132,98 @@ export default function EditProfileScreen() {
       Alert.alert('Error', 'Failed to save profile data');
     } finally {
       setIsSaving(false);
+    }
+  };
+  
+  const handleProfilePictureChange = async () => {
+    Alert.alert(
+      'Profile Picture',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Choose from Library',
+          onPress: pickImage,
+        },
+        {
+          text: 'Remove Photo',
+          onPress: removeProfilePicture,
+          style: 'destructive',
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'You need to grant camera permissions to take a photo.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setProfilePictureUri(uri);
+        // Note: We're not saving to AsyncStorage here, only updating local state
+        // Changes will be saved when the user presses the Save button
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo.');
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'You need to grant gallery permissions to select a photo.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setProfilePictureUri(uri);
+        // Note: We're not saving to AsyncStorage here, only updating local state
+        // Changes will be saved when the user presses the Save button
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image.');
+    }
+  };
+
+  const removeProfilePicture = async () => {
+    try {
+      setProfilePictureUri(null);
+      // Note: We're not removing from AsyncStorage here, only updating local state
+      // Changes will be saved when the user presses the Save button
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      Alert.alert('Error', 'Failed to remove profile picture.');
     }
   };
 
@@ -176,14 +281,31 @@ export default function EditProfileScreen() {
           style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
-            <View style={styles.avatarContainer}>
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={handleProfilePictureChange}
+              accessibilityLabel="Change profile picture"
+              accessibilityHint="Opens options to change or remove your profile picture"
+            >
               <LinearGradient
                 colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)']}
                 style={styles.avatarGradient}
               >
-                <FontAwesome5 name="user" size={40} color={colors.primary} />
+                {profilePictureUri ? (
+                  <Image 
+                    source={{ uri: profilePictureUri }} 
+                    style={styles.profileImage} 
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <FontAwesome5 name="user" size={40} color={colors.primary} />
+                )}
+                
+                <View style={styles.cameraIconContainer}>
+                  <FontAwesome5 name="camera" size={14} color="white" />
+                </View>
               </LinearGradient>
-            </View>
+            </TouchableOpacity>
             <Text style={styles.headerTitle}>Personalize Your Profile</Text>
             <Text style={styles.headerSubtitle}>Let's help personalize your fitness journey</Text>
           </View>
@@ -569,6 +691,24 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+  },
+  cameraIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(78, 84, 200, 0.9)',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
   },
   formContainer: {
     marginTop: -20,

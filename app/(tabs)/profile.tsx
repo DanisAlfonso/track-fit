@@ -12,6 +12,7 @@ import { AntDesign } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as ImagePicker from 'expo-image-picker';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
@@ -22,6 +23,7 @@ const USER_AGE_KEY = 'user_age';
 const USER_GENDER_KEY = 'user_gender';
 const USER_FITNESS_GOAL_KEY = 'user_fitness_goal';
 const USER_ACTIVITY_LEVEL_KEY = 'user_activity_level';
+const USER_PROFILE_PICTURE_KEY = 'user_profile_picture';
 
 export const getWeightUnitPreference = async (): Promise<WeightUnit> => {
   try {
@@ -90,6 +92,7 @@ export default function ProfileScreen() {
   const [userFitnessGoal, setUserFitnessGoal] = useState('');
   const [userActivityLevel, setUserActivityLevel] = useState('');
   const [themeModalVisible, setThemeModalVisible] = useState(false);
+  const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
   const [workoutStats, setWorkoutStats] = useState({
     totalWorkouts: 0,
     totalExercises: 0,
@@ -136,6 +139,9 @@ export default function ProfileScreen() {
       
       const activityLevel = await AsyncStorage.getItem(USER_ACTIVITY_LEVEL_KEY);
       if (activityLevel) setUserActivityLevel(activityLevel);
+      
+      const profilePicture = await AsyncStorage.getItem(USER_PROFILE_PICTURE_KEY);
+      setProfilePictureUri(profilePicture);
     } catch (error) {
       console.error('Error loading user profile data:', error);
     }
@@ -858,6 +864,95 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleProfilePictureChange = async () => {
+    Alert.alert(
+      'Profile Picture',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Choose from Library',
+          onPress: pickImage,
+        },
+        {
+          text: 'Remove Photo',
+          onPress: removeProfilePicture,
+          style: 'destructive',
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'You need to grant camera permissions to take a photo.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setProfilePictureUri(uri);
+        await AsyncStorage.setItem(USER_PROFILE_PICTURE_KEY, uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo.');
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'You need to grant gallery permissions to select a photo.');
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setProfilePictureUri(uri);
+        await AsyncStorage.setItem(USER_PROFILE_PICTURE_KEY, uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image.');
+    }
+  };
+
+  const removeProfilePicture = async () => {
+    try {
+      setProfilePictureUri(null);
+      await AsyncStorage.removeItem(USER_PROFILE_PICTURE_KEY);
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      Alert.alert('Error', 'Failed to remove profile picture.');
+    }
+  };
+
   // Create a divider component
   const Divider = () => (
     <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -892,14 +987,32 @@ export default function ProfileScreen() {
             <FontAwesome5 name="edit" size={16} color="white" />
           </TouchableOpacity>
           
-          <View style={styles.avatarContainer}>
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={handleProfilePictureChange}
+            accessibilityLabel="Change profile picture"
+            accessibilityHint="Opens options to change or remove your profile picture"
+          >
             <LinearGradient
               colors={['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.6)']}
               style={styles.avatarGradient}
             >
-              <FontAwesome5 name="user" size={40} color={colors.primary} />
+              {profilePictureUri ? (
+                <Image 
+                  source={{ uri: profilePictureUri }} 
+                  style={styles.profileImage} 
+                  resizeMode="cover"
+                />
+              ) : (
+                <FontAwesome5 name="user" size={40} color={colors.primary} />
+              )}
+              
+              <View style={styles.cameraIconContainer}>
+                <FontAwesome5 name="camera" size={14} color="white" />
+              </View>
             </LinearGradient>
-          </View>
+          </TouchableOpacity>
+          
           <Text style={[styles.profileName, {color: 'white'}]}>{userName}</Text>
           
           {/* Replace horizontal pills with vertical icon layout */}
@@ -1675,5 +1788,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  cameraIconContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(78, 84, 200, 0.9)',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
   },
 }); 
