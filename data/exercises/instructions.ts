@@ -260,13 +260,172 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Lower the bar back to the starting position with control',
     'Repeat for the desired number of repetitions'
   ],
+  'Glute Kickback Machine': [
+    'Adjust the machine to your height and stand facing the pad',
+    'Place one foot on the footplate and grasp the support handles',
+    'Keep your core engaged and your standing leg slightly bent',
+    'Push the footplate back and up by extending your leg and contracting your glutes',
+    'Hold the contraction briefly at the top of the movement',
+    'Return to the starting position with control',
+    'Complete all repetitions on one side before switching to the other leg'
+  ],
+  'Wide Grip Chest Press Machine': [
+    'Adjust the seat height so the handles align with your mid-chest',
+    'Sit with your back firmly against the backrest and feet flat on the floor',
+    'Grasp the handles with a wide grip, wider than shoulder-width',
+    'Push the handles forward until your arms are fully extended, but not locked',
+    'Slowly return to the starting position, feeling a stretch in your chest',
+    'Maintain control throughout the movement and avoid letting the weight plates touch'
+  ],
+  'Incline Chest Press Machine': [
+    'Adjust the seat height so the handles align with your upper chest',
+    'Sit with your back firmly against the inclined backrest',
+    'Grip the handles at shoulder width or slightly wider',
+    'Push the handles forward until your arms are fully extended, but not locked',
+    'Slowly return to the starting position, feeling a stretch in your upper chest',
+    'Keep your back against the pad throughout the movement',
+    'Focus on contracting your upper chest muscles during the exercise'
+  ],
   'default': [
     'Set up properly with good form',
     'Control the weight through the entire range of motion',
     'Breathe properly (exhale during exertion)',
     'Maintain proper posture throughout',
     'Complete the exercise with controlled movements'
-  ]
+  ],
+  'Lat Pulldown (Cable)': [
+    'Sit at a lat pulldown machine with your knees secured under the pads',
+    'Grip the bar slightly wider than shoulder-width with an overhand grip',
+    'Pull the bar down toward your upper chest, squeezing your shoulder blades together',
+    'Return the bar to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Lat Pulldown Machine': [
+    'Adjust the seat height so your thighs are secured under the pads',
+    'Grip the machine handles with a comfortable width',
+    'Pull the handles down toward your chest by engaging your back muscles',
+    'Squeeze your shoulder blades together at the bottom of the movement',
+    'Return to the starting position with control, feeling a stretch in your lats',
+    'Maintain good posture throughout the exercise'
+  ],
+  'Seated Cable Row (Cable)': [
+    'Sit at a cable row machine with your feet against the platform',
+    'Bend your knees slightly and grasp the handle with both hands',
+    'Keep your back straight and chest up',
+    'Pull the handle toward your lower abdomen by driving your elbows back',
+    'Squeeze your shoulder blades together at the end of the movement',
+    'Return to the starting position with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Seated Row Machine': [
+    'Adjust the seat height so the handles align with your chest',
+    'Sit with your chest against the pad and grasp the handles',
+    'Pull the handles toward you by driving your elbows back',
+    'Squeeze your shoulder blades together at the end of the movement',
+    'Return to the starting position with control',
+    'Maintain proper posture throughout the exercise'
+  ],
+  'Bicep Curl (Machine)': [
+    'Adjust the seat height so your arms rest comfortably on the pad',
+    'Grip the handles with your palms facing up',
+    'Curl the handles toward your shoulders by flexing your biceps',
+    'Hold the contraction briefly at the top',
+    'Lower the weight with control back to the starting position',
+    'Keep your upper arms and elbows stationary throughout the movement'
+  ],
+  'Chin Up (Weighted)': [
+    'Attach a weight to a dip belt and secure it around your waist',
+    'Hang from a pull-up bar with hands slightly narrower than shoulder-width and palms facing toward you',
+    'Engage your core and pull your body up until your chin is over the bar',
+    'Lower yourself with control until your arms are fully extended',
+    'Keep the movement controlled despite the added weight',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Hack Squat (Machine)': [
+    'Position yourself on the hack squat machine with your shoulders under the pads',
+    'Place your feet shoulder-width apart on the platform',
+    'Release the safety handles and lower your body by bending your knees',
+    'Descend until your thighs are parallel to the platform',
+    'Push through your heels to return to the starting position',
+    'Keep your back against the pad throughout the movement'
+  ],
+  'Hip Thrust (Machine)': [
+    'Adjust the machine to fit your body size',
+    'Position your upper back against the pad and place your feet on the platform',
+    'Start with your hips low, then drive through your heels to lift the weight',
+    'At the top position, your body should form a straight line from shoulders to knees',
+    'Squeeze your glutes at the top of the movement',
+    'Lower the weight with control and repeat'
+  ],
+  'Hip Thrust (Barbell)': [
+    'Sit on the ground with your upper back against a bench, knees bent and feet flat on the floor',
+    'Place a barbell across your hips, optionally with a pad for comfort',
+    'Drive through your heels to lift your hips off the ground, squeezing your glutes at the top',
+    'At the top, your body should form a straight line from shoulders to knees',
+    'Lower your hips back to the ground with control',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Iso-Lateral Low Row': [
+    'Adjust the seat height so you can reach the handles with arms fully extended',
+    'Sit facing the machine with your chest against the pad',
+    'Grasp the low handles with a neutral grip (palms facing each other)',
+    'Pull the handles toward your body by driving your elbows back',
+    'Squeeze your shoulder blades together at the end of the movement',
+    'Return to the starting position with control',
+    'You can work each arm independently or together'
+  ],
+  'Iso-Lateral Row (Machine)': [
+    'Adjust the seat height so the handles align with your mid-chest',
+    'Sit facing the machine with your chest against the pad if available',
+    'Grasp the handles with a neutral grip (palms facing each other)',
+    'Pull the handles toward your body by driving your elbows back',
+    'Squeeze your back muscles at the end of the movement',
+    'Return to the starting position with control',
+    'The independent arms allow you to correct any muscle imbalances'
+  ],
+  'Lat Pulldown (Machine)': [
+    'Adjust the seat height so your thighs are secured under the pads',
+    'Grasp the machine handles with your palms facing forward or in a neutral position',
+    'Pull the handles down toward your chest by engaging your back muscles',
+    'Keep your chest up and back straight throughout the movement',
+    'Return to the starting position with control, feeling a stretch in your lats',
+    'Maintain a steady, controlled tempo throughout the exercise'
+  ],
+  'Leg Horizontal (Machine)': [
+    'Adjust the machine to fit your body size',
+    'Lie on your side on the machine pad with your bottom leg straight',
+    'Place your top leg on the movement arm pad',
+    'Keeping your body stable, raise your top leg by abducting at the hip',
+    'Control the movement as you lower your leg back to the starting position',
+    'Complete all repetitions on one side before switching to the other'
+  ],
+  'Pause Squat (Barbell)': [
+    'Position a barbell across your upper back (not on your neck)',
+    'Stand with feet shoulder-width apart and toes slightly pointed out',
+    'Descend by bending at the hips and knees while keeping your chest up',
+    'At the bottom position (thighs parallel to ground), pause for 2-3 seconds',
+    'Maintain tension in your muscles during the pause',
+    'Drive through your heels to return to the standing position',
+    'The pause eliminates momentum and increases muscle engagement'
+  ],
+  'Preacher Curl (Barbell)': [
+    'Adjust the preacher bench so your armpits rest comfortably on the top of the pad',
+    'Grasp a barbell with an underhand grip at shoulder width',
+    'Rest your arms against the pad with the barbell hanging at full extension',
+    'Curl the barbell up toward your shoulders while keeping your upper arms on the pad',
+    'Hold the contraction briefly at the top',
+    'Lower the barbell with control back to the starting position',
+    'Repeat for the desired number of repetitions'
+  ],
+  'Preacher Curl (Dumbbell)': [
+    'Adjust the preacher bench so your armpits rest comfortably on the top of the pad',
+    'Hold a dumbbell in one hand with an underhand grip',
+    'Rest your arm against the pad with the dumbbell hanging at full extension',
+    'Curl the dumbbell up toward your shoulder while keeping your upper arm on the pad',
+    'Hold the contraction briefly at the top',
+    'Lower the dumbbell with control back to the starting position',
+    'Complete all repetitions with one arm before switching to the other'
+  ],
 };
 
 /**

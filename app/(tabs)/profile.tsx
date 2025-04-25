@@ -916,11 +916,11 @@ export default function ProfileScreen() {
       
       {/* Settings Sections */}
       <View style={styles.settingsSections}>
-        {/* Measurement Units Section (renamed from Workout Preferences) */}
+        {/* Unit Preferences Section (renamed from Measurement Units) */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card }]}>
           <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
             <FontAwesome5 name="ruler-combined" size={18} color={colors.primary} style={styles.sectionIcon} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Measurement Units</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Unit Preferences</Text>
           </View>
           
           <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
