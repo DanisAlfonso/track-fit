@@ -12,6 +12,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { BlurView } from 'expo-blur';
 import { useToast } from '@/context/ToastContext';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 type Routine = {
   id: number;
@@ -211,6 +212,8 @@ export default function RoutinesScreen() {
   const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
+  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
+  const [routineToDelete, setRoutineToDelete] = useState<Routine | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -357,37 +360,35 @@ export default function RoutinesScreen() {
   };
   
   const deleteRoutine = async (routineId: number) => {
-    const routineToDelete = routines.find(r => r.id === routineId);
+    const routine = routines.find(r => r.id === routineId);
+    if (!routine) return;
+    
+    // Show confirmation modal instead of toast
+    setRoutineToDelete(routine);
+    setDeleteConfirmationVisible(true);
+  };
+  
+  const confirmDeleteRoutine = async () => {
     if (!routineToDelete) return;
     
-    // Use a toast with confirmation action
-    showToast(
-      `Delete "${routineToDelete.name}"?`,
-      'info',
-      10000, // Longer duration since this is an important decision
-      {
-        label: 'Delete',
-        onPress: async () => {
-          setIsDeleting(true);
-          setActiveRoutineId(routineId);
-          
-          try {
-            const db = await getDatabase();
-            await db.runAsync('DELETE FROM routines WHERE id = ?', [routineId]);
-            
-            loadRoutines();
-            
-            showToast('Routine deleted successfully', 'success');
-          } catch (error) {
-            console.error('Error deleting routine:', error);
-            showToast('Failed to delete routine', 'error');
-          } finally {
-            setIsDeleting(false);
-            setActiveRoutineId(null);
-          }
-        }
-      }
-    );
+    setIsDeleting(true);
+    setActiveRoutineId(routineToDelete.id);
+    
+    try {
+      const db = await getDatabase();
+      await db.runAsync('DELETE FROM routines WHERE id = ?', [routineToDelete.id]);
+      
+      loadRoutines();
+      showToast('Routine deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting routine:', error);
+      showToast('Failed to delete routine', 'error');
+    } finally {
+      setIsDeleting(false);
+      setActiveRoutineId(null);
+      setDeleteConfirmationVisible(false);
+      setRoutineToDelete(null);
+    }
   };
   
   const showRoutineOptions = (routine: Routine) => {
@@ -548,6 +549,22 @@ export default function RoutinesScreen() {
         onDelete={deleteRoutine}
         colors={colors}
         theme={currentTheme}
+      />
+      
+      {/* Delete confirmation modal */}
+      <ConfirmationModal
+        visible={deleteConfirmationVisible}
+        title="Delete Routine"
+        message={routineToDelete ? `Are you sure you want to delete "${routineToDelete.name}"? This action cannot be undone.` : ''}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        icon="trash-alt"
+        onConfirm={confirmDeleteRoutine}
+        onCancel={() => {
+          setDeleteConfirmationVisible(false);
+          setRoutineToDelete(null);
+        }}
       />
     </View>
   );
