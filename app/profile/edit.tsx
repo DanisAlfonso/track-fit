@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import * as ImagePicker from 'expo-image-picker';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
 
 // Storage keys for user profile data
 const USER_NAME_KEY = 'user_name';
@@ -49,6 +50,9 @@ export default function EditProfileScreen() {
   const genderOptions = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
   const fitnessGoalOptions = ['Weight Loss', 'Muscle Gain', 'Strength', 'Endurance', 'General Fitness'];
   const activityLevelOptions = ['Sedentary', 'Lightly Active', 'Moderately Active', 'Very Active', 'Extremely Active'];
+  
+  // ActionSheet state
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
   
   useEffect(() => {
     loadProfileData();
@@ -137,42 +141,37 @@ export default function EditProfileScreen() {
     }
   };
   
-  const handleProfilePictureChange = async () => {
-    showToast(
-      'Choose a profile picture option',
-      'info',
-      10000,
+  const handleProfilePictureChange = () => {
+    // Show the ActionSheet
+    setActionSheetVisible(true);
+  };
+
+  // Generate action sheet options based on current state
+  const getActionSheetOptions = (): ActionSheetOption[] => {
+    const options: ActionSheetOption[] = [
       {
-        label: 'Options',
-        onPress: () => {
-          // Create a modal or custom UI for these options
-          // For now, we'll just show multiple toasts with different options
-          const showOptions = () => {
-            showToast('Take Photo', 'info', 6000, {
-              label: 'Take',
-              onPress: takePhoto
-            });
-            
-            setTimeout(() => {
-              showToast('Choose from Library', 'info', 6000, {
-                label: 'Choose',
-                onPress: pickImage
-              });
-            }, 300);
-            
-            setTimeout(() => {
-              showToast('Remove Photo', 'error', 6000, {
-                label: 'Remove',
-                onPress: removeProfilePicture
-              });
-            }, 600);
-          };
-          
-          // Small delay to ensure the first toast is closed
-          setTimeout(showOptions, 300);
-        }
+        label: 'Take Photo',
+        onPress: takePhoto,
+        icon: 'camera'
+      },
+      {
+        label: 'Choose from Library',
+        onPress: pickImage,
+        icon: 'image'
       }
-    );
+    ];
+    
+    // Only add the remove option if there's a profile picture
+    if (profilePictureUri) {
+      options.push({
+        label: 'Remove Photo',
+        onPress: removeProfilePicture,
+        icon: 'trash-alt',
+        destructive: true
+      });
+    }
+    
+    return options;
   };
 
   const takePhoto = async () => {
@@ -284,6 +283,14 @@ export default function EditProfileScreen() {
             </TouchableOpacity>
           ),
         }}
+      />
+
+      {/* Profile picture action sheet */}
+      <ActionSheet
+        visible={actionSheetVisible}
+        title="Profile Picture"
+        options={getActionSheetOptions()}
+        onClose={() => setActionSheetVisible(false)}
       />
 
       <ScrollView

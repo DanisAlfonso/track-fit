@@ -8,11 +8,13 @@ import { resetDatabase, getDatabase } from '@/utils/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
+import { useToast } from '@/context/ToastContext';
 import { AntDesign } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
@@ -81,6 +83,7 @@ export const inchesToCm = (inches: number): number => {
 export default function ProfileScreen() {
   const colorScheme = useColorScheme();
   const { theme, setTheme } = useTheme();
+  const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -103,6 +106,9 @@ export default function ProfileScreen() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [weightUnit, setWeightUnit] = useState('kg');
   const [lengthUnit, setLengthUnit] = useState('cm');
+
+  // ActionSheet state
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -864,30 +870,37 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleProfilePictureChange = async () => {
-    Alert.alert(
-      'Profile Picture',
-      'Choose an option',
-      [
-        {
-          text: 'Take Photo',
-          onPress: takePhoto,
-        },
-        {
-          text: 'Choose from Library',
-          onPress: pickImage,
-        },
-        {
-          text: 'Remove Photo',
-          onPress: removeProfilePicture,
-          style: 'destructive',
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]
-    );
+  const handleProfilePictureChange = () => {
+    // Show the ActionSheet
+    setActionSheetVisible(true);
+  };
+
+  // Generate action sheet options based on current state
+  const getActionSheetOptions = (): ActionSheetOption[] => {
+    const options: ActionSheetOption[] = [
+      {
+        label: 'Take Photo',
+        onPress: takePhoto,
+        icon: 'camera'
+      },
+      {
+        label: 'Choose from Library',
+        onPress: pickImage,
+        icon: 'image'
+      }
+    ];
+    
+    // Only add the remove option if there's a profile picture
+    if (profilePictureUri) {
+      options.push({
+        label: 'Remove Photo',
+        onPress: removeProfilePicture,
+        icon: 'trash-alt',
+        destructive: true
+      });
+    }
+    
+    return options;
   };
 
   const takePhoto = async () => {
@@ -895,7 +908,7 @@ export default function ProfileScreen() {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'You need to grant camera permissions to take a photo.');
+        showToast('You need to grant camera permissions to take a photo', 'error');
         return;
       }
       
@@ -907,12 +920,14 @@ export default function ProfileScreen() {
       
       if (!result.canceled) {
         const uri = result.assets[0].uri;
+        // Update both local state and AsyncStorage immediately
         setProfilePictureUri(uri);
         await AsyncStorage.setItem(USER_PROFILE_PICTURE_KEY, uri);
+        showToast('Photo added successfully', 'success');
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo.');
+      showToast('Failed to take photo', 'error');
     }
   };
 
@@ -921,12 +936,12 @@ export default function ProfileScreen() {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'You need to grant gallery permissions to select a photo.');
+        showToast('You need to grant gallery permissions to select a photo', 'error');
         return;
       }
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -934,22 +949,26 @@ export default function ProfileScreen() {
       
       if (!result.canceled) {
         const uri = result.assets[0].uri;
+        // Update both local state and AsyncStorage immediately
         setProfilePictureUri(uri);
         await AsyncStorage.setItem(USER_PROFILE_PICTURE_KEY, uri);
+        showToast('Photo selected successfully', 'success');
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to select image.');
+      showToast('Failed to select image', 'error');
     }
   };
 
   const removeProfilePicture = async () => {
     try {
+      // Update both local state and AsyncStorage immediately
       setProfilePictureUri(null);
       await AsyncStorage.removeItem(USER_PROFILE_PICTURE_KEY);
+      showToast('Profile picture removed', 'success');
     } catch (error) {
       console.error('Error removing profile picture:', error);
-      Alert.alert('Error', 'Failed to remove profile picture.');
+      showToast('Failed to remove profile picture', 'error');
     }
   };
 
@@ -971,6 +990,14 @@ export default function ProfileScreen() {
       />
       
       {ThemeSelectionModal()}
+      
+      {/* Profile picture action sheet */}
+      <ActionSheet
+        visible={actionSheetVisible}
+        title="Profile Picture"
+        options={getActionSheetOptions()}
+        onClose={() => setActionSheetVisible(false)}
+      />
       
       {/* Profile Header with Gradient Background */}
       <LinearGradient
@@ -1004,12 +1031,12 @@ export default function ProfileScreen() {
                   resizeMode="cover"
                 />
               ) : (
-                <FontAwesome5 name="user" size={40} color={colors.primary} />
+              <FontAwesome5 name="user" size={40} color={colors.primary} />
               )}
               
               <View style={styles.cameraIconContainer}>
                 <FontAwesome5 name="camera" size={14} color="white" />
-              </View>
+          </View>
             </LinearGradient>
           </TouchableOpacity>
           
