@@ -206,10 +206,10 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await resetDatabase();
-              Alert.alert('Success', 'All data has been reset successfully. Please restart the app.');
+              showToast('All data has been reset successfully. Please restart the app.', 'success');
             } catch (error) {
               console.error('Error resetting database:', error);
-              Alert.alert('Error', 'Failed to reset the data. Please try again.');
+              showToast('Failed to reset the data. Please try again.', 'error');
             }
           }
         }
@@ -342,7 +342,7 @@ export default function ProfileScreen() {
       
       // Validate the imported data has the expected format
       if (!routineData.name || !Array.isArray(routineData.exercises)) {
-        Alert.alert('Invalid File', 'The selected file is not a valid routine file.');
+        showToast('The selected file is not a valid routine file.', 'error');
         return;
       }
       
@@ -400,7 +400,7 @@ export default function ProfileScreen() {
       }
     } catch (error) {
       console.error('Error importing routine:', error);
-      Alert.alert('Import Failed', 'An error occurred while importing the routine.');
+      showToast('An error occurred while importing the routine.', 'error');
     }
   };
 
@@ -439,7 +439,7 @@ export default function ProfileScreen() {
                 
                 // Validate the import data structure
                 if (!importData.data || !importData.exportDate) {
-                  Alert.alert('Invalid File', 'The selected file is not a valid TrackFit export file.');
+                  showToast('The selected file is not a valid TrackFit export file.', 'error');
                   return;
                 }
                 
@@ -649,7 +649,7 @@ export default function ProfileScreen() {
                 }
               } catch (error) {
                 console.error('Error importing data:', error);
-                Alert.alert('Import Failed', 'An error occurred while importing your data. Please try again.');
+                showToast('An error occurred while importing your data. Please try again.', 'error');
               }
             }
           }
@@ -657,7 +657,7 @@ export default function ProfileScreen() {
       );
     } catch (error) {
       console.error('Error in handleImportData:', error);
-      Alert.alert('Import Failed', 'An error occurred while preparing to import data.');
+      showToast('An error occurred while preparing to import data.', 'error');
     }
   };
 
@@ -862,11 +862,11 @@ export default function ProfileScreen() {
           ]
         );
       } else {
-        Alert.alert('Export Complete', 'Your data has been exported successfully to the app documents directory.');
+        showToast('Your data has been exported successfully to the app documents directory.', 'success');
       }
     } catch (error) {
       console.error('Error exporting data:', error);
-      Alert.alert('Export Failed', 'An error occurred while exporting your data. Please try again later.');
+      showToast('An error occurred while exporting your data. Please try again later.', 'error');
     }
   };
 
@@ -1257,7 +1257,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.settingItem}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Coming Soon', 'This feature will be available in a future update.')}
+            onPress={() => showToast('This feature will be available in a future update.', 'info')}
           >
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="bell" size={18} color={colors.primary} style={styles.settingIcon} />
@@ -1305,7 +1305,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.settingItem}
             activeOpacity={0.7}
-            onPress={() => Alert.alert('Coming Soon', 'Language options will be available in a future update.')}
+            onPress={() => showToast('Language options will be available in a future update.', 'info')}
           >
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="language" size={18} color={colors.primary} style={styles.settingIcon} />
