@@ -15,6 +15,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as ImagePicker from 'expo-image-picker';
 import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
@@ -109,6 +110,7 @@ export default function ProfileScreen() {
 
   // ActionSheet state
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [resetConfirmationVisible, setResetConfirmationVisible] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -195,26 +197,18 @@ export default function ProfileScreen() {
   };
 
   const handleResetDatabase = () => {
-    Alert.alert(
-      'Reset All Data',
-      'This will delete all your data and reset the app to its initial state. This action cannot be undone. Are you sure you want to continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reset', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await resetDatabase();
-              showToast('All data has been reset successfully. Please restart the app.', 'success');
-            } catch (error) {
-              console.error('Error resetting database:', error);
-              showToast('Failed to reset the data. Please try again.', 'error');
-            }
-          }
-        }
-      ]
-    );
+    setResetConfirmationVisible(true);
+  };
+
+  const confirmReset = async () => {
+    try {
+      await resetDatabase();
+      setResetConfirmationVisible(false);
+      showToast('All data has been reset successfully. Please restart the app.', 'success');
+    } catch (error) {
+      console.error('Error resetting database:', error);
+      showToast('Failed to reset the data. Please try again.', 'error');
+    }
   };
 
   const toggleWeightUnit = async (value: boolean) => {
@@ -997,6 +991,19 @@ export default function ProfileScreen() {
         title="Profile Picture"
         options={getActionSheetOptions()}
         onClose={() => setActionSheetVisible(false)}
+      />
+      
+      {/* Reset Database Confirmation Modal */}
+      <ConfirmationModal
+        visible={resetConfirmationVisible}
+        title="Reset All Data"
+        message="This will delete all your data and reset the app to its initial state. This action cannot be undone. Are you sure you want to continue?"
+        confirmText="Reset"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        icon="trash-alt"
+        onConfirm={confirmReset}
+        onCancel={() => setResetConfirmationVisible(false)}
       />
       
       {/* Profile Header with Gradient Background */}
