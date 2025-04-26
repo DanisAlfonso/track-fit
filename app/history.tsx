@@ -7,6 +7,7 @@ import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 type Workout = {
   id: number;
@@ -29,6 +30,10 @@ export default function HistoryScreen() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Add state for the delete confirmation modal
+  const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
+  const [workoutToDelete, setWorkoutToDelete] = useState<number | null>(null);
 
   // Use focus effect to reload data when the screen comes into focus
   useFocusEffect(
@@ -60,55 +65,56 @@ export default function HistoryScreen() {
     }
   };
 
-  const deleteWorkout = async (workoutId: number) => {
-    showToast(
-      'Are you sure you want to delete this workout? This action cannot be undone.',
-      'info',
-      10000,
-      {
-        label: 'Delete',
-        onPress: async () => {
-          try {
-            setIsDeleting(true);
-            const db = await getDatabase();
-            
-            // Transaction to ensure all related data is deleted
-            await db.runAsync('BEGIN TRANSACTION');
-            
-            try {
-              // Delete workout exercises first due to foreign key constraint
-              await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutId]);
-              
-              // Then delete the workout
-              await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutId]);
-              
-              // Commit the transaction
-              await db.runAsync('COMMIT');
-              
-              // Refresh the workout list
-              await loadWorkouts();
-              
-              // Navigate back to the home screen to refresh it, then back to history
-              router.push('/');
-              setTimeout(() => {
-                router.push('/history');
-              }, 100);
-              
-              showToast('Workout deleted successfully', 'success');
-            } catch (error) {
-              // Rollback in case of error
-              await db.runAsync('ROLLBACK');
-              throw error;
-            }
-          } catch (error) {
-            console.error('Error deleting workout:', error);
-            showToast('Failed to delete workout', 'error');
-          } finally {
-            setIsDeleting(false);
-          }
-        }
+  const deleteWorkout = (workoutId: number) => {
+    // Set the workout ID to delete and show the confirmation modal
+    setWorkoutToDelete(workoutId);
+    setDeleteConfirmationVisible(true);
+  };
+  
+  // Add new function to handle the confirmed workout deletion
+  const confirmDeleteWorkout = async () => {
+    if (!workoutToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      const db = await getDatabase();
+      
+      // Transaction to ensure all related data is deleted
+      await db.runAsync('BEGIN TRANSACTION');
+      
+      try {
+        // Delete workout exercises first due to foreign key constraint
+        await db.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', [workoutToDelete]);
+        
+        // Then delete the workout
+        await db.runAsync('DELETE FROM workouts WHERE id = ?', [workoutToDelete]);
+        
+        // Commit the transaction
+        await db.runAsync('COMMIT');
+        
+        // Refresh the workout list
+        await loadWorkouts();
+        
+        // Navigate back to the home screen to refresh it, then back to history
+        router.push('/');
+        setTimeout(() => {
+          router.push('/history');
+        }, 100);
+        
+        showToast('Workout deleted successfully', 'success');
+      } catch (error) {
+        // Rollback in case of error
+        await db.runAsync('ROLLBACK');
+        throw error;
       }
-    );
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      showToast('Failed to delete workout', 'error');
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmationVisible(false);
+      setWorkoutToDelete(null);
+    }
   };
 
   const formatDate = (timestamp: number) => {
@@ -205,6 +211,22 @@ export default function HistoryScreen() {
               </Text>
             </View>
           }
+        />
+        
+        {/* Add the ConfirmationModal */}
+        <ConfirmationModal
+          visible={deleteConfirmationVisible}
+          title="Delete Workout"
+          message="Are you sure you want to delete this workout? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmStyle="destructive"
+          icon="trash-alt"
+          onConfirm={confirmDeleteWorkout}
+          onCancel={() => {
+            setDeleteConfirmationVisible(false);
+            setWorkoutToDelete(null);
+          }}
         />
       </View>
     </>

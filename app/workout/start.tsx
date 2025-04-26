@@ -11,6 +11,7 @@ import { useWorkout } from '@/context/WorkoutContext';
 import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/profile';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -125,6 +126,8 @@ export default function StartWorkoutScreen() {
   const animationFrameRef = useRef<number | null>(null);
   const restStartTimeRef = useRef<number>(0);
   const restEndTimeRef = useRef<number>(0);
+  // Add state for finish workout confirmation modal
+  const [finishConfirmationVisible, setFinishConfirmationVisible] = useState(false);
   
   // Load user's weight unit preference
   useEffect(() => {
@@ -718,33 +721,29 @@ export default function StartWorkoutScreen() {
   const finishWorkout = async () => {
     if (!workoutId) return;
     
-    // Show a toast with confirmation action instead of an alert
-    showToast(
-      'Ready to finish your workout?', 
-      'info', 
-      10000, // Longer duration for this important action
-      {
-        label: 'Finish',
-        onPress: async () => {
-          setIsSaving(true);
-          try {
-            // First save all incomplete sets
-            await saveWorkoutProgress(true);
-            
-            // Then mark the workout as complete
-            await saveWorkoutCompletion();
-            
-            // Clear the active workout from global context
-            endGlobalWorkout();
-          } catch (error) {
-            console.error('Error finishing workout:', error);
-            showToast('Failed to save workout. Please try again.', 'error');
-          } finally {
-            setIsSaving(false);
-          }
-        }
-      }
-    );
+    // Show the confirmation modal instead of toast
+    setFinishConfirmationVisible(true);
+  };
+  
+  // Add new function to handle the confirmed workout completion
+  const confirmFinishWorkout = async () => {
+    setIsSaving(true);
+    try {
+      // First save all incomplete sets
+      await saveWorkoutProgress(true);
+      
+      // Then mark the workout as complete
+      await saveWorkoutCompletion();
+      
+      // Clear the active workout from global context
+      endGlobalWorkout();
+    } catch (error) {
+      console.error('Error finishing workout:', error);
+      showToast('Failed to save workout. Please try again.', 'error');
+    } finally {
+      setIsSaving(false);
+      setFinishConfirmationVisible(false);
+    }
   };
 
   const formatDuration = (seconds: number): string => {
@@ -2329,6 +2328,19 @@ export default function StartWorkoutScreen() {
         </View>
       </Modal>
       {renderDiagnostics()}
+      
+      {/* Add the ConfirmationModal */}
+      <ConfirmationModal
+        visible={finishConfirmationVisible}
+        title="Finish Workout"
+        message="Are you sure you want to finish your workout? All progress will be saved."
+        confirmText="Finish"
+        cancelText="Cancel"
+        confirmStyle="primary"
+        icon="check-circle"
+        onConfirm={confirmFinishWorkout}
+        onCancel={() => setFinishConfirmationVisible(false)}
+      />
     </View>
   );
 }
