@@ -17,6 +17,7 @@ import * as Progress from 'react-native-progress'; // Import the progress librar
 import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { SetBottomSheet } from '@/components/SetBottomSheet';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -899,26 +900,32 @@ export default function StartWorkoutScreen() {
           </View>
           
           <View style={styles.exerciseHeaderRight}>
-            {/* Mini progress bar */}
-            <View style={styles.miniProgressContainer}>
-              <View style={styles.miniProgressBackground}>
-                <View 
-                  style={[
-                    styles.miniProgressFill, 
-                    { 
-                      width: `${progress}%`, 
-                      backgroundColor: progress === 100 ? colors.success : colors.primary 
-                    }
-                  ]} 
-                />
-              </View>
+            {/* Elegant circular progress indicator */}
+            <View style={styles.progressCircleContainer}>
+              <Progress.Circle
+                size={36}
+                progress={progress / 100}
+                color={progress === 100 ? colors.success : borderColor}
+                unfilledColor={currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
+                borderWidth={0}
+                thickness={3}
+                strokeCap="round"
+                showsText={false}
+              />
+              <Text style={[styles.progressText, { 
+                color: progress === 100 ? colors.success : borderColor,
+                fontSize: 10,
+                position: 'absolute'
+              }]}>
+                {progress.toFixed(0)}%
+              </Text>
             </View>
             
             <TouchableOpacity
               style={[styles.exerciseHistoryButton, { borderColor: colors.primary }]}
               onPress={() => router.push(`/exercise/history/${item.exercise_id}`)}
             >
-              <FontAwesome name="history" size={14} color={colors.primary} style={styles.historyIcon} />
+              <FontAwesome name="history" size={16} color={colors.primary} style={styles.historyIcon} />
               <Text style={[styles.historyButtonText, { color: colors.primary }]}>History</Text>
             </TouchableOpacity>
           </View>
@@ -2233,6 +2240,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 'auto',
   },
+  progressCircleContainer: {
+    width: 36,
+    height: 36,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Keep these styles for backwards compatibility
   miniProgressContainer: {
     width: 80,
     marginRight: 10,
@@ -2453,18 +2468,19 @@ const styles = StyleSheet.create({
   exerciseHistoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    marginLeft: 8,
-  },
-  historyButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'transparent',
   },
   historyIcon: {
-    marginRight: 4,
+    marginRight: 6,
+  },
+  historyButtonText: {
+    fontWeight: '600',
+    fontSize: 14,
   },
   finishButtonContainer: {
     position: 'absolute',
