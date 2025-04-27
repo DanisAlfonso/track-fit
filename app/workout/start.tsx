@@ -1852,9 +1852,7 @@ export default function StartWorkoutScreen() {
       <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen
         options={{
-          // Remove simple title, use headerTitle instead
-          // title: routineName || "Start Workout",
-          headerTitle: renderHeaderTitle, // Use the custom component
+          headerTitle: renderHeaderTitle,
           headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
@@ -1867,7 +1865,8 @@ export default function StartWorkoutScreen() {
               <FontAwesome5 name="ellipsis-v" size={18} color={colors.text} />
             </TouchableOpacity>
           ),
-          headerTitleAlign: 'left',
+          // Change alignment to center
+          headerTitleAlign: 'center',
         }}
       />
 
@@ -3006,8 +3005,7 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1, 
-    marginRight: 10, 
+    // Remove flex: 1 and marginRight, let React Navigation handle centering
   },
   
   // Styles for the circular progress in the header
