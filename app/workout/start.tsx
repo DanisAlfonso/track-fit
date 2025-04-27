@@ -1822,17 +1822,8 @@ export default function StartWorkoutScreen() {
           headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
-          },
-          headerRight: () => (
-            workoutStarted && (
-              <TouchableOpacity 
-                style={styles.minimizeButton}
-                onPress={minimizeWorkoutAndNavigate}
-              >
-                <FontAwesome name="compress" size={18} color={colors.primary} />
-              </TouchableOpacity>
-            )
-          ),
+          }
+          // Removed the headerRight option with the minimize button since it's redundant
         }}
       />
       
