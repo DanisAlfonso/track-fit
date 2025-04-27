@@ -2921,11 +2921,6 @@ const styles = StyleSheet.create({
     // Use colors.border here
   },
 
-  // Styles for Overflow Menu
-  // modalOverlay: { // REMOVE this definition (Duplicate)
-  //   flex: 1,
-  //   backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  // },
   overflowMenu: {
     position: 'absolute',
     top: (Platform.OS === 'ios' ? 44 : 0) + 5, // Adjust based on actual header height
@@ -2952,11 +2947,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  // menuIcon: { // REMOVE this definition (Duplicate)
-  //   marginRight: 12,
-  //   width: 20, // Ensure icons align
-  //   textAlign: 'center',
-  // },
   menuItemText: {
     fontSize: 16,
   },
@@ -3006,12 +2996,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Remove old styles comments ...
-
-  // Keep existing styles like exerciseList, exerciseGroup, groupHeader etc.
-  // muscleNavDot: { // REMOVE this definition (Duplicate)
-  //   width: 10,
-  //   height: 10,
-  //   borderRadius: 5,
-  // },
 });
