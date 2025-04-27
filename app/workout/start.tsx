@@ -69,11 +69,11 @@ export default function StartWorkoutScreen() {
   const { routineId, workoutId: existingWorkoutId } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const { theme } = useTheme();
+  const { theme } = useTheme(); // Keep getting theme
   const { showToast } = useToast();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
-  const colors = Colors[currentTheme];
+  const colors = Colors[currentTheme]; // Get colors this way
   const workoutStartTime = useRef<number | null>(null);
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
@@ -722,8 +722,13 @@ export default function StartWorkoutScreen() {
     return `${hours > 0 ? `${hours}:` : ''}${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Calculate overall workout progress percentage
-  const calculateProgressPercentage = () => {
+  // Memoize the duration change handler
+  const handleDurationChange = useCallback((duration: number) => {
+    setWorkoutDuration(duration);
+  }, []); // No dependencies needed as setWorkoutDuration is stable
+
+  // Memoize the progress calculation (assuming it's defined elsewhere or inline)
+  const calculateProgressPercentage = useCallback(() => {
     if (exercises.length === 0) return 0;
     
     const totalSets = exercises.reduce((sum, exercise) => sum + exercise.sets_data.length, 0);
@@ -731,13 +736,14 @@ export default function StartWorkoutScreen() {
       sum + exercise.sets_data.filter(set => set.completed).length, 0);
     
     return totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
-  };
+  }, [exercises]);
 
-  const renderProgressBar = () => {
+  // Memoize the progress bar rendering function
+  const renderProgressBar = useCallback(() => {
     const progress = calculateProgressPercentage();
     
     return (
-      <View style={styles.progressBarContainer}>
+      <View style={styles.progressBarContainer}> 
         <View style={styles.progressBarBackground}>
           <View 
             style={[
@@ -750,11 +756,23 @@ export default function StartWorkoutScreen() {
           />
         </View>
         <Text style={[styles.progressText, { color: colors.text }]}>
-          {progress.toFixed(0)}% Complete
+          {progress.toFixed(0)}%
         </Text>
       </View>
     );
-  };
+  }, [calculateProgressPercentage, colors]); // Depends on the calculation and colors
+
+  // Memoize the custom header title component function
+  const renderHeaderTitle = useCallback(() => (
+    <View style={styles.headerTitleContainer}>
+      <WorkoutTimer
+        workoutStarted={workoutStarted}
+        workoutStartTime={workoutStartTime}
+        onDurationChange={handleDurationChange} // Pass the memoized handler
+      />
+      {workoutStarted && renderProgressBar()} 
+    </View>
+  ), [workoutStarted, workoutStartTime, handleDurationChange, renderProgressBar]); // Add dependencies
 
   const renderExerciseItem = ({ item, index, muscleColor }: { item: WorkoutExercise, index: number, muscleColor?: string }) => {
     // Calculate exercise completion percentage
@@ -1772,11 +1790,6 @@ export default function StartWorkoutScreen() {
     }
   };
 
-  // Callback function to handle timer updates from the WorkoutTimer component
-  const handleDurationChange = (duration: number) => {
-    setWorkoutDuration(duration);
-  };
-
   // Add useEffect to handle tapping outside the menu to dismiss it
   useEffect(() => {
     const handlePressOutside = () => {
@@ -1838,7 +1851,9 @@ export default function StartWorkoutScreen() {
       <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <Stack.Screen
         options={{
-          title: routineName || "Start Workout",
+          // Remove simple title, use headerTitle instead
+          // title: routineName || "Start Workout",
+          headerTitle: renderHeaderTitle, // Use the custom component
           headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
@@ -1851,6 +1866,7 @@ export default function StartWorkoutScreen() {
               <FontAwesome5 name="ellipsis-v" size={18} color={colors.text} />
             </TouchableOpacity>
           ),
+          headerTitleAlign: 'left',
         }}
       />
 
@@ -1945,20 +1961,9 @@ export default function StartWorkoutScreen() {
         </View>
       ) : (
         <>
-          {/* Remove the View wrapping header content, as sorting is moved */} 
-          {/* The Timer and Progress bar remain, but not inside the old header structure */}
-          <View style={styles.workoutStatusContainer}> 
-            <WorkoutTimer
-              workoutStarted={workoutStarted}
-              workoutStartTime={workoutStartTime}
-              onDurationChange={handleDurationChange}
-            />
-            {renderProgressBar()}
-          </View>
+          {/* workoutStatusContainer View is removed entirely */}
 
-          {/* Remove the old muscleNavContainer rendering */} 
-
-          {/* Conditional rendering for exercises based on sortOption */} 
+          {/* Conditional rendering for exercises based on sortOption */}
           {sortOption === 'default' && (
             <FlatList
               data={exercises}
@@ -2304,24 +2309,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   progressBarContainer: {
-    flex: 1,
-    marginLeft: 16,
+    flex: 1, 
+    marginLeft: 12, 
+    maxWidth: 100, 
   },
   progressBarBackground: {
-    height: 6,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    height: 5, // Smaller height
+    backgroundColor: 'rgba(120, 120, 128, 0.2)', // Neutral background
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 4,
+    marginBottom: 1, // Smaller margin
   },
   progressBarFill: {
     height: '100%',
     borderRadius: 3,
   },
   progressText: {
-    fontSize: 12,
+    fontSize: 10, // Smaller text
     fontWeight: '500',
     textAlign: 'right',
+    lineHeight: 12, // Adjust line height
   },
   startButton: {
     flexDirection: 'row',
@@ -2992,6 +2999,38 @@ const styles = StyleSheet.create({
   popupCloseButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // Add styles for the custom header title container
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1, 
+    marginRight: 10, 
+  },
+  
+  // Header specific progress bar styles
+  headerProgressBarContainer: {
+    flex: 1, // Allow it to take available space
+    marginLeft: 12, 
+    maxWidth: 100, // Keep it relatively small in header
+  },
+  headerProgressBarBackground: {
+    height: 5, // Smaller height for header
+    backgroundColor: 'rgba(120, 120, 128, 0.2)', 
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 1, 
+  },
+  headerProgressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  headerProgressText: {
+    fontSize: 10, // Smaller text for header
+    fontWeight: '500',
+    textAlign: 'right',
+    lineHeight: 12, // Adjust line height
   },
 
 });
