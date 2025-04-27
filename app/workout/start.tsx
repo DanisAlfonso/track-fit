@@ -133,6 +133,8 @@ export default function StartWorkoutScreen() {
   const [isRestTimerRunning, setIsRestTimerRunning] = useState(false);
   const [restModalVisible, setRestModalVisible] = useState(false);
   const [activeRestExercise, setActiveRestExercise] = useState<string | null>(null);
+  const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
+  const [musclePopupVisible, setMusclePopupVisible] = useState(false);
   
   // Load user's weight unit preference
   useEffect(() => {
@@ -1478,7 +1480,7 @@ export default function StartWorkoutScreen() {
   const scrollToMuscle = (muscle: string) => {
     if (muscleScrollViewRef.current && musclePositions.current[muscle] !== undefined) {
       muscleScrollViewRef.current.scrollTo({
-        y: musclePositions.current[muscle] - 60, // Adjust for header
+        y: musclePositions.current[muscle], // Adjust offset as needed if header changes height
         animated: true,
       });
     }
@@ -1791,6 +1793,24 @@ export default function StartWorkoutScreen() {
     };
   }, [showingMenu]);
 
+  // Updated function to handle sort option selection from menu
+  const handleSortSelection = (option: SortOption) => {
+    setSortOption(option);
+    setOverflowMenuVisible(false);
+    if (option === 'muscle') {
+      // Open muscle popup if muscle sort is selected
+      setMusclePopupVisible(true);
+    } else {
+      setMusclePopupVisible(false);
+    }
+  };
+
+  // Function to handle muscle selection from the popup
+  const handleMuscleSelect = (muscle: string) => {
+    scrollToMuscle(muscle);
+    setMusclePopupVisible(false);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1816,87 +1836,86 @@ export default function StartWorkoutScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
-      <Stack.Screen 
+      <Stack.Screen
         options={{
           title: routineName || "Start Workout",
           headerTintColor: colors.text,
           headerStyle: {
             backgroundColor: colors.background,
-          }
-          // Removed the headerRight option with the minimize button since it's redundant
+          },
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => setOverflowMenuVisible(true)}
+              style={styles.headerMenuButton}
+            >
+              <FontAwesome5 name="ellipsis-v" size={18} color={colors.text} />
+            </TouchableOpacity>
+          ),
         }}
       />
-      
-      {/* Rest Timer Modal */}
+
+      {/* --- Overflow Menu Modal --- */}
       <Modal
-        animationType="fade"
         transparent={true}
-        visible={isResting}
-        onRequestClose={skipRestTimer}
+        visible={overflowMenuVisible}
+        animationType="fade"
+        onRequestClose={() => setOverflowMenuVisible(false)}
       >
-        <View style={styles.restModalOverlay}>
-          <Animated.View 
-            style={[
-              styles.restModalContent, 
-              { 
-                backgroundColor: restTimeoutFlash.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [colors.card, colors.primary + '30']
-                }) 
-              }
-            ]}
-          >
-            <View style={styles.restTimerHeader}>
-              <Text style={[styles.restTimerTitle, { color: colors.text }]}>Rest Time</Text>
-              <TouchableOpacity onPress={skipRestTimer}>
-                <FontAwesome name="times" size={22} color={colors.text} />
+        <TouchableWithoutFeedback onPress={() => setOverflowMenuVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.overflowMenu, { backgroundColor: colors.card }]}>
+              <Text style={[styles.menuTitle, { color: colors.text }]}>Sort Exercises By</Text>
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('default')}>
+                <FontAwesome5 name="sort-numeric-down" size={16} color={sortOption === 'default' ? colors.primary : colors.text} style={styles.menuIcon} />
+                <Text style={[styles.menuItemText, { color: sortOption === 'default' ? colors.primary : colors.text }]}>Default Order</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('muscle')}>
+                <FontAwesome5 name="dumbbell" size={16} color={sortOption === 'muscle' ? colors.primary : colors.text} style={styles.menuIcon} />
+                <Text style={[styles.menuItemText, { color: sortOption === 'muscle' ? colors.primary : colors.text }]}>Muscle Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('category')}>
+                <FontAwesome5 name="tags" size={16} color={sortOption === 'category' ? colors.primary : colors.text} style={styles.menuIcon} />
+                <Text style={[styles.menuItemText, { color: sortOption === 'category' ? colors.primary : colors.text }]}>Category</Text>
               </TouchableOpacity>
             </View>
-            
-            <View style={styles.restTimerClock}>
-              <Text style={[styles.restTimerCountdown, { color: colors.text }]}>
-                {Math.floor(restTimeRemaining / 60)}:{(restTimeRemaining % 60).toString().padStart(2, '0')}
-              </Text>
-            </View>
-            
-            <View style={styles.restProgressBarContainer}>
-              <View 
-                style={[
-                  styles.restProgressBarFill, 
-                  { 
-                    backgroundColor: colors.primary,
-                    width: `${restPercent}%`,
-                  }
-                ]} 
-              />
-            </View>
-            
-            <View style={styles.restTimerActions}>
-              <TouchableOpacity 
-                style={[styles.restTimerButton, { backgroundColor: colors.primary + '30' }]}
-                onPress={() => addRestTime(30)}
-              >
-                <Text style={[styles.restTimerButtonText, { color: colors.primary }]}>+30s</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.restTimerButton, { backgroundColor: colors.primary + '30' }]}
-                onPress={() => addRestTime(60)}
-              >
-                <Text style={[styles.restTimerButtonText, { color: colors.primary }]}>+1m</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.skipRestButton, { backgroundColor: colors.error + '20' }]}
-                onPress={skipRestTimer}
-              >
-                <Text style={[styles.skipRestText, { color: colors.error }]}>Skip</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
-      
+
+      {/* --- Muscle Group Popup Modal --- */}
+      <Modal
+        transparent={true}
+        visible={musclePopupVisible}
+        animationType="slide"
+        onRequestClose={() => setMusclePopupVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setMusclePopupVisible(false)}>
+          <View style={styles.modalOverlayCenter}>
+            <View style={[styles.musclePopup, { backgroundColor: colors.card }]}>
+              <Text style={[styles.popupTitle, { color: colors.text }]}>Select Muscle Group</Text>
+              <ScrollView>
+                {Object.keys(muscleGroups).map((muscle) => (
+                  <TouchableOpacity
+                    key={`popup-${muscle}`}
+                    style={styles.musclePopupItem}
+                    onPress={() => handleMuscleSelect(muscle)}
+                  >
+                    <View style={[styles.muscleNavDot, { backgroundColor: getMuscleColor(muscle) }]} />
+                    <Text style={[styles.musclePopupItemText, { color: colors.text }]}>{muscle}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.popupCloseButton}
+                onPress={() => setMusclePopupVisible(false)}
+              >
+                <Text style={[styles.popupCloseButtonText, { color: colors.primary }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {!workoutStarted ? (
         <View style={styles.startWorkoutContainer}>
           <View style={styles.startWorkoutContent}>
@@ -1926,110 +1945,20 @@ export default function StartWorkoutScreen() {
         </View>
       ) : (
         <>
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <View style={styles.workoutInfo}>
-              <View style={styles.workoutStatusRow}>
-                <WorkoutTimer 
-                  workoutStarted={workoutStarted}
-                  workoutStartTime={workoutStartTime}
-                  onDurationChange={handleDurationChange}
-                />
-                
-                {renderProgressBar()}
-              </View>
-              
-              {/* Add sorting options */}
-              <View style={styles.sortOptions}>
-                <TouchableOpacity 
-                  style={[
-                    styles.sortButton, 
-                    sortOption === 'default' && [styles.sortButtonActive, { borderColor: colors.primary }]
-                  ]}
-                  onPress={() => setSortOption('default')}
-                >
-                  <Text 
-                    style={[
-                      styles.sortButtonText, 
-                      { color: sortOption === 'default' ? colors.primary : colors.subtext }
-                    ]}
-                  >
-                    Order
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.sortButton, 
-                    sortOption === 'muscle' && [styles.sortButtonActive, { borderColor: colors.primary }]
-                  ]}
-                  onPress={() => setSortOption('muscle')}
-                >
-                  <Text 
-                    style={[
-                      styles.sortButtonText, 
-                      { color: sortOption === 'muscle' ? colors.primary : colors.subtext }
-                    ]}
-                  >
-                    Muscle
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.sortButton, 
-                    sortOption === 'category' && [styles.sortButtonActive, { borderColor: colors.primary }]
-                  ]}
-                  onPress={() => setSortOption('category')}
-                >
-                  <Text 
-                    style={[
-                      styles.sortButtonText, 
-                      { color: sortOption === 'category' ? colors.primary : colors.subtext }
-                    ]}
-                  >
-                    Category
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+          {/* Remove the View wrapping header content, as sorting is moved */} 
+          {/* The Timer and Progress bar remain, but not inside the old header structure */}
+          <View style={styles.workoutStatusContainer}> 
+            <WorkoutTimer
+              workoutStarted={workoutStarted}
+              workoutStartTime={workoutStartTime}
+              onDurationChange={handleDurationChange}
+            />
+            {renderProgressBar()}
           </View>
-          
-          {/* Quick muscle group navigation */}
-          {sortOption === 'muscle' && Object.keys(muscleGroups).length > 1 && (
-            <View style={[styles.muscleNavContainer, { 
-              backgroundColor: currentTheme === 'dark' ? 'rgba(30, 30, 35, 0.95)' : 'rgba(248, 248, 248, 0.95)',
-              borderColor: colors.border,
-              marginTop: 12,
-            }]}>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.muscleNavContent}
-              >
-                {Object.keys(muscleGroups).map((muscle) => (
-                  <TouchableOpacity
-                    key={`nav-${muscle}`}
-                    style={[
-                      styles.muscleNavItem,
-                      { 
-                        borderColor: getMuscleColor(muscle),
-                        backgroundColor: currentTheme === 'dark' ? 'rgba(45, 45, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-                      }
-                    ]}
-                    onPress={() => scrollToMuscle(muscle)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.muscleNavDot, { backgroundColor: getMuscleColor(muscle) }]} />
-                    <Text style={[styles.muscleNavText, { color: colors.text }]}>
-                      {muscle}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-          
-          {/* Replace FlatList with conditional rendering based on sortOption */}
+
+          {/* Remove the old muscleNavContainer rendering */} 
+
+          {/* Conditional rendering for exercises based on sortOption */} 
           {sortOption === 'default' && (
             <FlatList
               data={exercises}
@@ -2038,9 +1967,9 @@ export default function StartWorkoutScreen() {
               contentContainerStyle={styles.exerciseList}
             />
           )}
-          
+
           {sortOption === 'muscle' && (
-            <ScrollView 
+            <ScrollView
               ref={muscleScrollViewRef}
               contentContainerStyle={styles.exerciseList}
               onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
@@ -2078,7 +2007,7 @@ export default function StartWorkoutScreen() {
               ))}
             </ScrollView>
           )}
-          
+
           {sortOption === 'category' && (
             <ScrollView contentContainerStyle={styles.exerciseList}>
               {Object.entries(exerciseCategories).map(([category, categoryExercises]) => (
@@ -2098,7 +2027,8 @@ export default function StartWorkoutScreen() {
               ))}
             </ScrollView>
           )}
-          
+
+          {/* Finish Button remains */} 
           <View style={[styles.finishButtonContainer, { 
             backgroundColor: currentTheme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
             borderTopColor: colors.border
@@ -2415,7 +2345,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   exerciseList: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16, // Add padding if needed after removing header elements
     paddingBottom: 100, // Give extra padding at bottom for finish button
   },
   exerciseItem: {
@@ -2973,4 +2904,114 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-})
+  // Add styles for header menu button
+  headerMenuButton: {
+    marginRight: 16,
+    padding: 8,
+  },
+
+  // Add styles for the new workout status container
+  workoutStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    // Use colors.border here
+  },
+
+  // Styles for Overflow Menu
+  // modalOverlay: { // REMOVE this definition (Duplicate)
+  //   flex: 1,
+  //   backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  // },
+  overflowMenu: {
+    position: 'absolute',
+    top: (Platform.OS === 'ios' ? 44 : 0) + 5, // Adjust based on actual header height
+    right: 10,
+    width: 200,
+    borderRadius: 8,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  menuTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    opacity: 0.7,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  // menuIcon: { // REMOVE this definition (Duplicate)
+  //   marginRight: 12,
+  //   width: 20, // Ensure icons align
+  //   textAlign: 'center',
+  // },
+  menuItemText: {
+    fontSize: 16,
+  },
+
+  // Styles for Muscle Group Popup
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  musclePopup: {
+    width: '85%',
+    maxHeight: '70%',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  popupTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  musclePopupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    // Use colors.border here
+  },
+  musclePopupItemText: {
+    fontSize: 16,
+    marginLeft: 10,
+  },
+  popupCloseButton: {
+    marginTop: 15,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  popupCloseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Remove old styles comments ...
+
+  // Keep existing styles like exerciseList, exerciseGroup, groupHeader etc.
+  // muscleNavDot: { // REMOVE this definition (Duplicate)
+  //   width: 10,
+  //   height: 10,
+  //   borderRadius: 5,
+  // },
+});
