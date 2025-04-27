@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
 import { useWorkout } from '@/context/WorkoutContext';
+import { useToast } from '@/context/ToastContext';
 
 type Routine = {
   id: number;
@@ -27,6 +28,7 @@ export default function SelectRoutineScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const { activeWorkout } = useWorkout();
+  const { showToast } = useToast();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,14 +136,13 @@ export default function SelectRoutineScreen() {
         [routineId, exerciseId, 3, nextOrder]
       );
       
-      Alert.alert(
-        'Success',
-        `${exerciseResult?.name} added to ${routineResult?.name}`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      // Use showToast for success message
+      showToast(`${exerciseResult?.name} added to ${routineResult?.name}`, 'success');
+      router.back();
     } catch (error) {
       console.error('Error adding exercise to routine:', error);
-      Alert.alert('Error', 'Failed to add exercise to routine');
+      // Use showToast for error message
+      showToast('Failed to add exercise to routine', 'error');
     }
   };
 
