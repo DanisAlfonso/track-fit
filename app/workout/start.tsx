@@ -615,16 +615,14 @@ export default function StartWorkoutScreen() {
   const saveSet = () => {
     if (selectedExercise === null) return;
     
-    // Set all fields as touched when attempting to save
-    setTouchedFields({ reps: true, weight: true });
-    
-    // Validate reps and weight
+    // Validate reps
     if (!currentSet.reps || currentSet.reps < 1) {
       showToast('Please enter at least 1 repetition for this set.', 'error');
       return;
     }
     
-    if (!touchedFields.weight || currentSet.weight <= 0) {
+    // Validate weight directly from the state value
+    if (currentSet.weight <= 0) { 
       showToast(`Please enter a weight value greater than 0 ${weightUnit}.`, 'error');
       return;
     }
