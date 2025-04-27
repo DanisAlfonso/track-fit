@@ -13,6 +13,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import WorkoutTimer from '@/components/WorkoutTimer';
+import * as Progress from 'react-native-progress'; // Import the progress library
 
 type Exercise = {
   routine_exercise_id: number;
@@ -738,24 +739,23 @@ export default function StartWorkoutScreen() {
     return totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
   }, [exercises]);
 
-  // Memoize the progress bar rendering function
-  const renderProgressBar = useCallback(() => {
+  // Memoized function to render the circular progress
+  const renderCircularProgress = useCallback(() => {
     const progress = calculateProgressPercentage();
-    
+    const progressValue = progress / 100; // Convert percentage to 0-1 range
+
     return (
-      <View style={styles.progressBarContainer}> 
-        <View style={styles.progressBarBackground}>
-          <View 
-            style={[
-              styles.progressBarFill, 
-              { 
-                width: `${progress}%`, 
-                backgroundColor: progress === 100 ? colors.success : colors.primary 
-              }
-            ]} 
-          />
-        </View>
-        <Text style={[styles.progressText, { color: colors.text }]}>
+      <View style={styles.circularProgressContainer}>
+        <Progress.Circle 
+          size={24} // Small size for header
+          progress={progressValue}
+          color={progress === 100 ? colors.success : colors.primary}
+          unfilledColor={colors.border} // Use border color for unfilled track
+          borderWidth={0} // No outer border
+          thickness={3} // Thickness of the progress ring
+          showsText={false} // Don't show text inside the circle itself
+        />
+        <Text style={[styles.circularProgressText, { color: colors.text }]}>
           {progress.toFixed(0)}%
         </Text>
       </View>
@@ -768,11 +768,12 @@ export default function StartWorkoutScreen() {
       <WorkoutTimer
         workoutStarted={workoutStarted}
         workoutStartTime={workoutStartTime}
-        onDurationChange={handleDurationChange} // Pass the memoized handler
+        onDurationChange={handleDurationChange}
       />
-      {workoutStarted && renderProgressBar()} 
+      {/* Conditionally render circular progress */}
+      {workoutStarted && renderCircularProgress()} 
     </View>
-  ), [workoutStarted, workoutStartTime, handleDurationChange, renderProgressBar]); // Add dependencies
+  ), [workoutStarted, workoutStartTime, handleDurationChange, renderCircularProgress]); // Add renderCircularProgress dependency
 
   const renderExerciseItem = ({ item, index, muscleColor }: { item: WorkoutExercise, index: number, muscleColor?: string }) => {
     // Calculate exercise completion percentage
@@ -3009,6 +3010,18 @@ const styles = StyleSheet.create({
     marginRight: 10, 
   },
   
+  // Styles for the circular progress in the header
+  circularProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12, // Space between timer and progress
+  },
+  circularProgressText: {
+    fontSize: 11, // Small text
+    fontWeight: '500',
+    marginLeft: 5, // Space between circle and text
+  },
+
   // Header specific progress bar styles
   headerProgressBarContainer: {
     flex: 1, // Allow it to take available space
