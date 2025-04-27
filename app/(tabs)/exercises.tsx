@@ -10,6 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import React from 'react';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
 
 type Exercise = {
   id: number;
@@ -155,41 +156,6 @@ const ExerciseItem = React.memo(({
   );
 });
 
-// Memoized filter button component
-const MuscleGroupFilterButton = React.memo(({ 
-  item, 
-  isSelected, 
-  onPress, 
-  colors 
-}: { 
-  item: string, 
-  isSelected: boolean, 
-  onPress: () => void, 
-  colors: any 
-}) => (
-  <TouchableOpacity
-    style={[
-      styles.filterButton,
-      isSelected
-        ? { backgroundColor: colors.primary }
-        : { backgroundColor: colors.card }
-    ]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <Text
-      style={[
-        styles.filterText,
-        isSelected
-          ? { color: 'white' }
-          : { color: colors.text }
-      ]}
-    >
-      {item}
-    </Text>
-  </TouchableOpacity>
-));
-
 export default function ExercisesScreen() {
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
@@ -206,6 +172,7 @@ export default function ExercisesScreen() {
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   const muscleGroups = useMemo(() => [
     'All',
@@ -221,6 +188,15 @@ export default function ExercisesScreen() {
     'Calves',
     'Abs',
   ], []);
+
+  // Create options for the filter action sheet
+  const filterOptions = useMemo(() => {
+    return muscleGroups.map(group => ({
+      label: group,
+      onPress: () => setSelectedFilter(group === 'All' ? null : group),
+      icon: selectedFilter === group || (group === 'All' && !selectedFilter) ? 'check' : undefined,
+    } as ActionSheetOption));
+  }, [muscleGroups, selectedFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -388,15 +364,6 @@ export default function ExercisesScreen() {
     getMuscleGroupIcon
   ]);
 
-  const renderMuscleGroupFilter = useCallback(({ item }: { item: string }) => (
-    <MuscleGroupFilterButton
-      item={item}
-      isSelected={selectedFilter === item || (item === 'All' && !selectedFilter)}
-      onPress={() => setSelectedFilter(item === 'All' ? null : item)}
-      colors={colors}
-    />
-  ), [selectedFilter, colors]);
-
   // Optimize empty list component with memo
   const EmptyListComponent = useMemo(() => (
     <View style={styles.emptyContainer}>
@@ -412,7 +379,6 @@ export default function ExercisesScreen() {
 
   // Memoize key extractor functions
   const keyExtractor = useCallback((item: Exercise) => item.id.toString(), []);
-  const muscleGroupKeyExtractor = useCallback((item: string) => item, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -462,19 +428,35 @@ export default function ExercisesScreen() {
             </Text>
           </TouchableOpacity>
           
-          <View style={styles.muscleFilterWrapper}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={muscleGroups}
-              keyExtractor={muscleGroupKeyExtractor}
-              renderItem={renderMuscleGroupFilter}
-              contentContainerStyle={styles.muscleFiltersContainer}
-              initialNumToRender={5}
-              maxToRenderPerBatch={5}
-              windowSize={3}
+          <TouchableOpacity
+            style={[
+              styles.muscleFilterButton,
+              { backgroundColor: colors.card }
+            ]}
+            onPress={() => setShowFilterModal(true)}
+            activeOpacity={0.7}
+          >
+            <FontAwesome 
+              name="filter" 
+              size={14} 
+              color={colors.primary} 
+              style={styles.filterIcon} 
             />
-          </View>
+            <Text
+              style={[
+                styles.filterText,
+                { color: colors.text }
+              ]}
+            >
+              {selectedFilter || 'All'}
+            </Text>
+            <FontAwesome 
+              name="chevron-down" 
+              size={12} 
+              color={colors.subtext} 
+              style={styles.filterChevron} 
+            />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -515,6 +497,15 @@ export default function ExercisesScreen() {
       >
         <FontAwesome name="plus" size={24} color="white" />
       </TouchableOpacity>
+
+      {/* Muscle group filter action sheet */}
+      <ActionSheet
+        visible={showFilterModal}
+        title="Filter by Muscle Group"
+        options={filterOptions}
+        onClose={() => setShowFilterModal(false)}
+        cancelLabel="Cancel"
+      />
     </View>
   );
 }
@@ -571,14 +562,13 @@ const styles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 1,
   },
-  muscleFilterWrapper: {
+  muscleFilterButton: {
     flex: 1,
-  },
-  filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     borderRadius: 20,
     marginRight: 8,
     shadowColor: '#000',
@@ -587,11 +577,11 @@ const styles = StyleSheet.create({
     shadowRadius: 1,
     elevation: 1,
   },
-  muscleFiltersContainer: {
-    paddingVertical: 2,
-  },
   filterIcon: {
     marginRight: 6,
+  },
+  filterChevron: {
+    marginLeft: 6,
   },
   filterText: {
     fontSize: 14,
