@@ -1773,15 +1773,12 @@ export default function StartWorkoutScreen() {
         }
       }
       
-      // Show success message with button to view completed workout
-      showToast('Great job! Your workout has been saved.', 'success', 3000, {
-        label: 'View Details',
-        onPress: () => router.replace(`/workout/${workoutId}`)
-      });
+      // Show success message without the button
+      showToast('Great job! Your workout has been saved.', 'success', 3000);
       
       setTimeout(() => {
         router.replace(`/workout/${workoutId}`);
-      }, 1000);
+      }, 1000); 
     } catch (error) {
       console.error('Error saving workout completion:', error);
       showToast('Failed to save workout. Please try again.', 'error');
