@@ -12,6 +12,7 @@ import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/p
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import WorkoutTimer from '@/components/WorkoutTimer';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -76,7 +77,6 @@ export default function StartWorkoutScreen() {
   const workoutStartTime = useRef<number | null>(null);
   const workoutTimer = useRef<NodeJS.Timeout | null>(null);
   const [workoutDuration, setWorkoutDuration] = useState(0);
-  const timerAnimation = useRef(new Animated.Value(0)).current;
   const appStateRef = useRef(AppState.currentState);
   const lastBackgroundTime = useRef<number | null>(null);
   const lastSaveAttempt = useRef<number>(0);
@@ -158,32 +158,6 @@ export default function StartWorkoutScreen() {
     return inputWeight;
   };
 
-  // Animation pulse for timer
-  useEffect(() => {
-    if (workoutStarted) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(timerAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(timerAnimation, {
-            toValue: 0,
-            duration: 1000,
-            useNativeDriver: true,
-          })
-        ])
-      ).start();
-    } else {
-      timerAnimation.setValue(0);
-    }
-    
-    return () => {
-      timerAnimation.setValue(0);
-    };
-  }, [workoutStarted]);
-
   useEffect(() => {
     loadRoutineExercises();
     return () => {
@@ -192,31 +166,6 @@ export default function StartWorkoutScreen() {
       }
     };
   }, [routineId]);
-
-  // Update workout duration every second
-  useEffect(() => {
-    if (workoutStarted && workoutStartTime.current) {
-      // Use a more reliable method to track time that accounts for background state
-      const calculateElapsedTime = () => {
-        if (!workoutStartTime.current) return;
-        
-        const elapsed = Math.floor((Date.now() - workoutStartTime.current) / 1000);
-        setWorkoutDuration(elapsed);
-      };
-      
-      // Initial calculation
-      calculateElapsedTime();
-      
-      // Set up interval
-      workoutTimer.current = setInterval(calculateElapsedTime, 1000);
-    }
-    return () => {
-      if (workoutTimer.current) {
-        clearInterval(workoutTimer.current);
-        workoutTimer.current = null;
-      }
-    };
-  }, [workoutStarted]);
 
   // Periodically save workout progress even if app stays in foreground
   useEffect(() => {
@@ -1809,6 +1758,11 @@ export default function StartWorkoutScreen() {
     }
   };
 
+  // Callback function to handle timer updates from the WorkoutTimer component
+  const handleDurationChange = (duration: number) => {
+    setWorkoutDuration(duration);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -1956,23 +1910,11 @@ export default function StartWorkoutScreen() {
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.workoutInfo}>
               <View style={styles.workoutStatusRow}>
-                <View style={styles.timerContainer}>
-                  <Animated.View style={[
-                    styles.timerIcon,
-                    { 
-                      backgroundColor: colors.primary + '22',
-                      opacity: timerAnimation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.6, 1]
-                      })
-                    }
-                  ]}>
-                    <FontAwesome name="clock-o" size={16} color={colors.primary} />
-                  </Animated.View>
-                  <Text style={[styles.workoutDuration, { color: colors.text }]}>
-                    {formatDuration(workoutDuration)}
-                  </Text>
-                </View>
+                <WorkoutTimer 
+                  workoutStarted={workoutStarted}
+                  workoutStartTime={workoutStartTime}
+                  onDurationChange={handleDurationChange}
+                />
                 
                 {renderProgressBar()}
               </View>
