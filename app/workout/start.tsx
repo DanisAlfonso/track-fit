@@ -85,6 +85,7 @@ export default function StartWorkoutScreen() {
     background: 0,
     foreground: 0
   });
+  const [showingMenu, setShowingMenu] = useState<number | null>(null);
 
   // Get workout context functions
   const { 
@@ -127,6 +128,11 @@ export default function StartWorkoutScreen() {
   const restEndTimeRef = useRef<number>(0);
   // Add state for finish workout confirmation modal
   const [finishConfirmationVisible, setFinishConfirmationVisible] = useState(false);
+  const [restTimerCountdown, setRestTimerCountdown] = useState(0);
+  const [restTimerDuration, setRestTimerDuration] = useState(0);
+  const [isRestTimerRunning, setIsRestTimerRunning] = useState(false);
+  const [restModalVisible, setRestModalVisible] = useState(false);
+  const [activeRestExercise, setActiveRestExercise] = useState<string | null>(null);
   
   // Load user's weight unit preference
   useEffect(() => {
@@ -832,6 +838,48 @@ export default function StartWorkoutScreen() {
         borderLeftWidth: 4,
         borderLeftColor: borderColor,
       }]}>
+        {/* Add ellipsis menu in top right corner */}
+        {workoutStarted && (
+          <View style={styles.cardMenuContainer}>
+            <TouchableOpacity
+              style={styles.cardMenuButton}
+              onPress={() => {
+                setShowingMenu(showingMenu === exerciseIndex ? null : exerciseIndex);
+              }}
+            >
+              <FontAwesome5 name="ellipsis-v" size={16} color={colors.text} />
+            </TouchableOpacity>
+            
+            {showingMenu === exerciseIndex && (
+              <View style={[styles.menuPopup, { backgroundColor: colors.card }]}>
+                <TouchableOpacity 
+                  style={styles.menuOption}
+                  onPress={() => {
+                    setShowingMenu(null);
+                    addSet(exerciseIndex);
+                  }}
+                >
+                  <FontAwesome5 name="plus" size={14} color={colors.success} style={styles.menuIcon} />
+                  <Text style={[styles.menuText, { color: colors.text }]}>Add Set</Text>
+                </TouchableOpacity>
+                
+                {item.sets_data.length > 1 && (
+                  <TouchableOpacity 
+                    style={styles.menuOption}
+                    onPress={() => {
+                      setShowingMenu(null);
+                      removeSet(exerciseIndex);
+                    }}
+                  >
+                    <FontAwesome5 name="minus" size={14} color={colors.error} style={styles.menuIcon} />
+                    <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+        
         <View style={[styles.exerciseHeader, { borderBottomColor: colors.border }]}>
           <View style={styles.exerciseTitleArea}>
             <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
@@ -881,45 +929,9 @@ export default function StartWorkoutScreen() {
             contentContainerStyle={styles.setsListContent}
           />
           
-          {workoutStarted && (
-            <View style={styles.setsManagementContainer}>
-              <TouchableOpacity
-                style={styles.setManagementButton}
-                onPress={() => addSet(exerciseIndex)}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={[colors.primary, colors.primary + 'E6']}
-                  style={styles.setManagementGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <FontAwesome5 name="plus" size={14} color="#fff" style={styles.setManagementIcon} />
-                  <Text style={styles.setManagementButtonText}>Add Set</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-              
-              {item.sets_data.length > 1 && (
-                <TouchableOpacity
-                  style={styles.setManagementButton}
-                  onPress={() => removeSet(exerciseIndex)}
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient
-                    colors={[colors.error + 'DD', colors.error]}
-                    style={styles.setManagementGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <FontAwesome5 name="minus" size={14} color="#fff" style={styles.setManagementIcon} />
-                    <Text style={styles.setManagementButtonText}>Remove Set</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+          {/* Remove the old Add Set and Remove Set buttons */}
         </View>
-        
+
         <View style={styles.exerciseNotes}>
           <Text style={[styles.notesLabel, { color: colors.subtext }]}>Exercise Notes</Text>
           <TextInput
@@ -1763,6 +1775,22 @@ export default function StartWorkoutScreen() {
     setWorkoutDuration(duration);
   };
 
+  // Add useEffect to handle tapping outside the menu to dismiss it
+  useEffect(() => {
+    const handlePressOutside = () => {
+      if (showingMenu !== null) {
+        setShowingMenu(null);
+      }
+    };
+
+    // Add event listener for tap outside
+    const subscription = Dimensions.addEventListener('change', handlePressOutside);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [showingMenu]);
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -2501,38 +2529,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  setsManagementContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  setManagementButton: {
-    flex: 1,
-    marginHorizontal: 6,
-    borderRadius: 12,
-    overflow: 'hidden', 
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  setManagementGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-  },
-  setManagementIcon: {
-    marginRight: 6,
-  },
-  setManagementButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
   exerciseNotes: {
     marginTop: 8,
   },
@@ -2951,5 +2947,39 @@ const styles = StyleSheet.create({
   diagnosticText: {
     fontSize: 12,
     marginBottom: 2,
+  },
+  cardMenuContainer: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  cardMenuButton: {
+    padding: 8,
+  },
+  menuPopup: {
+    position: 'absolute',
+    top: 35,
+    right: 0,
+    width: 150,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 100,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  menuIcon: {
+    marginRight: 10,
+  },
+  menuText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 })
