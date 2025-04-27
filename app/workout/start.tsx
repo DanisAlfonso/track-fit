@@ -139,6 +139,7 @@ export default function StartWorkoutScreen() {
   const [activeRestExercise, setActiveRestExercise] = useState<string | null>(null);
   const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
   const [musclePopupVisible, setMusclePopupVisible] = useState(false);
+  const [showBottomSheetTimer, setShowBottomSheetTimer] = useState(true);
   
   // Load user's weight unit preference
   useEffect(() => {
@@ -651,15 +652,22 @@ export default function StartWorkoutScreen() {
     exercise.completedSets = exercise.sets_data.filter(s => s.completed).length;
     
     setExercises(updatedExercises);
-    setSetModalVisible(false);
     
-    // Start the rest timer based on the set's rest time
-    startRestTimer(updatedSet.rest_time);
+    // Set flag to show timer in bottom sheet
+    setShowBottomSheetTimer(true);
     
     // Save progress to database immediately after saving a set
     saveWorkoutProgress().catch(error => {
       console.error('Failed to save set data:', error);
     });
+  };
+
+  // Add this function to handle close events from the SetBottomSheet
+  const handleSetBottomSheetClose = () => {
+    console.log('Bottom sheet close requested');
+    setSetModalVisible(false);
+    // Reset the timer flag when modal is closed
+    setShowBottomSheetTimer(false);
   };
 
   const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
@@ -2044,7 +2052,7 @@ export default function StartWorkoutScreen() {
       
       <SetBottomSheet 
         visible={setModalVisible}
-        onClose={() => setSetModalVisible(false)}
+        onClose={handleSetBottomSheetClose}
         onSave={saveSet}
         currentSet={currentSet}
         exerciseName={selectedExercise !== null ? exercises[selectedExercise].name : undefined}
@@ -2055,6 +2063,7 @@ export default function StartWorkoutScreen() {
           previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex] :
           undefined
         }
+        showRestTimer={showBottomSheetTimer}
       />
       
       {renderDiagnostics()}
