@@ -2917,8 +2917,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    // Use colors.border here
+    // borderBottomWidth: 1, // Remove this line
+    // Use colors.border here // This comment should also be removed or updated if border is removed
   },
 
   overflowMenu: {
