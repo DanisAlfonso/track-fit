@@ -697,7 +697,25 @@ export default function ExerciseHistoryScreen() {
         <SafeChart fallback={fallbackChart}>
           <LineChart
             data={{
-              labels: chartData.map(entry => entry.date.substring(0, 6)),
+              labels: chartData.map((entry, index) => {
+                // Implement intelligent label skipping based on data size
+                if (chartData.length <= 5) {
+                  // Show all labels for small datasets
+                  return entry.date.substring(0, 6);
+                } else if (chartData.length <= 10) {
+                  // Skip every other label for medium datasets
+                  return index % 2 === 0 ? entry.date.substring(0, 6) : '';
+                } else if (chartData.length <= 20) {
+                  // Show every third label for larger datasets
+                  return index % 3 === 0 ? entry.date.substring(0, 6) : '';
+                } else if (chartData.length <= 50) {
+                  // For even larger datasets, show every 5th label
+                  return index % 5 === 0 ? entry.date.substring(0, 3) : '';
+                } else {
+                  // For very large datasets (years of data), show only months or years
+                  return index % 10 === 0 ? entry.date.substring(0, 3) : '';
+                }
+              }),
               datasets: [
                 {
                   data: chartData.map(entry => entry.totalVolume),
@@ -728,14 +746,19 @@ export default function ExerciseHistoryScreen() {
                 stroke: colors.border || '#E1E1E1',
                 strokeWidth: 1
               },
-              formatYLabel: (value) => parseInt(value).toLocaleString()
+              formatYLabel: (value) => parseInt(value).toLocaleString(),
+              // Adjust horizontal axis ticks
+              horizontalLabelRotation: chartData.length > 15 ? 45 : 0,
+              formatTopBarValue: (value) => value.toLocaleString()
             }}
             bezier
             style={{
               borderRadius: 16,
               paddingRight: 0,
+              paddingLeft: 0,
               backgroundColor: colors.card,
               elevation: 2,
+              marginBottom: chartData.length > 15 ? 20 : 0,
             }}
           />
         </SafeChart>
@@ -745,7 +768,25 @@ export default function ExerciseHistoryScreen() {
         <SafeChart fallback={fallbackChart}>
           <LineChart
             data={{
-              labels: chartData.map(entry => entry.date.substring(0, 6)),
+              labels: chartData.map((entry, index) => {
+                // Implement intelligent label skipping based on data size
+                if (chartData.length <= 5) {
+                  // Show all labels for small datasets
+                  return entry.date.substring(0, 6);
+                } else if (chartData.length <= 10) {
+                  // Skip every other label for medium datasets
+                  return index % 2 === 0 ? entry.date.substring(0, 6) : '';
+                } else if (chartData.length <= 20) {
+                  // Show every third label for larger datasets
+                  return index % 3 === 0 ? entry.date.substring(0, 6) : '';
+                } else if (chartData.length <= 50) {
+                  // For even larger datasets, show every 5th label
+                  return index % 5 === 0 ? entry.date.substring(0, 3) : '';
+                } else {
+                  // For very large datasets (years of data), show only months or years
+                  return index % 10 === 0 ? entry.date.substring(0, 3) : '';
+                }
+              }),
               datasets: [
                 {
                   data: chartData.map(entry => entry.maxWeight),
@@ -775,17 +816,27 @@ export default function ExerciseHistoryScreen() {
                 strokeDasharray: '',
                 stroke: colors.border || '#E1E1E1',
                 strokeWidth: 1
-              }
+              },
+              // Adjust horizontal axis ticks
+              horizontalLabelRotation: chartData.length > 15 ? 45 : 0
             }}
             bezier
             style={{
               borderRadius: 16,
               paddingRight: 0,
+              paddingLeft: 0,
               backgroundColor: colors.card,
               elevation: 2,
+              marginBottom: chartData.length > 15 ? 20 : 0,
             }}
           />
         </SafeChart>
+
+        {chartData.length > 15 && (
+          <Text style={[styles.chartNote, { color: colors.subtext }]}>
+            * Some date labels are hidden due to the large amount of data
+          </Text>
+        )}
       </View>
     );
   };
@@ -1429,5 +1480,12 @@ const styles = StyleSheet.create({
   trainingTypeBadgeText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  chartNote: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 8,
+    marginBottom: 16,
   },
 }); 
