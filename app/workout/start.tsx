@@ -797,11 +797,13 @@ export default function StartWorkoutScreen() {
           style={[
             styles.setItem, 
             { 
-              backgroundColor: setItem.completed ? colors.success + '22' : colors.card,
+              backgroundColor: colors.card,
               borderColor: setItem.completed ? 
-                (setItem.training_type ? getTrainingTypeColor() : colors.success) : 
+                (setItem.training_type ? getTrainingTypeColor() : '#8477EB') : 
                 colors.border,
               borderWidth: 1.5,
+              borderRadius: 12,
+              overflow: 'hidden'
             }
           ]}
           onPress={() => {
@@ -812,6 +814,16 @@ export default function StartWorkoutScreen() {
           disabled={!workoutStarted}
           activeOpacity={0.7}
         >
+          {setItem.completed && (
+            <LinearGradient
+              colors={setItem.training_type ? 
+                [getTrainingTypeColor() + '20', getTrainingTypeColor() + '10'] : 
+                ['#8477EB20', '#5E72EB10']}
+              style={styles.completedGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+          )}
           <View style={styles.setContent}>
             <Text style={[styles.setText, { color: colors.text }]}>
               SET {setItem.set_number}
@@ -825,13 +837,21 @@ export default function StartWorkoutScreen() {
                   {weightUnit === 'lb' ? `${kgToLb(setItem.weight).toFixed(1)} lb` : `${setItem.weight} kg`}
                 </Text>
                 {setItem.training_type && (
-                  <View style={[styles.trainingTypeBadge, { backgroundColor: getTrainingTypeColor() + '30' }]}>
+                  <View style={[styles.trainingTypeBadge, { 
+                    backgroundColor: getTrainingTypeColor() + '30', 
+                    borderRadius: 8
+                  }]}>
                     <Text style={[styles.trainingTypeBadgeText, { color: getTrainingTypeColor() }]}>
                       {setItem.training_type.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
-                <FontAwesome name="check" size={14} color={colors.success} style={styles.completedIcon} />
+                <FontAwesome 
+                  name="check" 
+                  size={14} 
+                  color={setItem.training_type ? getTrainingTypeColor() : '#8477EB'} 
+                  style={styles.completedIcon} 
+                />
               </>
             ) : (
               <Text style={[styles.tapToLog, { color: colors.primary }]}>
@@ -2279,7 +2299,7 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   setItem: {
-    borderRadius: 10,
+    borderRadius: 12,
     marginRight: 10,
     width: 100,
     height: 85,
@@ -2289,11 +2309,20 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  completedGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   setContent: {
     flex: 1,
     padding: 10,
     justifyContent: 'space-between',
+    zIndex: 1,
   },
   setText: {
     fontWeight: 'bold',
@@ -2669,8 +2698,15 @@ const styles = StyleSheet.create({
   trainingTypeBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 8,
     marginLeft: 4,
+    shadowColor: 'rgba(0,0,0,0.1)',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 2,
+    elevation: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   trainingTypeBadgeText: {
     fontSize: 12,
