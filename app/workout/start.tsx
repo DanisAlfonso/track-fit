@@ -111,7 +111,6 @@ export default function StartWorkoutScreen() {
     completed: false,
     notes: ''
   });
-  const [workoutNotes, setWorkoutNotes] = useState('');
   const [touchedFields, setTouchedFields] = useState<TouchedFields>({ reps: false, weight: false });
   const [previousWorkoutData, setPreviousWorkoutData] = useState<Map<number, { reps: number, weight: number }[]>>(new Map());
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
@@ -297,7 +296,6 @@ export default function StartWorkoutScreen() {
       setRoutineName(workout.name);
       setWorkoutId(workoutId);
       setWorkoutStarted(true);
-      setWorkoutNotes(workout.notes || '');
       workoutStartTime.current = workout.date;
       
       // Load workout exercises and sets
@@ -1166,8 +1164,8 @@ export default function StartWorkoutScreen() {
         try {
           // First update the main workout record
           await db.runAsync(
-            'UPDATE workouts SET duration = ?, notes = ? WHERE id = ?',
-            [durationSec, workoutNotes, workoutId]
+            'UPDATE workouts SET duration = ? WHERE id = ?',
+            [durationSec, workoutId]
           );
           
           // Save each exercise and its sets
@@ -1726,8 +1724,8 @@ export default function StartWorkoutScreen() {
       
       // Update workout with completion time and duration
       await db.runAsync(
-        'UPDATE workouts SET date = ?, duration = ?, notes = ?, completed_at = ? WHERE id = ?',
-        [Date.now(), workoutDuration, workoutNotes, Date.now(), workoutId]
+        'UPDATE workouts SET date = ?, duration = ?, completed_at = ? WHERE id = ?',
+        [Date.now(), workoutDuration, Date.now(), workoutId]
       );
       
       // Save completed exercises and sets
@@ -2032,19 +2030,6 @@ export default function StartWorkoutScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
-              <TextInput
-                style={[styles.workoutNotes, { 
-                  color: colors.text, 
-                  borderColor: colors.border,
-                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-                }]}
-                placeholder="Add notes for this workout..."
-                placeholderTextColor={colors.subtext}
-                value={workoutNotes}
-                onChangeText={setWorkoutNotes}
-                multiline
-              />
             </View>
           </View>
           
@@ -2446,13 +2431,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'right',
-  },
-  workoutNotes: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 60,
-    fontSize: 15,
   },
   startButton: {
     flexDirection: 'row',
