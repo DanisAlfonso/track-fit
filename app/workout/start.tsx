@@ -2,18 +2,21 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback, Vibration, AppState, AppStateStatus } from 'react-native';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
-import { getDatabase } from '@/utils/database';
-import { StatusBar } from 'expo-status-bar';
-import { useWorkout } from '@/context/WorkoutContext';
-import { getWeightUnitPreference, WeightUnit, kgToLb, lbToKg } from '../(tabs)/profile';
-import { useTheme } from '@/context/ThemeContext';
-import { useToast } from '@/context/ToastContext';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { getDatabase } from '@/utils/database';
+import { useWorkout } from '@/context/WorkoutContext';
+import { getWeightUnitPreference, kgToLb, lbToKg, WeightUnit } from '@/app/(tabs)/profile';
+import { format } from 'date-fns';
+import { useToast } from '@/context/ToastContext';
+import { useTheme } from '@/context/ThemeContext';
 import WorkoutTimer from '@/components/WorkoutTimer';
 import * as Progress from 'react-native-progress'; // Import the progress library
+import { BlurView } from 'expo-blur';
+import { StatusBar } from 'expo-status-bar';
+import { SetBottomSheet } from '@/components/SetBottomSheet';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -612,17 +615,17 @@ export default function StartWorkoutScreen() {
     setSetModalVisible(true);
   };
 
-  const saveSet = () => {
+  const saveSet = (updatedSet: Set) => {
     if (selectedExercise === null) return;
     
     // Validate reps
-    if (!currentSet.reps || currentSet.reps < 1) {
+    if (!updatedSet.reps || updatedSet.reps < 1) {
       showToast('Please enter at least 1 repetition for this set.', 'error');
       return;
     }
     
     // Validate weight directly from the state value
-    if (currentSet.weight <= 0) { 
+    if (updatedSet.weight <= 0) { 
       showToast(`Please enter a weight value greater than 0 ${weightUnit}.`, 'error');
       return;
     }
@@ -631,26 +634,15 @@ export default function StartWorkoutScreen() {
     const exercise = updatedExercises[selectedExercise];
     
     // Find the set index
-    const setIndex = exercise.sets_data.findIndex(s => s.set_number === currentSet.set_number);
+    const setIndex = exercise.sets_data.findIndex(s => s.set_number === updatedSet.set_number);
     if (setIndex === -1) return;
     
-    // If no training type is selected, automatically categorize based on rep count
-    if (!currentSet.training_type) {
-      if (currentSet.reps <= 5) {
-        currentSet.training_type = 'heavy';
-      } else if (currentSet.reps <= 12) {
-        currentSet.training_type = 'moderate';
-      } else {
-        currentSet.training_type = 'light';
-      }
-    }
-    
     // Store the weight in kg in the database, regardless of display preference
-    const convertedWeight = getStoredWeight(currentSet.weight);
+    const convertedWeight = getStoredWeight(updatedSet.weight);
     
     // Update the set
     exercise.sets_data[setIndex] = {
-      ...currentSet,
+      ...updatedSet,
       weight: convertedWeight, // Store in kg
       completed: true
     };
@@ -662,21 +654,12 @@ export default function StartWorkoutScreen() {
     setSetModalVisible(false);
     
     // Start the rest timer based on the set's rest time
-    startRestTimer(currentSet.rest_time);
+    startRestTimer(updatedSet.rest_time);
     
     // Save progress to database immediately after saving a set
     saveWorkoutProgress().catch(error => {
       console.error('Failed to save set data:', error);
     });
-    
-    // Check if all sets are completed
-    if (exercise.completedSets === exercise.sets) {
-      // If this was the last exercise and all sets are completed
-      if (selectedExercise === exercises.length - 1 && 
-          updatedExercises.every(e => e.completedSets === e.sets)) {
-        finishWorkout();
-      }
-    }
   };
 
   const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
@@ -2059,163 +2042,21 @@ export default function StartWorkoutScreen() {
         </>
       )}
       
-      <Modal
-        animationType="slide"
-        transparent={true}
+      <SetBottomSheet 
         visible={setModalVisible}
-        onRequestClose={() => setSetModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {selectedExercise !== null 
-                  ? `${exercises[selectedExercise].name} - Set ${currentSet.set_number}` 
-                  : 'Log Set'}
-              </Text>
-              <TouchableOpacity 
-                onPress={() => setSetModalVisible(false)}
-                hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                style={styles.closeButton} 
-              >
-                <FontAwesome name="times" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Show previous performance data if available */}
-            {displayPreviousPerformance()}
-            
-            <View style={styles.inputGroup}>
-              <View style={styles.inputLabelContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Reps</Text>
-                <Text style={[styles.requiredIndicator, { color: colors.error }]}>*</Text>
-              </View>
-              <TextInput
-                style={[
-                  styles.input, 
-                  { 
-                    color: colors.text, 
-                    borderColor: touchedFields.reps && currentSet.reps === 0 ? colors.error : colors.border,
-                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-                  }
-                ]}
-                keyboardType="number-pad"
-                value={currentSet.reps === 0 ? '' : currentSet.reps.toString()}
-                onChangeText={(text) => handleInputChange('reps', text)}
-                placeholder="Enter reps"
-                placeholderTextColor={colors.subtext}
-              />
-              {touchedFields.reps && currentSet.reps === 0 && (
-                <Text style={[styles.inputError, { color: colors.error }]}>
-                  Required: Enter at least 1 rep
-                </Text>
-              )}
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <View style={styles.inputLabelContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Weight ({weightUnit})</Text>
-                <Text style={[styles.requiredIndicator, { color: colors.error }]}>*</Text>
-              </View>
-              <TextInput
-                style={[
-                  styles.input, 
-                  { 
-                    color: colors.text, 
-                    borderColor: touchedFields.weight && currentSet.weight === 0 ? colors.error : colors.border,
-                    backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-                  }
-                ]}
-                keyboardType="decimal-pad"
-                value={currentSet.weight === 0 ? '' : currentSet.weight.toString()}
-                onChangeText={(text) => handleInputChange('weight', text)}
-                placeholder={`Enter weight in ${weightUnit}`}
-                placeholderTextColor={colors.subtext}
-              />
-              {touchedFields.weight && currentSet.weight === 0 && (
-                <Text style={[styles.inputError, { color: colors.error }]}>
-                  Required: Enter weight greater than 0
-                </Text>
-              )}
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <View style={styles.inputLabelContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>Training Type</Text>
-                <Text style={[styles.optionalIndicator, { color: colors.subtext }]}>Optional</Text>
-              </View>
-              <View style={[styles.trainingTypeContainer, { borderColor: colors.border, borderRadius: 8, borderWidth: 1 }]}>
-                {TRAINING_TYPES.map((type, index) => (
-                  <TouchableOpacity
-                    key={type.value}
-                    style={[
-                      styles.trainingTypeButton,
-                      { 
-                        backgroundColor: currentSet.training_type === type.value 
-                          ? type.color + '30' 
-                          : 'transparent',
-                        borderColor: colors.border,
-                        borderLeftWidth: index > 0 ? 1 : 0,
-                        borderRadius: 0,
-                      }
-                    ]}
-                    onPress={() => setCurrentSet({...currentSet, training_type: type.value as 'heavy' | 'moderate' | 'light'})}
-                  >
-                    <Text style={[
-                      styles.trainingTypeText, 
-                      { 
-                        color: currentSet.training_type === type.value 
-                          ? type.color 
-                          : colors.text,
-                        fontWeight: currentSet.training_type === type.value ? 'bold' : 'normal',  
-                      }
-                    ]}>
-                      {type.label}
-                    </Text>
-                    <Text style={[
-                      styles.trainingTypeDescription, 
-                      { 
-                        color: currentSet.training_type === type.value 
-                          ? type.color 
-                          : colors.subtext,
-                      }
-                    ]}>
-                      {type.description}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.trainingTypeHint, { color: colors.subtext }]}>
-                Categorize by intensity to track progress separately
-              </Text>
-            </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Rest Time (seconds)</Text>
-              <TextInput
-                style={[styles.input, { 
-                  color: colors.text, 
-                  borderColor: colors.border,
-                  backgroundColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-                }]}
-                keyboardType="number-pad"
-                value={currentSet.rest_time.toString()}
-                onChangeText={(text) => setCurrentSet({...currentSet, rest_time: parseInt(text) || 0})}
-                placeholder="60"
-                placeholderTextColor={colors.subtext}
-              />
-            </View>
-            
-            <TouchableOpacity 
-              style={[styles.saveButton, { backgroundColor: colors.primary }]}
-              onPress={saveSet}
-            >
-              <FontAwesome name="save" size={18} color="white" style={styles.saveButtonIcon} />
-              <Text style={styles.saveButtonText}>Save Set</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setSetModalVisible(false)}
+        onSave={saveSet}
+        currentSet={currentSet}
+        exerciseName={selectedExercise !== null ? exercises[selectedExercise].name : undefined}
+        weightUnit={weightUnit}
+        previousPerformance={selectedExercise !== null && 
+          previousWorkoutData.has(exercises[selectedExercise].routine_exercise_id) && 
+          previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex] ?
+          previousWorkoutData.get(exercises[selectedExercise].routine_exercise_id)![selectedSetIndex] :
+          undefined
+        }
+      />
+      
       {renderDiagnostics()}
       
       {/* Add the ConfirmationModal */}
@@ -3033,10 +2874,8 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   headerProgressText: {
-    fontSize: 10, // Smaller text for header
-    fontWeight: '500',
-    textAlign: 'right',
-    lineHeight: 12, // Adjust line height
+    fontSize: 12, 
+    marginLeft: 8,
   },
 
 });
