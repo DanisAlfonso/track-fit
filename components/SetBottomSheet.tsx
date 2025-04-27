@@ -188,14 +188,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Create a wrapper around onClose to block closing during timer
   const handleClose = () => {
-    console.log('🔍 handleClose called, shouldBlockClose =', shouldBlockClose);
-    
     if (shouldBlockClose) {
-      console.log('⚠️ Close blocked because timer is active');
       return;
     }
     
-    console.log('✅ Allowing close');
     onClose();
   };
   
@@ -260,14 +256,11 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Handle save button press
   const handleSave = () => {
-    console.log('🔶 Save button pressed');
-    
     // Mark fields as touched for validation
     setTouchedFields({ reps: true, weight: true });
     
     // Validate
     if (setData.reps === 0 || setData.weight === 0) {
-      console.log('❌ Validation failed - missing reps or weight');
       return; // Don't save if there are errors
     }
     
@@ -276,9 +269,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       ...setData,
       completed: true
     };
-    
-    console.log('✅ Saving set data:', updatedSet);
-    console.log('⚠️ Rest time value:', updatedSet.rest_time, 'showRestTimer:', showRestTimer);
     
     // Mark as saved so we block auto-close from parent
     savedRef.current = true;
@@ -292,10 +282,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     
     // Start rest timer if rest time is set
     if (shouldShowTimer) {
-      console.log('⏱️ Rest time is set to', updatedSet.rest_time, 'seconds. Starting timer...');
       startRestTimer();
     } else {
-      console.log('⏱️ No rest time set. Closing modal.');
       // No rest time, close immediately
       setShouldBlockClose(false);
       onClose();
@@ -304,8 +292,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Start rest timer
   const startRestTimer = () => {
-    console.log('🟢 startRestTimer called');
-    
     // Set initial time
     initialRestTime.current = setData.rest_time;
     setRemainingTime(setData.rest_time);
@@ -313,12 +299,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Initialize progress to 0 (empty circle)
     setProgress(0);
     
-    console.log('🔄 Setting UI state - hiding bottom sheet, showing timer');
     // Show timer and hide bottom sheet
     setIsTimerActive(true);
     setShowBottomSheet(false);
     
-    console.log('🔄 Starting timer animations');
     // Animate timer in
     Animated.parallel([
       Animated.timing(timerOpacity, {
@@ -332,20 +316,15 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
         friction: 7,
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      console.log('✅ Timer animation completed');
-    });
+    ]).start();
     
-    console.log('⏰ Setting up timer interval');
     // Start timer interval
     timerRef.current = setInterval(() => {
       setRemainingTime(prev => {
         const newTime = prev - 1;
-        console.log(`⏱️ Timer tick: ${newTime} seconds remaining`);
         
         if (prev <= 1) {
           // Timer complete
-          console.log('🛑 Timer completed');
           clearTimer();
           
           // Ensure progress is at 100% when timer completes
@@ -356,7 +335,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
           
           // Close after a small delay
           setTimeout(() => {
-            console.log('🔄 Auto-closing timer after completion');
             hideRestTimer();
           }, 1000);
           
@@ -366,7 +344,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
         // Calculate progress as a value from 0 to 1 
         // where 0 = just started (empty ring) and 1 = complete (full ring)
         const calculatedProgress = 1 - (newTime / initialRestTime.current);
-        console.log(`🔄 Progress: ${calculatedProgress.toFixed(2)}`);
         setProgress(calculatedProgress);
         
         // Vibrate at specific remaining times
@@ -382,10 +359,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Hide rest timer and close modal
   const hideRestTimer = () => {
-    console.log('🔴 hideRestTimer called');
     clearTimer();
     
-    console.log('🔄 Starting animation to hide timer');
     // Animate timer out
     Animated.parallel([
       Animated.timing(timerOpacity, {
@@ -400,11 +375,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      console.log('✅ Timer hide animation completed');
       setIsTimerActive(false);
       setShowBottomSheet(true);
       setShouldBlockClose(false);
-      console.log('🔄 Closing modal');
       onClose(); // Close the entire modal
     });
   };
@@ -452,14 +425,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Render main content
   const renderBottomSheet = () => {
-    console.log('🔍 renderBottomSheet called, showBottomSheet =', showBottomSheet);
-    
     if (!showBottomSheet) {
-      console.log('⚠️ Not showing bottom sheet because showBottomSheet is false');
       return null;
     }
     
-    console.log('✅ Rendering bottom sheet UI');
     return (
       <Animated.View
         style={[
@@ -704,14 +673,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Render rest timer
   const renderRestTimer = () => {
-    console.log('🔍 renderRestTimer called, isTimerActive =', isTimerActive, 'remainingTime =', remainingTime);
-    
     if (!isTimerActive) {
-      console.log('⚠️ Not showing timer because isTimerActive is false');
       return null;
     }
     
-    console.log('✅ Rendering timer UI');
     const restColor = remainingTime < 5 ? '#FF3B30' : remainingTime < 15 ? '#FF9500' : '#34C759';
     
     // Calculate stroke dash values for the circle progress
@@ -721,8 +686,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // When progress is 0, we want full circumference (empty circle)
     // When progress is 1, we want 0 (full circle)
     const strokeDashoffset = circumference * (1 - progress);
-    
-    console.log(`📊 Timer rendering: progress=${progress.toFixed(2)}, offset=${strokeDashoffset.toFixed(2)}`);
     
     return (
       <Animated.View
