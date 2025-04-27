@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { format } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
+import { useWorkout } from '@/context/WorkoutContext';
 
 type Routine = {
   id: number;
@@ -40,6 +41,7 @@ export default function HomeScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const { showToast } = useToast();
+  const { activeWorkout } = useWorkout();
   
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
@@ -186,6 +188,18 @@ export default function HomeScreen() {
 
   const handleStartWorkout = () => {
     if (loading) {
+      return;
+    }
+    
+    // Check if there's already an active workout
+    if (activeWorkout.id) {
+      showToast('You already have a workout in progress. Please finish or cancel it before starting a new one.', 'error');
+      
+      // Navigate to the existing workout
+      router.push({
+        pathname: "/workout/start",
+        params: { workoutId: activeWorkout.id }
+      });
       return;
     }
     
@@ -355,6 +369,18 @@ export default function HomeScreen() {
             style={[styles.todaysWorkoutCard, { backgroundColor: colors.card }]}
             onPress={() => {
               if (todaysRoutine.exerciseCount > 0) {
+                // Check if there's already an active workout
+                if (activeWorkout.id) {
+                  showToast('You already have a workout in progress. Please finish or cancel it before starting a new one.', 'error');
+                  
+                  // Navigate to the existing workout
+                  router.push({
+                    pathname: "/workout/start",
+                    params: { workoutId: activeWorkout.id }
+                  });
+                  return;
+                }
+                
                 router.push({
                   pathname: '/workout/start',
                   params: { routineId: todaysRoutine.id }

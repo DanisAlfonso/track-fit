@@ -571,6 +571,19 @@ export default function StartWorkoutScreen() {
   const startWorkout = async () => {
     if (!routineId) return;
     
+    // Check if there's already an active workout in the context
+    if (activeWorkout.id) {
+      // Show a toast notification to alert the user
+      showToast('You already have a workout in progress. Please finish or cancel it before starting a new one.', 'error');
+      
+      // Navigate to the existing workout
+      router.push({
+        pathname: "/workout/start",
+        params: { workoutId: activeWorkout.id }
+      });
+      return;
+    }
+    
     setIsSaving(true);
     
     try {

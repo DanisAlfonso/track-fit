@@ -8,6 +8,7 @@ import { getDatabase } from '@/utils/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
+import { useWorkout } from '@/context/WorkoutContext';
 
 type Routine = {
   id: number;
@@ -25,6 +26,7 @@ export default function SelectRoutineScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const { activeWorkout } = useWorkout();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,30 @@ export default function SelectRoutineScreen() {
       // Add the exercise to the selected routine
       addExerciseToRoutine(routineId, parseInt(String(exerciseId), 10));
     } else {
+      // Check if there's already an active workout
+      if (activeWorkout.id) {
+        Alert.alert(
+          'Workout in Progress',
+          'You already have a workout in progress. Would you like to continue your current workout instead?',
+          [
+            {
+              text: 'Continue Current Workout',
+              onPress: () => {
+                router.push({
+                  pathname: "/workout/start",
+                  params: { workoutId: activeWorkout.id }
+                });
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+        return;
+      }
+      
       // Start a workout with this routine
       router.push({
         pathname: "/workout/start",
