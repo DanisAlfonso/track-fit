@@ -18,6 +18,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { format } from 'date-fns';
+import { useTheme } from '@/context/ThemeContext';
 
 type ExerciseHistoryEntry = {
   date: string;
@@ -76,9 +77,8 @@ const SafeChart = ({ children, fallback }: SafeChartProps) => {
 export default function ExerciseHistoryScreen() {
   const { id } = useLocalSearchParams();
   const exerciseId = typeof id === 'string' ? parseInt(id, 10) : 0;
-  const colorScheme = useColorScheme();
-  const theme = colorScheme ?? 'light';
-  const colors = Colors[theme];
+  const { currentTheme } = useTheme(); // Use app's theme context instead of device theme
+  const colors = Colors[currentTheme];
   const { width } = useWindowDimensions();
   const router = useRouter();
   
