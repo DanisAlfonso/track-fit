@@ -446,6 +446,35 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Maintain proper form with elbows pointed forward, not outward',
     'Focus on the triceps doing the work rather than using momentum'
   ],
+  'Prone Leg Curl (Machine)': [
+    'Lie face down on the leg curl machine with your ankles positioned under the padded lever',
+    'Grasp the handles or sides of the machine for stability',
+    'Keep your body flat against the bench throughout the movement',
+    'Curl your legs up by bending at the knees, bringing your heels toward your buttocks',
+    'Squeeze your hamstrings at the top of the movement',
+    'Lower the weight back to the starting position with control',
+    'Avoid lifting your hips off the bench during the exercise'
+  ],
+  'Seated Leg Curl (Machine)': [
+    'Sit on the leg curl machine with your back against the pad and knees aligned with the pivot point',
+    'Position your legs on top of the padded lever, just above your ankles',
+    'Secure any additional stabilization pads or belts',
+    'Grasp the handles or sides of the machine for stability',
+    'Curl your legs down and back by bending at the knees',
+    'Squeeze your hamstrings at the point of maximum contraction',
+    'Return to the starting position with control',
+    'Keep your torso stationary throughout the movement'
+  ],
+  'Standing Leg Curl (Machine)': [
+    'Stand facing the machine, holding the support handles for stability',
+    'Position your working leg on the padded lever, just above the ankle',
+    'Keep your supporting leg slightly bent and hip-width apart from the machine',
+    'Curl your leg up by bending at the knee, bringing your heel toward your buttocks',
+    'Squeeze your hamstring at the top of the movement',
+    'Lower your leg back to the starting position with control',
+    'Complete all repetitions with one leg before switching to the other',
+    'Maintain an upright posture throughout the exercise'
+  ],
 };
 
 /**

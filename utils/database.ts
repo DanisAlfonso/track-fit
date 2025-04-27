@@ -344,6 +344,9 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
     { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
     { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+    { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+    { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+    { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
   ];
 
   try {
@@ -707,6 +710,9 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
       { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     ];
     
     // Filter out exercises that already exist
@@ -882,6 +888,9 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'Pause Squat (Barbell)', category: 'Compound', primary_muscle: 'Quadriceps', secondary_muscle: 'Glutes,Hamstrings' },
       { name: 'Preacher Curl (Dumbbell)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
       { name: 'Tricep Extension (EZ Bar)', category: 'Isolation', primary_muscle: 'Triceps', secondary_muscle: '' },
+      { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     ];
     
     // Create a set of names from the master list for quick lookups
