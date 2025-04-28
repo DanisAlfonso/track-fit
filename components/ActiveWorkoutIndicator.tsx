@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
-import { FontAwesome } from '@expo/vector-icons';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { useWorkout } from '@/context/WorkoutContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 
 export default function ActiveWorkoutIndicator() {
   const router = useRouter();
@@ -19,9 +20,14 @@ export default function ActiveWorkoutIndicator() {
   // For button press animation
   const scaleAnim = useRef(new Animated.Value(1)).current;
   
-  // Get screen dimensions to position properly
-  const { height } = Dimensions.get('window');
-  const tabBarHeight = 50; // Approximate tab bar height
+  // Calculate formatted time (hours and minutes) from total workout time
+  const formatHoursMinutes = (totalTime: string) => {
+    const timeParts = totalTime.split(':');
+    if (timeParts.length !== 2) return '0m';
+    
+    const minutes = parseInt(timeParts[0]);
+    return `${minutes}m`;
+  };
   
   // Pulsing animation effect
   useEffect(() => {
@@ -113,65 +119,115 @@ export default function ActiveWorkoutIndicator() {
       style={[
         styles.container, 
         { 
-          backgroundColor: colors.card,
-          borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-          bottom: tabBarHeight + 8, // Position above tab bar
-          transform: [{ scale: scaleAnim }],
+          transform: [
+            { scale: scaleAnim }
+          ]
         }
       ]}
     >
-      <TouchableOpacity 
-        style={styles.touchableArea}
-        onPress={navigateToWorkout}
-        activeOpacity={0.9}
-      >
-        <View style={styles.contentContainer}>
-          <View style={styles.workoutInfo}>
-            <Text style={[styles.workoutTitle, { color: colors.text }]}>
-              {activeWorkout.routineName}
-            </Text>
-            <View style={styles.timerContainer}>
-              <Animated.View style={[
-                styles.timerDot,
-                { 
-                  backgroundColor: colors.primary,
-                  opacity: pulseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.5, 1]
-                  })
-                }
-              ]} />
-              <Text style={[styles.timerText, { color: colors.subtext }]}>
-                {elapsedTime}
+      <View style={styles.innerContainer}>
+        {Platform.OS === 'ios' && (
+          <BlurView
+            style={[styles.blurBackground, { borderRadius: 16 }]}
+            intensity={120}
+            tint={theme === 'dark' ? 'dark' : 'light'}
+          />
+        )}
+        <LinearGradient
+          colors={theme === 'dark' 
+            ? ['rgba(50,50,70,0.92)', 'rgba(30,30,40,0.98)'] 
+            : ['rgba(255,255,255,0.92)', 'rgba(240,240,245,0.98)']}
+          style={styles.gradientBackground}
+        />
+        
+        <TouchableOpacity 
+          style={styles.touchableArea}
+          onPress={navigateToWorkout}
+          activeOpacity={0.9}
+        >
+          <View style={styles.contentContainer}>
+            <View style={styles.workoutInfo}>
+              <Text style={[styles.workoutTitle, { color: colors.text }]}>
+                {activeWorkout.routineName}
               </Text>
+              
+              <View style={styles.timerContainer}>
+                <Animated.View style={[
+                  styles.timerDot,
+                  { 
+                    backgroundColor: colors.primary,
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.5, 1]
+                    })
+                  }
+                ]} />
+                <Text style={[styles.timerText, { color: colors.text }]}>
+                  {elapsedTime}
+                </Text>
+                
+                <Text style={[styles.totalTimeText, { color: colors.subtext }]}>
+                  ({formatHoursMinutes(elapsedTime)})
+                </Text>
+              </View>
             </View>
+            
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={navigateToWorkout}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.actionButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.actionButtonText}>Continue</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
-          <View style={styles.actionContainer}>
-            <Text style={[styles.actionText, { color: colors.primary }]}>
-              Continue
-            </Text>
-            <FontAwesome name="chevron-right" size={14} color={colors.primary} style={styles.chevron} />
-          </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 }
 
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = Math.min(400, width - 32); // Card width with 16px padding on each side
+
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: (width - CARD_WIDTH) / 2, // Center horizontally
+    width: CARD_WIDTH,
+    bottom: 60, // Position above tab bar
+    zIndex: 998, // Below modals but above content
+  },
+  innerContainer: {
     borderRadius: 16,
-    borderWidth: 1,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 6,
-    zIndex: 998, // Below modals but above content
-    overflow: 'hidden',
+    elevation: 10,
+  },
+  blurBackground: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 16,
+  },
+  gradientBackground: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 16,
   },
   touchableArea: {
     width: '100%',
@@ -204,20 +260,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  actionContainer: {
+  totalTimeText: {
+    fontSize: 13,
+    marginLeft: 6,
+    fontWeight: '400',
+  },
+  actionButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 20,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  actionText: {
+  actionButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    marginRight: 4,
-  },
-  chevron: {
-    marginLeft: 2,
+    color: 'white',
   },
 }); 

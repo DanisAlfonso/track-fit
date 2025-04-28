@@ -24,6 +24,41 @@ type Exercise = {
 // Define a type for FontAwesome icon names to avoid type errors
 type FontAwesomeIconName = React.ComponentProps<typeof FontAwesome>['name'];
 
+// List of default exercise names from the master list
+const DEFAULT_EXERCISES = [
+  'Bench Press', 'Squat', 'Deadlift', 'Pull-up', 'Overhead Press', 'Bicep Curl',
+  'Single Arm Tricep Extension (Dumbbell)', 'Leg Press', 'Lateral Raise', 'Calf Raise',
+  'Romanian Deadlift', 'Barbell Row', 'Dumbbell Shoulder Press', 'Incline Bench Press',
+  'Decline Bench Press', 'Dumbbell Fly', 'Face Pull', 'Lat Pulldown (Cable)',
+  'Leg Extension', 'Hip Thrust (Machine)', 'Plank', 'Russian Twist', 'Dumbbell Row',
+  'Cable Fly', 'Seated Cable Row (Cable)', 'Hammer Curl', 'Skull Crusher',
+  'Front Raise', 'Reverse Fly', 'Bulgarian Split Squat', 'Step Up',
+  'Hanging Leg Raise', 'Cable Crunch', 'Side Plank', 'Good Morning',
+  'Cable Pull-Through', 'Seated Calf Raise', 'Standing Calf Raise', 'Arnold Press',
+  'Dumbbell Pullover', 'Wrist Curl with Dumbbells', 'Wrist Curl with Barbell',
+  'Wrist Curl with Cable', 'Reverse Wrist Curl with Dumbbells', 'Reverse Wrist Curl with Barbell',
+  'Reverse Wrist Curl with Cable', 'Shrug', 'Upright Row', 'Dips', 'Push-up', 'Chin-up',
+  'Pistol Squat', 'Box Jump', 'Burpee', 'Jumping Jack', 'Mountain Climber',
+  'Jump Rope', 'Kettlebell Swing', 'Kettlebell Goblet Squat', 'Kettlebell Clean',
+  'Kettlebell Snatch', 'Sled Push', 'Sled Pull', 'Medicine Ball Slam', 'Wall Ball',
+  'Preacher Curl (Barbell)', 'Concentration Curl', 'EZ Bar Curl', 'Close-Grip Bench Press',
+  'Tricep Kickback', 'Overhead Tricep Extension (Cable)', 'Cable Tricep Pushdown',
+  'Pec Deck', 'Cable Crossover', 'Machine Chest Press', 'Smith Machine Bench Press',
+  'T-Bar Row', 'Wide-Grip Pulldown', 'Close-Grip Pulldown', 'Machine Row', 'Cable Row',
+  'Machine Shoulder Press', 'Smith Machine Shoulder Press', 'Reverse Pec Deck',
+  'Machine Lateral Raise', 'Cable Lateral Raise', 'Smith Machine Squat',
+  'Hack Squat (Machine)', 'V-Squat', 'Goblet Squat', 'Sissy Squat',
+  'Leg Press Calf Raise', 'Smith Machine Calf Raise', 'Ab Crunch Machine',
+  'Cable Woodchoppers', 'Decline Sit-up', 'Machine Back Extension', 'Hyperextension',
+  'Machine Abductor', 'Machine Adductor', 'Glute Kickback Machine',
+  'Wide Grip Chest Press Machine', 'Incline Chest Press Machine', 'Lat Pulldown Machine',
+  'Seated Row Machine', 'Bicep Curl (Machine)', 'Chin Up (Weighted)', 'Hip Thrust (Barbell)',
+  'Iso-Lateral Low Row', 'Iso-Lateral Row (Machine)', 'Lat Pulldown (Machine)',
+  'Leg Horizontal (Machine)', 'Pause Squat (Barbell)', 'Preacher Curl (Dumbbell)',
+  'Tricep Extension (EZ Bar)', 'Prone Leg Curl (Machine)', 'Seated Leg Curl (Machine)',
+  'Standing Leg Curl (Machine)'
+];
+
 // Create memoized exercise item component to prevent unnecessary re-renders
 const ExerciseItem = React.memo(({ 
   item, 
@@ -64,18 +99,21 @@ const ExerciseItem = React.memo(({
           </LinearGradient>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={(e) => confirmDelete(item.id, item.name, e)}
-            activeOpacity={0.6}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <FontAwesome 
-              name="trash-o" 
-              size={20} 
-              color={colors.subtext}
-            />
-          </TouchableOpacity>
+          {/* Only show delete button for custom exercises */}
+          {!DEFAULT_EXERCISES.includes(item.name) && (
+            <TouchableOpacity 
+              style={styles.deleteButton}
+              onPress={(e) => confirmDelete(item.id, item.name, e)}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <FontAwesome 
+                name="trash-o" 
+                size={20} 
+                color={colors.subtext}
+              />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             style={styles.favoriteButton}
             onPress={(e) => handleToggleFavorite(item.id, e)}
@@ -173,6 +211,8 @@ export default function ExercisesScreen() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [exerciseToDelete, setExerciseToDelete] = useState<{id: number, name: string} | null>(null);
 
   const muscleGroups = useMemo(() => [
     'All',
@@ -319,27 +359,46 @@ export default function ExercisesScreen() {
   const confirmDelete = useCallback((exerciseId: number, exerciseName: string, event?: any) => {
     event?.stopPropagation?.();
     
-    // Use a toast with confirmation action instead of Alert
-    showToast(
-      `Delete "${exerciseName}"?`,
-      'info',
-      10000, // Longer duration for important action
+    // Check if this is a default exercise
+    if (DEFAULT_EXERCISES.includes(exerciseName)) {
+      showToast(
+        "Default exercises cannot be deleted",
+        "error"
+      );
+      return;
+    }
+    
+    // Show the delete confirmation ActionSheet instead of Toast
+    setExerciseToDelete({ id: exerciseId, name: exerciseName });
+    setShowDeleteModal(true);
+  }, []);
+
+  const handleDeleteExercise = useCallback(async () => {
+    if (!exerciseToDelete) return;
+    
+    try {
+      await deleteExercise(exerciseToDelete.id);
+      // Refresh exercises list
+      await loadExercises();
+      showToast("Exercise deleted successfully", "success");
+    } catch (error) {
+      console.error('Error deleting exercise:', error);
+      showToast("Failed to delete exercise. Please try again.", "error");
+    } finally {
+      setExerciseToDelete(null);
+    }
+  }, [exerciseToDelete, loadExercises, showToast]);
+
+  const deleteOptions = useMemo(() => {
+    return [
       {
         label: 'Delete',
-        onPress: async () => {
-          try {
-            await deleteExercise(exerciseId);
-            // Refresh exercises list
-            await loadExercises();
-            showToast("Exercise deleted successfully", "success");
-          } catch (error) {
-            console.error('Error deleting exercise:', error);
-            showToast("Failed to delete exercise. Please try again.", "error");
-          }
-        }
+        onPress: handleDeleteExercise,
+        destructive: true,
+        icon: 'trash'
       }
-    );
-  }, [loadExercises]);
+    ] as ActionSheetOption[];
+  }, [handleDeleteExercise]);
 
   const renderExerciseItem = useCallback(({ item }: { item: Exercise }) => (
     <ExerciseItem
@@ -504,6 +563,15 @@ export default function ExercisesScreen() {
         title="Filter by Muscle Group"
         options={filterOptions}
         onClose={() => setShowFilterModal(false)}
+        cancelLabel="Cancel"
+      />
+
+      {/* Delete confirmation action sheet */}
+      <ActionSheet
+        visible={showDeleteModal}
+        title={`Delete "${exerciseToDelete?.name}"? This action cannot be undone.`}
+        options={deleteOptions}
+        onClose={() => setShowDeleteModal(false)}
         cancelLabel="Cancel"
       />
     </View>
