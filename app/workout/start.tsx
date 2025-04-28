@@ -825,9 +825,19 @@ export default function StartWorkoutScreen() {
             />
           )}
           <View style={styles.setContent}>
-            <Text style={[styles.setText, { color: colors.text }]}>
-              SET {setItem.set_number}
-            </Text>
+            <View style={styles.setHeaderRow}>
+              <Text style={[styles.setText, { color: colors.text }]}>
+                SET {setItem.set_number}
+              </Text>
+              {setItem.completed && (
+                <FontAwesome 
+                  name="check" 
+                  size={12} 
+                  color={setItem.training_type ? getTrainingTypeColor() : '#8477EB'} 
+                />
+              )}
+            </View>
+            
             {setItem.completed ? (
               <>
                 <Text style={[styles.setDetail, { color: colors.text, fontWeight: '600' }]}>
@@ -836,22 +846,6 @@ export default function StartWorkoutScreen() {
                 <Text style={[styles.setDetail, { color: colors.text }]}>
                   {weightUnit === 'lb' ? `${kgToLb(setItem.weight).toFixed(1)} lb` : `${setItem.weight} kg`}
                 </Text>
-                {setItem.training_type && (
-                  <View style={[styles.trainingTypeBadge, { 
-                    backgroundColor: getTrainingTypeColor() + '30', 
-                    borderRadius: 8
-                  }]}>
-                    <Text style={[styles.trainingTypeBadgeText, { color: getTrainingTypeColor() }]}>
-                      {setItem.training_type.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                <FontAwesome 
-                  name="check" 
-                  size={14} 
-                  color={setItem.training_type ? getTrainingTypeColor() : '#8477EB'} 
-                  style={styles.completedIcon} 
-                />
               </>
             ) : (
               <Text style={[styles.tapToLog, { color: colors.primary }]}>
@@ -2324,6 +2318,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     zIndex: 1,
   },
+  setHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   setText: {
     fontWeight: 'bold',
     fontSize: 13,
@@ -2337,15 +2337,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontStyle: 'italic',
   },
-  completedIcon: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  trainingTypeTag: {
+    marginTop: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    borderLeftWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  trainingTypeTagText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   exerciseNotes: {
     marginTop: 8,
