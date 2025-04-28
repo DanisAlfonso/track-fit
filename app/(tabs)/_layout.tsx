@@ -48,6 +48,7 @@ export default function TabLayout() {
         name="exercises"
         options={{
           title: 'Exercises',
+          headerShown: false,
           tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="list" size={26} color={color} />,
         }}
       />
@@ -62,6 +63,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
+          headerShown: false,
           tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="user" size={26} color={color} />,
         }}
       />

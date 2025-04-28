@@ -439,8 +439,9 @@ export default function ExercisesScreen() {
   // Memoize key extractor functions
   const keyExtractor = useCallback((item: Exercise) => item.id.toString(), []);
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+  // Create a header component for the FlatList
+  const ListHeaderComponent = useMemo(() => (
+    <>
       <View style={styles.headerContainer}>
         <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
           <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
@@ -518,36 +519,48 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      
+      <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
+        {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
+      </Text>
+    </>
+  ), [
+    colors,
+    searchQuery,
+    setSearchQuery,
+    showFavoritesOnly,
+    setShowFavoritesOnly,
+    selectedFilter,
+    setShowFilterModal,
+    filteredExercises.length
+  ]);
 
-      <View style={styles.contentContainer}>
-        <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
-          {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
-        </Text>
-        
-        <FlatList
-          data={filteredExercises}
-          keyExtractor={keyExtractor}
-          renderItem={renderExerciseItem}
-          contentContainerStyle={styles.exercisesList}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
-            />
-          }
-          ListEmptyComponent={EmptyListComponent}
-          initialNumToRender={8}
-          maxToRenderPerBatch={5}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={(data, index) => (
-            {length: 208, offset: 208 * index, index}
-          )}
-        />
-      </View>
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <FlatList
+        data={filteredExercises}
+        keyExtractor={keyExtractor}
+        renderItem={renderExerciseItem}
+        contentContainerStyle={styles.exercisesList}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
+        ListHeaderComponent={ListHeaderComponent}
+        ListEmptyComponent={EmptyListComponent}
+        initialNumToRender={8}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={(data, index) => (
+          {length: 208, offset: 208 * index + (filteredExercises.length > 0 ? 150 : 0), index}
+        )}
+      />
 
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
@@ -666,7 +679,8 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   exercisesList: {
-    paddingBottom: 80,
+    padding: 16,
+    paddingTop: 0,
   },
   exerciseCard: {
     borderRadius: 16,
