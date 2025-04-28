@@ -11,6 +11,42 @@ import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 
+// Import DEFAULT_EXERCISES array or redefine it
+// List of default exercise names from the master list
+const DEFAULT_EXERCISES = [
+  'Bench Press', 'Squat', 'Deadlift', 'Pull-up', 'Overhead Press', 'Bicep Curl',
+  'Single Arm Tricep Extension (Dumbbell)', 'Leg Press', 'Lateral Raise', 'Calf Raise',
+  'Romanian Deadlift', 'Barbell Row', 'Dumbbell Shoulder Press', 'Incline Bench Press',
+  'Decline Bench Press', 'Dumbbell Fly', 'Face Pull', 'Lat Pulldown (Cable)',
+  'Leg Extension', 'Hip Thrust (Machine)', 'Plank', 'Russian Twist', 'Dumbbell Row',
+  'Cable Fly', 'Seated Cable Row (Cable)', 'Hammer Curl', 'Skull Crusher',
+  'Front Raise', 'Reverse Fly', 'Bulgarian Split Squat', 'Step Up',
+  'Hanging Leg Raise', 'Cable Crunch', 'Side Plank', 'Good Morning',
+  'Cable Pull-Through', 'Seated Calf Raise', 'Standing Calf Raise', 'Arnold Press',
+  'Dumbbell Pullover', 'Wrist Curl with Dumbbells', 'Wrist Curl with Barbell',
+  'Wrist Curl with Cable', 'Reverse Wrist Curl with Dumbbells', 'Reverse Wrist Curl with Barbell',
+  'Reverse Wrist Curl with Cable', 'Shrug', 'Upright Row', 'Dips', 'Push-up', 'Chin-up',
+  'Pistol Squat', 'Box Jump', 'Burpee', 'Jumping Jack', 'Mountain Climber',
+  'Jump Rope', 'Kettlebell Swing', 'Kettlebell Goblet Squat', 'Kettlebell Clean',
+  'Kettlebell Snatch', 'Sled Push', 'Sled Pull', 'Medicine Ball Slam', 'Wall Ball',
+  'Preacher Curl (Barbell)', 'Concentration Curl', 'EZ Bar Curl', 'Close-Grip Bench Press',
+  'Tricep Kickback', 'Overhead Tricep Extension (Cable)', 'Cable Tricep Pushdown',
+  'Pec Deck', 'Cable Crossover', 'Machine Chest Press', 'Smith Machine Bench Press',
+  'T-Bar Row', 'Wide-Grip Pulldown', 'Close-Grip Pulldown', 'Machine Row', 'Cable Row',
+  'Machine Shoulder Press', 'Smith Machine Shoulder Press', 'Reverse Pec Deck',
+  'Machine Lateral Raise', 'Cable Lateral Raise', 'Smith Machine Squat',
+  'Hack Squat (Machine)', 'V-Squat', 'Goblet Squat', 'Sissy Squat',
+  'Leg Press Calf Raise', 'Smith Machine Calf Raise', 'Ab Crunch Machine',
+  'Cable Woodchoppers', 'Decline Sit-up', 'Machine Back Extension', 'Hyperextension',
+  'Machine Abductor', 'Machine Adductor', 'Glute Kickback Machine',
+  'Wide Grip Chest Press Machine', 'Incline Chest Press Machine', 'Lat Pulldown Machine',
+  'Seated Row Machine', 'Bicep Curl (Machine)', 'Chin Up (Weighted)', 'Hip Thrust (Barbell)',
+  'Iso-Lateral Low Row', 'Iso-Lateral Row (Machine)', 'Lat Pulldown (Machine)',
+  'Leg Horizontal (Machine)', 'Pause Squat (Barbell)', 'Preacher Curl (Dumbbell)',
+  'Tricep Extension (EZ Bar)', 'Prone Leg Curl (Machine)', 'Seated Leg Curl (Machine)',
+  'Standing Leg Curl (Machine)'
+];
+
 // Exercise types match our database schema
 type Exercise = {
   id: number;
@@ -103,6 +139,12 @@ export default function ExerciseDetailScreen() {
   };
 
   const confirmDelete = () => {
+    // Check if this is a default exercise
+    if (exercise && DEFAULT_EXERCISES.includes(exercise.name)) {
+      showToast("Default exercises cannot be deleted", "error");
+      return;
+    }
+    
     showToast(
       `Are you sure you want to delete "${exercise?.name}"? This action cannot be undone.`, 
       'info',
@@ -168,16 +210,19 @@ export default function ExerciseDetailScreen() {
           headerTintColor: colors.text,
           headerRight: () => (
             <View style={styles.headerRightContainer}>
-              <TouchableOpacity 
-                style={[styles.headerButton, { backgroundColor: colors.card }]}
-                onPress={confirmDelete}
-              >
-                <FontAwesome 
-                  name="trash-o" 
-                  size={16} 
-                  color={colors.text} 
-                />
-              </TouchableOpacity>
+              {/* Only show delete button for custom exercises */}
+              {!DEFAULT_EXERCISES.includes(exercise.name) && (
+                <TouchableOpacity 
+                  style={[styles.headerButton, { backgroundColor: colors.card }]}
+                  onPress={confirmDelete}
+                >
+                  <FontAwesome 
+                    name="trash-o" 
+                    size={16} 
+                    color={colors.text} 
+                  />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity 
                 style={[styles.headerButton, { backgroundColor: colors.card }]}
                 onPress={handleToggleFavorite}
