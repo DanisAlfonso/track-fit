@@ -13,7 +13,8 @@ import {
   TextInput,
   ScrollView,
   Vibration,
-  BackHandler
+  BackHandler,
+  AppState
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -95,6 +96,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const initialRestTime = useRef(0);
   const savedRef = useRef(false);
+  const restStartTimeRef = useRef<number>(0);
+  const restEndTimeRef = useRef<number>(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const appStateRef = useRef(AppState.currentState);
   
   // Animation values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -179,6 +184,48 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     }
   }, [visible]);
   
+  // Handle app state changes (foreground/background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      const now = Date.now();
+      
+      // App is coming back to foreground
+      if (nextAppState === 'active' && (appStateRef.current === 'background' || appStateRef.current === 'inactive')) {
+        // If timer was active when app went to background, update the time
+        if (isTimerActive && restEndTimeRef.current > 0) {
+          // Calculate the new remaining time
+          const remaining = Math.max(0, restEndTimeRef.current - now);
+          const secondsRemaining = Math.ceil(remaining / 1000);
+          
+          // Update the timer state
+          setRemainingTime(secondsRemaining);
+          
+          // If time is up while in background, complete the timer
+          if (secondsRemaining <= 0) {
+            // Timer complete while in background
+            setProgress(1);
+            
+            // Close after a small delay
+            setTimeout(() => {
+              hideRestTimer();
+            }, 1000);
+          } else {
+            // Resume the animation frame loop
+            if (!animationFrameRef.current) {
+              updateRestTimer();
+            }
+          }
+        }
+      }
+      
+      appStateRef.current = nextAppState;
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [isTimerActive]);
+  
   // Clean up on unmount
   useEffect(() => {
     return () => {
@@ -195,16 +242,20 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     onClose();
   };
   
-  // Clear the timer interval
+  // Clear the timer
   const clearTimer = () => {
+    // Clear interval if using one
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    
+    // Cancel animation frame if using one
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
   };
-  
-  // Don't render if not visible
-  if (!visible) return null;
   
   // Handle input changes with auto-suggestion for training type
   const handleInputChange = (field: keyof TouchedFields | 'rest_time' | 'training_type' | 'notes', value: string | number | 'heavy' | 'moderate' | 'light') => {
@@ -303,6 +354,11 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     setIsTimerActive(true);
     setShowBottomSheet(false);
     
+    // Calculate exact start and end times
+    const now = Date.now();
+    restStartTimeRef.current = now;
+    restEndTimeRef.current = now + (setData.rest_time * 1000);
+    
     // Animate timer in
     Animated.parallel([
       Animated.timing(timerOpacity, {
@@ -318,43 +374,56 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       }),
     ]).start();
     
-    // Start timer interval
-    timerRef.current = setInterval(() => {
-      setRemainingTime(prev => {
-        const newTime = prev - 1;
-        
-        if (prev <= 1) {
-          // Timer complete
-          clearTimer();
-          
-          // Ensure progress is at 100% when timer completes
-          setProgress(1);
-          
-          // Vibrate pattern for completion
-          Vibration.vibrate([100, 200, 100, 200, 100]);
-          
-          // Close after a small delay
-          setTimeout(() => {
-            hideRestTimer();
-          }, 1000);
-          
-          return 0;
-        }
-        
-        // Calculate progress as a value from 0 to 1 
-        // where 0 = just started (empty ring) and 1 = complete (full ring)
-        const calculatedProgress = 1 - (newTime / initialRestTime.current);
-        setProgress(calculatedProgress);
-        
-        // Vibrate at specific remaining times
-        if (newTime === 10 || newTime === 5 || newTime === 3 || 
-            newTime === 2 || newTime === 1) {
-          Vibration.vibrate(100);
-        }
-        
-        return newTime;
-      });
-    }, 1000);
+    // Start the animation frame loop for the timer
+    updateRestTimer();
+  };
+  
+  // Update rest timer using animation frames
+  const updateRestTimer = () => {
+    const now = Date.now();
+    
+    // If time is up, complete the rest
+    if (now >= restEndTimeRef.current) {
+      setRemainingTime(0);
+      setProgress(1);
+      
+      // Vibrate pattern for completion
+      Vibration.vibrate([100, 200, 100, 200, 100]);
+      
+      // Clean up animation frame
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      // Close after a small delay
+      setTimeout(() => {
+        hideRestTimer();
+      }, 1000);
+      
+      return;
+    }
+    
+    // Calculate remaining time and progress precisely
+    const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
+    const remaining = restEndTimeRef.current - now;
+    const secondsRemaining = Math.ceil(remaining / 1000); // Round up to nearest second
+    
+    // Calculate progress as a value from 0 to 1
+    const calculatedProgress = 1 - (remaining / totalDuration);
+    
+    // Update state with precise values
+    setRemainingTime(secondsRemaining);
+    setProgress(calculatedProgress);
+    
+    // Vibrate at specific remaining times
+    if (secondsRemaining === 10 || secondsRemaining === 5 || secondsRemaining === 3 || 
+        secondsRemaining === 2 || secondsRemaining === 1) {
+      Vibration.vibrate(100);
+    }
+    
+    // Continue the animation loop
+    animationFrameRef.current = requestAnimationFrame(updateRestTimer);
   };
   
   // Hide rest timer and close modal
@@ -389,12 +458,24 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Add more rest time
   const addMoreRestTime = (seconds: number) => {
-    // Add time to remaining and total
-    setRemainingTime(prev => prev + seconds);
-    initialRestTime.current += seconds;
+    // Update the end time reference with the additional time
+    restEndTimeRef.current += (seconds * 1000);
+    
+    // Recalculate the total duration
+    const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
+    initialRestTime.current = totalDuration / 1000;
+    
+    // Calculate new remaining time
+    const now = Date.now();
+    const remaining = Math.max(0, restEndTimeRef.current - now);
+    const secondsRemaining = Math.ceil(remaining / 1000);
+    
+    // Update state
+    setRemainingTime(secondsRemaining);
     
     // Update progress
-    setProgress(1 - ((remainingTime + seconds) / initialRestTime.current));
+    const calculatedProgress = 1 - (remaining / totalDuration);
+    setProgress(calculatedProgress);
     
     // Vibration feedback
     Vibration.vibrate(50);
@@ -422,6 +503,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       </View>
     );
   };
+  
+  // Don't render if not visible
+  if (!visible) return null;
   
   // Render main content
   const renderBottomSheet = () => {
