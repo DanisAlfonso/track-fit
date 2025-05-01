@@ -1303,7 +1303,7 @@ export default function ProfileScreen() {
                     : 'Light'
                 }
               </Text>
-              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
+              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} style={{ marginLeft: 12 }} />
             </View>
           </TouchableOpacity>
           
@@ -1760,10 +1760,12 @@ const styles = StyleSheet.create({
   themeSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   themeValue: {
     fontSize: 14,
     fontWeight: '500',
+    marginRight: 8,
   },
   settingInfo: {
     flexDirection: 'row',
