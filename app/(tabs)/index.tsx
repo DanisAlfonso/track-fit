@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Animated } from 'react-native';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -14,6 +14,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // User profile key from profile.tsx
 const USER_NAME_KEY = 'user_name';
+
+// Define stat icon colors
+const statColors = {
+  totalWorkouts: ['#4361EE', '#3A0CA3'] as [string, string], // Purple-blue gradient
+  totalTime: ['#4CC9F0', '#4895EF'] as [string, string],     // Blue gradient
+  thisWeek: ['#F72585', '#B5179E'] as [string, string],      // Pink-purple gradient
+  streak: ['#F15BB5', '#FF5E5B'] as [string, string]         // Pink-orange gradient
+};
+
+// Define button gradients that complement the stat colors
+const buttonGradients = {
+  newRoutine: ['#6366F1', '#4F46E5'] as [string, string],    // Subtle indigo gradient
+  startWorkout: ['#3B82F6', '#2563EB'] as [string, string]   // Subtle blue gradient
+};
 
 type Routine = {
   id: number;
@@ -56,7 +70,25 @@ export default function HomeScreen() {
   const [userName, setUserName] = useState('Fitness Enthusiast');
   const [isRestDayToday, setIsRestDayToday] = useState(false);
 
+  // Animation values
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [translateY] = useState(new Animated.Value(20));
+
   useEffect(() => {
+    // Start animations after initial render
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
+    
     loadData();
   }, []);
 
@@ -415,6 +447,44 @@ export default function HomeScreen() {
     }
   };
 
+  // Render the stat cards with different colors
+  const renderStatCard = (
+    icon: string, 
+    value: string | number, 
+    label: string, 
+    gradientColors: string[],
+    index: number
+  ) => {
+    // Stagger animation for each card
+    const animDelay = index * 100;
+    
+    return (
+      <Animated.View 
+        style={[
+          styles.statCard, 
+          { 
+            backgroundColor: currentTheme === 'dark' ? '#252525' : colors.card,
+            opacity: fadeAnim,
+            transform: [{ translateY: translateY }],
+            shadowColor: gradientColors[0],
+            shadowOpacity: 0.15
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={[gradientColors[0], gradientColors[1]]}
+          style={styles.statIconContainer}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <FontAwesome5 name={icon} size={16} color="white" />
+        </LinearGradient>
+        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+        <Text style={[styles.statLabel, { color: colors.subtext }]}>{label}</Text>
+      </Animated.View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -455,7 +525,7 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={[colors.accent, colors.secondary]}
+              colors={buttonGradients.newRoutine}
               style={styles.quickActionGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -471,7 +541,7 @@ export default function HomeScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={[colors.primary, colors.secondary]}
+              colors={buttonGradients.startWorkout}
               style={styles.quickActionGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
@@ -485,11 +555,26 @@ export default function HomeScreen() {
 
       {/* Today's Workout */}
       {todaysRoutine && (
-        <View style={styles.todaysWorkoutContainer}>
+        <Animated.View 
+          style={[
+            styles.todaysWorkoutContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: translateY }]
+            }
+          ]}
+        >
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Workout</Text>
           
           <TouchableOpacity 
-            style={[styles.todaysWorkoutCard, { backgroundColor: colors.card }]}
+            style={[
+              styles.todaysWorkoutCard, 
+              { 
+                backgroundColor: currentTheme === 'dark' ? '#252525' : colors.card,
+                borderLeftWidth: 4,
+                borderLeftColor: colors.primary
+              }
+            ]}
             onPress={() => {
               if (todaysRoutine.exerciseCount > 0) {
                 // Check if there's already an active workout
@@ -548,7 +633,7 @@ export default function HomeScreen() {
             <Text style={[styles.scheduleLinkText, { color: colors.primary }]}>View Weekly Schedule</Text>
             <FontAwesome5 name="chevron-right" size={12} color={colors.primary} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
 
       {/* Workout Stats */}
@@ -556,47 +641,56 @@ export default function HomeScreen() {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Progress</Text>
         
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-              <FontAwesome5 name="calendar-check" size={16} color={colors.primary} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.total_workouts || 0}</Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Workouts</Text>
-          </View>
+          {renderStatCard(
+            "calendar-check", 
+            stats?.total_workouts || 0, 
+            "Total Workouts", 
+            statColors.totalWorkouts,
+            0
+          )}
           
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-              <FontAwesome5 name="clock" size={16} color={colors.primary} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>
-              {stats?.total_duration ? formatDuration(stats.total_duration) : '0m'}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>Total Time</Text>
-          </View>
+          {renderStatCard(
+            "clock", 
+            stats?.total_duration ? formatDuration(stats.total_duration) : '0m', 
+            "Total Time", 
+            statColors.totalTime,
+            1
+          )}
           
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-              <FontAwesome5 name="calendar-week" size={16} color={colors.primary} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.this_week || 0}</Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>This Week</Text>
-          </View>
+          {renderStatCard(
+            "calendar-week", 
+            stats?.this_week || 0, 
+            "This Week", 
+            statColors.thisWeek,
+            2
+          )}
           
-          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-            <View style={[styles.statIconContainer, { backgroundColor: colors.primaryLight }]}>
-              <FontAwesome5 name="fire" size={16} color={colors.primary} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats?.streak || 0}</Text>
-            <Text style={[styles.statLabel, { color: colors.subtext }]}>Day Streak</Text>
-          </View>
+          {renderStatCard(
+            "fire", 
+            stats?.streak || 0, 
+            "Day Streak", 
+            statColors.streak,
+            3
+          )}
         </View>
       </View>
 
       {/* Recent Workouts */}
-      <View style={styles.recentWorkoutsContainer}>
+      <Animated.View 
+        style={[
+          styles.recentWorkoutsContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: translateY }]
+          }
+        ]}
+      >
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Workouts</Text>
-          <TouchableOpacity onPress={navigateToHistory}>
+          <TouchableOpacity 
+            style={styles.viewAllButton}
+            onPress={navigateToHistory}
+          >
             <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
           </TouchableOpacity>
         </View>
@@ -656,7 +750,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       {/* Suggested Workouts */}
       {routines.length > 0 && (
@@ -721,8 +815,13 @@ const styles = StyleSheet.create({
   },
   quickActionButton: {
     width: '48%',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
   },
   quickActionGradient: {
     flexDirection: 'row',
@@ -751,6 +850,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  viewAllButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
   viewAllText: {
     fontSize: 14,
     fontWeight: '500',
@@ -763,30 +867,29 @@ const styles = StyleSheet.create({
   statCard: {
     width: '48%',
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
     marginBottom: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
   statIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 13,
+    fontWeight: '500',
   },
   recentWorkoutsContainer: {
     marginBottom: 24,
