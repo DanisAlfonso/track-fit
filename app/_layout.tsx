@@ -4,13 +4,14 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useCallback } from 'react';
-import { useColorScheme, Alert, View, Platform } from 'react-native';
+import { useColorScheme, Alert, View, Platform, Vibration } from 'react-native';
 import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises } from '@/utils/database';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -62,6 +63,33 @@ export default function RootLayout() {
     prepare();
   }, []);
 
+  // Setup notification handler and listener for timer vibrations
+  useEffect(() => {
+    // Request notification permissions
+    const requestPermissions = async () => {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permissions not granted');
+      }
+    };
+    
+    requestPermissions();
+    
+    // Listen for notifications to trigger vibrations
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      const data = notification.request.content.data;
+      
+      // Handle timer vibrations
+      if (data?.type === 'timer-vibration') {
+        Vibration.vibrate(100);
+      } else if (data?.type === 'timer-complete') {
+        Vibration.vibrate([100, 200, 100, 200, 100]);
+      }
+    });
+    
+    return () => subscription.remove();
+  }, []);
+
   // Expo Router uses Error Boundaries to catch errors in the navigation tree
   useEffect(() => {
     if (error) throw error;
@@ -69,7 +97,11 @@ export default function RootLayout() {
 
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady && loaded) {
-      // This tells the splash screen to hide immediately
+      // This tells the splash screen to hide immediately! If we call this after
+      // `setAppIsReady`, then we may see a blank screen while the app is
+      // loading its initial state and rendering its first pixels. So instead,
+      // we hide the splash screen once we know the root view has already
+      // performed layout.
       await SplashScreen.hideAsync();
     }
   }, [appIsReady, loaded]);
@@ -78,33 +110,31 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav onReady={onLayoutRootView} />;
-}
-
-function RootLayoutNav({ onReady }: { onReady: () => Promise<void> }) {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <ThemedNavigator onReady={onReady} />
-      </ToastProvider>
-    </ThemeProvider>
+    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <ThemeProvider>
+        <ToastProvider>
+          <WorkoutProvider>
+            <RootLayoutNav />
+          </WorkoutProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </View>
   );
 }
 
-function ThemedNavigator({ onReady }: { onReady: () => Promise<void> }) {
+function RootLayoutNav() {
   const { currentTheme } = useTheme();
   const navTheme = currentTheme === 'dark' ? DarkTheme : DefaultTheme;
 
   return (
-    <WorkoutProvider>
-      <NavigationThemeProvider value={navTheme}>
-        <View style={{ flex: 1 }} onLayout={onReady}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-          <ActiveWorkoutIndicator />
-        </View>
-      </NavigationThemeProvider>
-    </WorkoutProvider>
+    <NavigationThemeProvider value={navTheme}>
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+        <ActiveWorkoutIndicator />
+      </View>
+    </NavigationThemeProvider>
   );
 }

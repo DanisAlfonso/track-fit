@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "TrackFit needs camera access to let you take profile pictures",
         "NSPhotoLibraryUsageDescription": "TrackFit needs access to your photo library to let you select profile pictures"
-      }
+      },
+      "bundleIdentifier": "com.augustusalfonso.TrackFit"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +22,13 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.augustusalfonso.TrackFit",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -48,6 +55,13 @@
         {
           "photosPermission": "TrackFit needs access to your photos to let you select profile pictures",
           "cameraPermission": "TrackFit needs camera access to let you take profile pictures"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icons/adaptive-icon.png",
+          "color": "#ffffff"
         }
       ]
     ],

@@ -22,6 +22,7 @@ import { useTheme } from '@/context/ThemeContext';
 import Colors from '@/constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
+import * as Notifications from 'expo-notifications';
 
 const { height, width } = Dimensions.get('window');
 
@@ -62,6 +63,15 @@ interface SetBottomSheetProps {
   previousPerformance?: PreviousSet;
   showRestTimer?: boolean;
 }
+
+// Set up notification handler for background notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: false,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   visible,
@@ -341,6 +351,49 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     }
   };
   
+  // Schedule notifications for timer vibrations
+  const scheduleTimerNotifications = (duration: number, endTime: number) => {
+    // Cancel any existing notifications first
+    Notifications.cancelAllScheduledNotificationsAsync();
+    
+    // Calculate vibration points (10s, 5s, 3s, 2s, 1s before end)
+    const vibrationPoints = [10, 5, 3, 2, 1];
+    
+    // Schedule notifications for each vibration point
+    for (const seconds of vibrationPoints) {
+      const triggerTime = endTime - (seconds * 1000);
+      const now = Date.now();
+      
+      // Only schedule if this time point is in the future
+      if (triggerTime > now) {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Timer",
+            body: `${seconds} seconds remaining`,
+            data: { type: 'timer-vibration' },
+          },
+          trigger: { 
+            date: new Date(triggerTime),
+            type: Notifications.SchedulableTriggerInputTypes.DATE
+          },
+        });
+      }
+    }
+    
+    // Schedule final notification
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Timer Complete",
+        body: "Rest time is over!",
+        data: { type: 'timer-complete' },
+      },
+      trigger: { 
+        date: new Date(endTime),
+        type: Notifications.SchedulableTriggerInputTypes.DATE
+      },
+    });
+  };
+  
   // Start rest timer
   const startRestTimer = () => {
     // Set initial time
@@ -359,6 +412,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     restStartTimeRef.current = now;
     restEndTimeRef.current = now + (setData.rest_time * 1000);
     
+    // Schedule background notifications for vibrations
+    scheduleTimerNotifications(setData.rest_time, restEndTimeRef.current);
+    
     // Animate timer in
     Animated.parallel([
       Animated.timing(timerOpacity, {
@@ -374,7 +430,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       }),
     ]).start();
     
-    // Start the animation frame loop for the timer
+    // Start the animation frame loop for the timer UI updates
     updateRestTimer();
   };
   
@@ -416,9 +472,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     setRemainingTime(secondsRemaining);
     setProgress(calculatedProgress);
     
-    // Vibrate at specific remaining times
-    if (secondsRemaining === 10 || secondsRemaining === 5 || secondsRemaining === 3 || 
-        secondsRemaining === 2 || secondsRemaining === 1) {
+    // Vibrate only when app is active (foreground)
+    if (appStateRef.current === 'active' && 
+        (secondsRemaining === 10 || secondsRemaining === 5 || secondsRemaining === 3 || 
+        secondsRemaining === 2 || secondsRemaining === 1)) {
       Vibration.vibrate(100);
     }
     
@@ -429,6 +486,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   // Hide rest timer and close modal
   const hideRestTimer = () => {
     clearTimer();
+    
+    // Cancel any scheduled notifications
+    Notifications.cancelAllScheduledNotificationsAsync();
     
     // Animate timer out
     Animated.parallel([
@@ -476,6 +536,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Update progress
     const calculatedProgress = 1 - (remaining / totalDuration);
     setProgress(calculatedProgress);
+    
+    // Reschedule notifications with updated time
+    scheduleTimerNotifications(secondsRemaining, restEndTimeRef.current);
     
     // Vibration feedback
     Vibration.vibrate(50);

@@ -5,7 +5,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "esModuleInterop": true
