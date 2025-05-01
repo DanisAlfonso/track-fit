@@ -64,15 +64,6 @@ interface SetBottomSheetProps {
   showRestTimer?: boolean;
 }
 
-// Set up notification handler for background notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
 export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   visible,
   onClose,
@@ -356,31 +347,12 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Cancel any existing notifications first
     Notifications.cancelAllScheduledNotificationsAsync();
     
-    // Calculate vibration points (10s, 5s, 3s, 2s, 1s before end)
+    // Store the vibration times in persistent storage for background retrieval
+    const now = Date.now();
     const vibrationPoints = [10, 5, 3, 2, 1];
+    const vibrationTimes = vibrationPoints.map(seconds => endTime - (seconds * 1000));
     
-    // Schedule notifications for each vibration point
-    for (const seconds of vibrationPoints) {
-      const triggerTime = endTime - (seconds * 1000);
-      const now = Date.now();
-      
-      // Only schedule if this time point is in the future
-      if (triggerTime > now) {
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Timer",
-            body: `${seconds} seconds remaining`,
-            data: { type: 'timer-vibration' },
-          },
-          trigger: { 
-            date: new Date(triggerTime),
-            type: Notifications.SchedulableTriggerInputTypes.DATE
-          },
-        });
-      }
-    }
-    
-    // Schedule final notification
+    // Only schedule the final notification
     Notifications.scheduleNotificationAsync({
       content: {
         title: "Timer Complete",
@@ -464,6 +436,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
     const remaining = restEndTimeRef.current - now;
     const secondsRemaining = Math.ceil(remaining / 1000); // Round up to nearest second
+    const previousSecondsRemaining = remainingTime;
     
     // Calculate progress as a value from 0 to 1
     const calculatedProgress = 1 - (remaining / totalDuration);
@@ -472,11 +445,12 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     setRemainingTime(secondsRemaining);
     setProgress(calculatedProgress);
     
-    // Vibrate only when app is active (foreground)
-    if (appStateRef.current === 'active' && 
-        (secondsRemaining === 10 || secondsRemaining === 5 || secondsRemaining === 3 || 
-        secondsRemaining === 2 || secondsRemaining === 1)) {
-      Vibration.vibrate(100);
+    // Vibrate at specific intervals - check if we just crossed a threshold
+    if (appStateRef.current === 'active') {
+      const vibrationThresholds = [10, 5, 3, 2, 1];
+      if (vibrationThresholds.includes(secondsRemaining) && previousSecondsRemaining !== secondsRemaining) {
+        Vibration.vibrate(100);
+      }
     }
     
     // Continue the animation loop

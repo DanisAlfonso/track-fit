@@ -27,6 +27,9 @@ export default function RootLayout() {
   useEffect(() => {
     async function prepare() {
       try {
+        // Cancel any existing notifications when the app opens
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        
         // Initialize & migrate database
         console.log('Initializing database...');
         await initDatabase();
@@ -65,6 +68,15 @@ export default function RootLayout() {
 
   // Setup notification handler and listener for timer vibrations
   useEffect(() => {
+    // Configure the notification handler
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+    
     // Request notification permissions
     const requestPermissions = async () => {
       const { status } = await Notifications.requestPermissionsAsync();
@@ -80,9 +92,7 @@ export default function RootLayout() {
       const data = notification.request.content.data;
       
       // Handle timer vibrations
-      if (data?.type === 'timer-vibration') {
-        Vibration.vibrate(100);
-      } else if (data?.type === 'timer-complete') {
+      if (data?.type === 'timer-complete') {
         Vibration.vibrate([100, 200, 100, 200, 100]);
       }
     });
