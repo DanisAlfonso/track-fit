@@ -10,6 +10,10 @@ import { format } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// User profile key from profile.tsx
+const USER_NAME_KEY = 'user_name';
 
 type Routine = {
   id: number;
@@ -49,6 +53,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
+  const [userName, setUserName] = useState('Fitness Enthusiast');
 
   useEffect(() => {
     loadData();
@@ -152,6 +157,17 @@ export default function HomeScreen() {
       
       // Load today's scheduled workout if any
       await loadTodaysScheduledWorkout();
+
+      // Load user name from AsyncStorage
+      try {
+        const name = await AsyncStorage.getItem(USER_NAME_KEY);
+        if (name) {
+          setUserName(name);
+        }
+      } catch (error) {
+        console.error('Error loading user name:', error);
+        // Keep default name if there's an error
+      }
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -292,6 +308,60 @@ export default function HomeScreen() {
     }
   };
 
+  const getGreeting = (): string => {
+    const currentHour = new Date().getHours();
+    let timeGreeting = '';
+    
+    // Time-based greeting with more casual, friendly options
+    if (currentHour < 12) {
+      timeGreeting = ['Hey there', 'Morning', 'Rise and shine'][Math.floor(Math.random() * 3)];
+    } else if (currentHour < 17) {
+      timeGreeting = ['Hey', "What's up", 'Afternoon'][Math.floor(Math.random() * 3)];
+    } else {
+      timeGreeting = ['Hey there', 'Evening', 'Hi there'][Math.floor(Math.random() * 3)];
+    }
+    
+    // If they completed a workout today
+    if (recentWorkouts.length > 0) {
+      const today = new Date().setHours(0, 0, 0, 0);
+      const latestWorkoutDate = new Date(recentWorkouts[0].date).setHours(0, 0, 0, 0);
+      
+      if (today === latestWorkoutDate) {
+        return `Nice work today, ${userName}!`;
+      }
+    }
+    
+    // If they have a streak of 3+ days
+    if (stats?.streak && stats.streak >= 3) {
+      return `Crushing it, ${userName}!`;
+    }
+    
+    // Default is time-based greeting
+    return `${timeGreeting}, ${userName}!`;
+  };
+
+  const getWelcomeSubtitle = (): string => {
+    // Check if there's a workout scheduled for today
+    if (todaysRoutine) {
+      return `${todaysRoutine.name} is on your schedule today`;
+    }
+    
+    // Check if user has a streak going
+    if (stats?.streak && stats.streak > 1) {
+      return `${stats.streak} day streak! Keep it up!`;
+    }
+    
+    // Time-based greeting if no other conditions are met
+    const currentHour = new Date().getHours();
+    if (currentHour < 12) {
+      return "Let's start the day strong!";
+    } else if (currentHour < 17) {
+      return "Time for an afternoon boost?";
+    } else {
+      return "Evening workout to end the day?";
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -319,8 +389,8 @@ export default function HomeScreen() {
       }
     >
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>TrackFit</Text>
-        <Text style={[styles.subtitle, { color: colors.subtext }]}>Your Fitness Journey</Text>
+        <Text style={[styles.welcomeMessage, { color: colors.text }]}>{getGreeting()}</Text>
+        <Text style={[styles.welcomeSubtitle, { color: colors.subtext }]}>{getWelcomeSubtitle()}</Text>
       </View>
 
       {/* Quick Actions */}
@@ -575,17 +645,19 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   header: {
-    marginTop: 8,
+    marginTop: 16,
     marginBottom: 24,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
   },
-  title: {
-    fontSize: 32,
+  welcomeMessage: {
+    fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 2,
   },
-  subtitle: {
+  welcomeSubtitle: {
     fontSize: 16,
-    marginTop: 4,
+    opacity: 0.8,
   },
   quickActionsContainer: {
     marginBottom: 24,
