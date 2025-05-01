@@ -443,23 +443,23 @@ export default function ExercisesScreen() {
   const ListHeaderComponent = useMemo(() => (
     <>
       <View style={styles.headerContainer}>
-        <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-          <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search exercises..."
-            placeholderTextColor={colors.subtext}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')}>
-              <FontAwesome name="times-circle" size={16} color={colors.subtext} style={styles.clearIcon} />
-            </Pressable>
-          )}
-        </View>
-        
-        <View style={styles.filterButtonsRow}>
+        <View style={styles.searchFilterRow}>
+          <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
+            <FontAwesome name="search" size={15} color={colors.subtext} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search exercises..."
+              placeholderTextColor={colors.subtext}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')}>
+                <FontAwesome name="times-circle" size={15} color={colors.subtext} style={styles.clearIcon} />
+              </Pressable>
+            )}
+          </View>
+          
           <TouchableOpacity
             style={[
               styles.favoriteFilterButton,
@@ -474,18 +474,7 @@ export default function ExercisesScreen() {
               name="heart" 
               size={14} 
               color={showFavoritesOnly ? 'white' : colors.primary} 
-              style={styles.filterIcon} 
             />
-            <Text
-              style={[
-                styles.filterText,
-                showFavoritesOnly
-                  ? { color: 'white' }
-                  : { color: colors.text }
-              ]}
-            >
-              Favorites
-            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -518,11 +507,11 @@ export default function ExercisesScreen() {
             />
           </TouchableOpacity>
         </View>
+        
+        <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
+          {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
+        </Text>
       </View>
-      
-      <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
-        {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
-      </Text>
     </>
   ), [
     colors,
@@ -596,46 +585,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
     backgroundColor: 'transparent',
+  },
+  searchFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginRight: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    flex: 1,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   clearIcon: {
-    padding: 4,
+    padding: 2,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
-  filterButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
   favoriteFilterButton: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginRight: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -644,14 +634,12 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   muscleFilterButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -659,24 +647,24 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   filterIcon: {
-    marginRight: 6,
+    marginRight: 4,
   },
   filterChevron: {
-    marginLeft: 6,
+    marginLeft: 4,
   },
   filterText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
+  },
+  resultsCountText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 8,
+    marginLeft: 4,
   },
   contentContainer: {
     flex: 1,
     paddingHorizontal: 16,
-  },
-  resultsCountText: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 8,
-    marginLeft: 4,
   },
   exercisesList: {
     padding: 16,
