@@ -71,7 +71,7 @@ const TRAINING_TYPES = [
 ];
 
 export default function StartWorkoutScreen() {
-  const { routineId, workoutId: existingWorkoutId } = useLocalSearchParams();
+  const { routineId, workoutId: existingWorkoutId, skipReady } = useLocalSearchParams();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const { theme } = useTheme(); // Keep getting theme
@@ -180,6 +180,13 @@ export default function StartWorkoutScreen() {
       }
     };
   }, [routineId]);
+  
+  // Auto-start workout if skipReady is 'true'
+  useEffect(() => {
+    if (skipReady === 'true' && routineId && !workoutStarted && !existingWorkoutId && !isLoading) {
+      startWorkout();
+    }
+  }, [skipReady, routineId, workoutStarted, existingWorkoutId, isLoading]);
 
   // Periodically save workout progress even if app stays in foreground
   useEffect(() => {
@@ -1930,7 +1937,7 @@ export default function StartWorkoutScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {!workoutStarted ? (
+      {!workoutStarted && skipReady !== 'true' ? (
         <View style={styles.startWorkoutContainer}>
           <View style={styles.startWorkoutContent}>
             <FontAwesome name="trophy" size={48} color={colors.primary} style={styles.startWorkoutIcon} />

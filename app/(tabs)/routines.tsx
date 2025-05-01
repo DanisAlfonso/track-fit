@@ -13,6 +13,7 @@ import * as Sharing from 'expo-sharing';
 import { BlurView } from 'expo-blur';
 import { useToast } from '@/context/ToastContext';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { useWorkout } from '@/context/WorkoutContext';
 
 type Routine = {
   id: number;
@@ -21,6 +22,18 @@ type Routine = {
   created_at: number;
   exerciseCount?: number;
   scheduledDays?: string; // Comma-separated list of scheduled days
+  expanded?: boolean; // Track if the routine card is expanded
+  exercises?: RoutineExercise[]; // Store exercises for the routine
+};
+
+type RoutineExercise = {
+  id: number;
+  name: string;
+  sets: number;
+  exercise_order: number;
+  exercise_id: number;
+  primary_muscle: string;
+  category: string;
 };
 
 // Custom context menu component with blur effect
@@ -202,6 +215,7 @@ export default function RoutinesScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const { showToast } = useToast();
+  const { activeWorkout } = useWorkout();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,7 +263,30 @@ export default function RoutinesScreen() {
         ORDER BY r.created_at DESC
       `);
       
-      setRoutines(results);
+      // Initialize expanded property for all routines
+      const routinesWithExpanded = results.map(routine => ({
+        ...routine,
+        expanded: false,
+        exercises: [] as RoutineExercise[]
+      }));
+      
+      // Load exercises for each routine that has exercises
+      for (const routine of routinesWithExpanded) {
+        if (routine.exerciseCount && routine.exerciseCount > 0) {
+          const exercises = await db.getAllAsync<RoutineExercise>(
+            `SELECT re.id, e.name, re.sets, re.order_num as exercise_order, e.id as exercise_id,
+             e.primary_muscle, e.category
+             FROM routine_exercises re
+             JOIN exercises e ON re.exercise_id = e.id
+             WHERE re.routine_id = ?
+             ORDER BY re.order_num`,
+            [routine.id]
+          );
+          routine.exercises = exercises;
+        }
+      }
+      
+      setRoutines(routinesWithExpanded);
     } catch (error) {
       console.error('Error loading routines:', error);
     } finally {
@@ -413,71 +450,192 @@ export default function RoutinesScreen() {
 
   const renderRoutineItem = ({ item }: { item: Routine }) => {
     const isActive = activeRoutineId === item.id;
+    const hasExercises = item.exerciseCount && item.exerciseCount > 0;
+    
+    // Helper function to get color based on muscle group
+    const getMuscleColor = (muscle: string) => {
+      const muscleColors: Record<string, string> = {
+        'Chest': '#E91E63',
+        'Back': '#3F51B5',
+        'Shoulders': '#009688',
+        'Biceps': '#FF5722',
+        'Triceps': '#FF9800',
+        'Legs': '#8BC34A',
+        'Quadriceps': '#8BC34A',
+        'Hamstrings': '#CDDC39',
+        'Calves': '#FFEB3B',
+        'Glutes': '#FFC107',
+        'Abs': '#00BCD4',
+        'Core': '#00BCD4',
+        'Forearms': '#795548',
+        'Traps': '#9C27B0',
+        'Full Body': '#607D8B',
+      };
+      
+      return muscleColors[muscle] || '#4CAF50';
+    };
     
     return (
-      <TouchableOpacity 
-        style={[
-          styles.routineCard, 
-          { 
-            backgroundColor: colors.card,
-            opacity: isActive ? 0.7 : 1 
-          }
-        ]}
-        onPress={() => navigateToRoutineDetail(item.id)}
-        onLongPress={() => handleLongPress(item)}
-        delayLongPress={500}
-        activeOpacity={0.7}
-        disabled={isDeleting || isSharing}
-      >
-        <View style={styles.routineIconContainer}>
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.routineIcon}
-          >
-            <FontAwesome5 name="dumbbell" size={22} color="white" />
-          </LinearGradient>
-        </View>
-        
-        <View style={styles.routineContent}>
-          <Text style={[styles.routineName, { color: colors.text }]}>
-            {item.name}
-            {isActive && isSharing && ' (Sharing...)'}
-            {isActive && isDeleting && ' (Deleting...)'}
-          </Text>
-          {item.description && (
-            <Text style={[styles.routineDescription, { color: colors.subtext }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-          )}
-          <View style={styles.routineFooter}>
-            <View style={styles.routineMetaItem}>
-              <FontAwesome5 name="list" size={14} color={colors.subtext} style={styles.metaIcon} />
-              <Text style={[styles.routineMeta, { color: colors.subtext }]}>
-                {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            <View style={styles.routineMetaItem}>
-              <FontAwesome5 name="calendar-alt" size={14} color={colors.subtext} style={styles.metaIcon} />
-              <Text style={[styles.routineMeta, { color: colors.subtext }]}>
-                {formatDate(item.created_at)}
-              </Text>
-            </View>
+      <View style={[
+        styles.routineCard, 
+        { 
+          backgroundColor: colors.card,
+          opacity: isActive ? 0.7 : 1 
+        }
+      ]}>
+        <TouchableOpacity 
+          style={styles.routineHeader}
+          onPress={() => toggleRoutineExpanded(item.id)}
+          onLongPress={() => handleLongPress(item)}
+          delayLongPress={500}
+          activeOpacity={0.7}
+          disabled={isDeleting || isSharing}
+        >
+          <View style={styles.routineIconContainer}>
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.routineIcon}
+            >
+              <FontAwesome5 name="dumbbell" size={22} color="white" />
+            </LinearGradient>
           </View>
           
-          {item.scheduledDays && (
-            <View style={[styles.scheduledDaysContainer, { borderTopColor: colors.border }]}>
-              <FontAwesome5 name="calendar-week" size={14} color={colors.primary} style={styles.metaIcon} />
-              <Text style={[styles.scheduledDaysText, { color: colors.primary }]}>
-                Scheduled: {item.scheduledDays}
+          <View style={styles.routineContent}>
+            <Text style={[styles.routineName, { color: colors.text }]}>
+              {item.name}
+              {isActive && isSharing && ' (Sharing...)'}
+              {isActive && isDeleting && ' (Deleting...)'}
+            </Text>
+            {item.description && (
+              <Text style={[styles.routineDescription, { color: colors.subtext }]} numberOfLines={2}>
+                {item.description}
               </Text>
+            )}
+            <View style={styles.routineFooter}>
+              <View style={styles.routineMetaItem}>
+                <FontAwesome5 name="list" size={14} color={colors.subtext} style={styles.metaIcon} />
+                <Text style={[styles.routineMeta, { color: colors.subtext }]}>
+                  {item.exerciseCount} exercise{item.exerciseCount !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <View style={styles.routineMetaItem}>
+                <FontAwesome5 name="calendar-alt" size={14} color={colors.subtext} style={styles.metaIcon} />
+                <Text style={[styles.routineMeta, { color: colors.subtext }]}>
+                  {formatDate(item.created_at)}
+                </Text>
+              </View>
             </View>
-          )}
-        </View>
+            
+            {item.scheduledDays && (
+              <View style={[styles.scheduledDaysContainer, { borderTopColor: colors.border }]}>
+                <FontAwesome5 name="calendar-week" size={14} color={colors.primary} style={styles.metaIcon} />
+                <Text style={[styles.scheduledDaysText, { color: colors.primary }]}>
+                  Scheduled: {item.scheduledDays}
+                </Text>
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.routineActions}>
+            {hasExercises && (
+              <TouchableOpacity 
+                style={[styles.startWorkoutButton, { backgroundColor: colors.primary }]}
+                onPress={() => startRoutineWorkout(item.id)}
+                disabled={isDeleting || isSharing}
+              >
+                <FontAwesome5 name="play" size={16} color="white" />
+              </TouchableOpacity>
+            )}
+            <Ionicons 
+              name={item.expanded ? "chevron-up" : "chevron-down"} 
+              size={24} 
+              color={colors.subtext} 
+            />
+          </View>
+        </TouchableOpacity>
         
-        <View style={styles.chevronContainer}>
-          <Ionicons name="chevron-forward" size={24} color={colors.subtext} />
-        </View>
-      </TouchableOpacity>
+        {/* Expandable exercises list */}
+        {item.expanded && item.exercises && item.exercises.length > 0 && (
+          <View style={styles.exercisesContainer}>
+            {item.exercises.map((exercise, index) => (
+              <View 
+                key={exercise.id}
+                style={[styles.exerciseItem, { backgroundColor: currentTheme === 'dark' ? 
+                  'rgba(45,45,50,0.6)' : 'rgba(250,250,255,0.6)'
+                }]}
+              >
+                <View style={[styles.exerciseNumber, { backgroundColor: getMuscleColor(exercise.primary_muscle) }]}>
+                  <Text style={styles.exerciseNumberText}>
+                    {index + 1}
+                  </Text>
+                </View>
+                <View style={styles.exerciseInfo}>
+                  <Text style={[styles.exerciseName, { color: colors.text }]}>
+                    {exercise.name}
+                  </Text>
+                  <View style={styles.exerciseDetails}>
+                    <Text style={[styles.exerciseSets, { color: colors.subtext }]}>
+                      {exercise.sets} set{exercise.sets !== 1 ? 's' : ''}
+                    </Text>
+                    <Text style={[styles.exerciseMuscle, { color: colors.subtext }]}>
+                      {exercise.primary_muscle}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+            
+            <View style={styles.exerciseActions}>
+              <TouchableOpacity 
+                style={[styles.viewDetailsButton, { borderColor: colors.primary }]}
+                onPress={() => navigateToRoutineDetail(item.id)}
+              >
+                <Text style={[styles.viewDetailsText, { color: colors.primary }]}>
+                  View Details
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.startWorkoutButtonLarge, { backgroundColor: colors.primary }]}
+                onPress={() => startRoutineWorkout(item.id)}
+              >
+                <FontAwesome5 name="play-circle" size={16} color="white" style={styles.startButtonIcon} />
+                <Text style={styles.startWorkoutText}>Start Workout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const startRoutineWorkout = (routineId: number) => {
+    // Check if there's already an active workout in the context
+    if (activeWorkout?.id) {
+      showToast('You already have a workout in progress. Please finish or cancel it before starting a new one.', 'error');
+      
+      // Navigate to the existing workout
+      router.push({
+        pathname: "/workout/start",
+        params: { workoutId: activeWorkout.id }
+      });
+      return;
+    }
+    
+    // Navigate directly to the workout start screen with skipReady=true
+    router.push({
+      pathname: "/workout/start",
+      params: { routineId, skipReady: 'true' }
+    });
+  };
+  
+  const toggleRoutineExpanded = (routineId: number) => {
+    setRoutines(prevRoutines => 
+      prevRoutines.map(routine => 
+        routine.id === routineId 
+          ? { ...routine, expanded: !routine.expanded } 
+          : routine
+      )
     );
   };
 
@@ -645,9 +803,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   routineCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
@@ -655,7 +810,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    minHeight: 110,
+    overflow: 'hidden',
+  },
+  routineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
   },
   routineIconContainer: {
     marginRight: 20,
@@ -699,8 +859,33 @@ const styles = StyleSheet.create({
   routineMeta: {
     fontSize: 14,
   },
-  chevronContainer: {
-    marginLeft: 8,
+  routineActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  startWorkoutButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  startWorkoutButtonLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  startWorkoutText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  startButtonIcon: {
+    marginRight: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -746,6 +931,66 @@ const styles = StyleSheet.create({
   scheduledDaysText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  exercisesContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  exerciseItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    marginBottom: 8,
+    borderRadius: 12,
+  },
+  exerciseNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  exerciseNumberText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exerciseInfo: {
+    flex: 1,
+  },
+  exerciseName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  exerciseDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseSets: {
+    fontSize: 14,
+    marginRight: 12,
+  },
+  exerciseMuscle: {
+    fontSize: 14,
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  viewDetailsButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(127,127,127,0.2)',
+  },
+  viewDetailsText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   longPressHint: {
     position: 'absolute',
