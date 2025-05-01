@@ -397,10 +397,15 @@ export default function HomeScreen() {
     return `${timeGreeting}, ${userName}!`;
   };
 
-  const getWelcomeSubtitle = (): string => {
+  const getWelcomeSubtitle = (): React.ReactNode => {
     // Check if there's a workout scheduled for today
     if (todaysRoutine) {
-      return `${todaysRoutine.name} is on your schedule today`;
+      return (
+        <Text>
+          <Text style={{ fontWeight: 'bold' }}>{todaysRoutine.name}</Text>
+          <Text> is on your schedule today</Text>
+        </Text>
+      );
     }
     
     // If today is a rest day according to weekly schedule
@@ -775,41 +780,6 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
-
-      {/* Suggested Workouts */}
-      {routines.length > 0 && (
-        <View style={styles.suggestedContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Suggested Workouts</Text>
-          
-          {routines.slice(0, 2).map((routine) => (
-            <TouchableOpacity 
-              key={routine.id}
-              style={[
-                styles.suggestedCard
-              ]}
-              onPress={() => handleRoutinePress(routine)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.cardInner, {backgroundColor: colors.card}]}>
-                <View style={styles.suggestedContent}>
-                  <Text style={[styles.suggestedName, { color: colors.text }]}>{routine.name}</Text>
-                  <Text style={[styles.suggestedCount, { color: colors.subtext }]}>
-                    {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
-                  </Text>
-                </View>
-                <View style={styles.startButtonContainer}>
-                  <LinearGradient
-                    colors={buttonGradients.startWorkout}
-                    style={styles.startButton}
-                  >
-                    <FontAwesome5 name="play" size={14} color="white" />
-                  </LinearGradient>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 }
@@ -994,50 +964,15 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontWeight: '500',
   },
-  suggestedContainer: {
-    marginBottom: 30,
-  },
-  suggestedCard: {
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: 'hidden',
-  },
-  suggestedContent: {
-    flex: 1,
-  },
-  suggestedName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  suggestedCount: {
-    fontSize: 13,
-  },
-  startButtonContainer: {
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  startButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   emptyWorkoutsContainer: {
     padding: 24,
     borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
     marginBottom: 8,
   },
   emptyText: {
@@ -1124,5 +1059,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginRight: 6,
+  },
+  startButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
