@@ -23,6 +23,7 @@ import Colors from '@/constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
+import { getDatabase } from '@/utils/database';
 
 const { height, width } = Dimensions.get('window');
 
@@ -343,27 +344,60 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   };
   
   // Schedule notifications for timer vibrations
-  const scheduleTimerNotifications = (duration: number, endTime: number) => {
+  const scheduleTimerNotifications = async (duration: number, endTime: number) => {
     // Cancel any existing notifications first
     Notifications.cancelAllScheduledNotificationsAsync();
     
-    // Store the vibration times in persistent storage for background retrieval
-    const now = Date.now();
-    const vibrationPoints = [10, 5, 3, 2, 1];
-    const vibrationTimes = vibrationPoints.map(seconds => endTime - (seconds * 1000));
-    
-    // Only schedule the final notification
-    Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Timer Complete",
-        body: "Rest time is over!",
-        data: { type: 'timer-complete' },
-      },
-      trigger: { 
-        date: new Date(endTime),
-        type: Notifications.SchedulableTriggerInputTypes.DATE
-      },
-    });
+    // Check notification settings
+    try {
+      const db = await getDatabase();
+      
+      // First check if all notifications are enabled
+      const masterPref = await db.getFirstAsync<{enabled: number}>(`
+        SELECT enabled FROM notification_preferences WHERE key = 'all_notifications'
+      `);
+      
+      // If master switch is off, don't schedule any notifications
+      if (masterPref && masterPref.enabled === 0) {
+        return;
+      }
+      
+      // Check timer completion notification setting
+      const timerCompletePref = await db.getFirstAsync<{enabled: number}>(`
+        SELECT enabled FROM notification_preferences WHERE key = 'timer_complete'
+      `);
+      
+      // If timer completion is enabled, schedule the final notification
+      if (!timerCompletePref || timerCompletePref.enabled === 1) {
+        // Only schedule the final notification
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Timer Complete",
+            body: "Rest time is over!",
+            data: { type: 'timer-complete' },
+          },
+          trigger: { 
+            date: new Date(endTime),
+            type: Notifications.SchedulableTriggerInputTypes.DATE
+          },
+        });
+      }
+    } catch (error) {
+      console.log('Error checking notification settings:', error);
+      
+      // If there's an error, fall back to default behavior - just schedule the final notification
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Timer Complete",
+          body: "Rest time is over!",
+          data: { type: 'timer-complete' },
+        },
+        trigger: { 
+          date: new Date(endTime),
+          type: Notifications.SchedulableTriggerInputTypes.DATE
+        },
+      });
+    }
   };
   
   // Start rest timer
@@ -407,7 +441,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   };
   
   // Update rest timer using animation frames
-  const updateRestTimer = () => {
+  const updateRestTimer = async () => {
     const now = Date.now();
     
     // If time is up, complete the rest
@@ -449,7 +483,21 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     if (appStateRef.current === 'active') {
       const vibrationThresholds = [10, 5, 3, 2, 1];
       if (vibrationThresholds.includes(secondsRemaining) && previousSecondsRemaining !== secondsRemaining) {
-        Vibration.vibrate(100);
+        try {
+          // Check if vibration feedback is enabled
+          const db = await getDatabase();
+          const vibrationPref = await db.getFirstAsync<{enabled: number}>(`
+            SELECT enabled FROM notification_preferences WHERE key = 'timer_vibration'
+          `);
+          
+          // Only vibrate if the setting is enabled or the table doesn't exist yet
+          if (!vibrationPref || vibrationPref.enabled === 1) {
+            Vibration.vibrate(100);
+          }
+        } catch (error) {
+          // If there's an error, fall back to default behavior
+          Vibration.vibrate(100);
+        }
       }
     }
     

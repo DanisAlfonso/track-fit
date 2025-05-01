@@ -1264,7 +1264,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.settingItem}
             activeOpacity={0.7}
-            onPress={() => showToast('This feature will be available in a future update.', 'info')}
+            onPress={() => router.push('/notification-settings')}
           >
             <View style={styles.settingLabelContainer}>
               <FontAwesome5 name="bell" size={18} color={colors.primary} style={styles.settingIcon} />
