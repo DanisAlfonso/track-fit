@@ -294,16 +294,70 @@ export default function StartWorkoutScreen() {
         throw new Error('No exercises found for this routine');
       }
       
-      let workoutExercises: WorkoutExercise[] = [];
+      // Create a map for quick lookup of routine exercises by exercise_id
+      const routineExerciseMap = new Map();
+      routineExercises.forEach(re => {
+        routineExerciseMap.set(re.exercise_id, re);
+      });
       
-      if (exerciseRecords.length === 0) {
-        // No exercises have been saved yet for this workout - use routine exercises as a template
-        console.log('No saved workout exercises found - using routine exercises as template');
+      // Create a map for saved workout exercises and their sets
+      const workoutExerciseMap = new Map();
+      for (const exerciseRecord of exerciseRecords) {
+        // Get all sets for this workout exercise
+        const sets = await db.getAllAsync<Set>(
+          `SELECT id, set_number, reps, weight, rest_time, completed, training_type, notes
+           FROM sets
+           WHERE workout_exercise_id = ?
+           ORDER BY set_number`,
+          [exerciseRecord.id]
+        );
         
-        workoutExercises = routineExercises.map(re => {
-          // Create default sets data
-          const sets_data: Set[] = [];
+        workoutExerciseMap.set(exerciseRecord.exercise_id, {
+          record: exerciseRecord,
+          sets: sets
+        });
+      }
+      
+      // Create workout exercises list using ALL routine exercises as the base
+      const workoutExercises: WorkoutExercise[] = routineExercises.map(re => {
+        // Check if we have saved data for this exercise
+        const savedExercise = workoutExerciseMap.get(re.exercise_id);
+        
+        // Create default sets data
+        let sets_data: Set[] = [];
+        let completedSets = 0;
+        let notes = '';
+        
+        if (savedExercise) {
+          // Use saved notes if available
+          notes = savedExercise.record.notes || '';
+          completedSets = savedExercise.record.sets_completed || 0;
           
+          // Create a full array of sets
+          for (let i = 1; i <= re.sets; i++) {
+            // Look for existing set
+            const existingSet = savedExercise.sets.find((s: Set) => s.set_number === i);
+            
+            if (existingSet) {
+              sets_data.push({
+                ...existingSet,
+                completed: !!existingSet.completed,
+                notes: existingSet.notes || ''
+              });
+            } else {
+              // Create a new default set
+              sets_data.push({
+                set_number: i,
+                reps: 0,
+                weight: 0,
+                rest_time: 60,
+                completed: false,
+                notes: ''
+              });
+            }
+          }
+        } else {
+          // No saved data - create default sets
           for (let i = 1; i <= re.sets; i++) {
             sets_data.push({
               set_number: i,
@@ -314,84 +368,21 @@ export default function StartWorkoutScreen() {
               notes: ''
             });
           }
-          
-          return {
-            routine_exercise_id: re.id,
-            exercise_id: re.exercise_id,
-            name: re.name,
-            sets: re.sets,
-            completedSets: 0,
-            exercise_order: re.order_num,
-            primary_muscle: re.primary_muscle,
-            category: re.category,
-            sets_data: sets_data,
-            notes: ''
-          };
-        });
-      } else {
-        // Create map of exercise_id to routine_exercise for quick lookup
-        const routineExerciseMap = new Map();
-        routineExercises.forEach(re => {
-          routineExerciseMap.set(re.exercise_id, re);
-        });
-        
-        // Create workout exercises with completed sets
-        workoutExercises = [];
-        
-        for (const exerciseRecord of exerciseRecords) {
-          // Get the corresponding routine exercise
-          const routineExercise = routineExerciseMap.get(exerciseRecord.exercise_id);
-          
-          if (!routineExercise) {
-            console.warn(`Routine exercise not found for exercise_id ${exerciseRecord.exercise_id}`);
-            continue;
-          }
-          
-          // Get all sets for this workout exercise
-          const sets = await db.getAllAsync<Set>(
-            `SELECT id, set_number, reps, weight, rest_time, completed, training_type, notes
-             FROM sets
-             WHERE workout_exercise_id = ?
-             ORDER BY set_number`,
-            [exerciseRecord.id]
-          );
-          
-          // Create a full array of sets, ensuring we have the correct number
-          const allSets: Set[] = [];
-          for (let i = 1; i <= routineExercise.sets; i++) {
-            // Look for existing set
-            const existingSet = sets.find(s => s.set_number === i);
-            
-            if (existingSet) {
-              allSets.push(existingSet);
-            } else {
-              // Create a new default set
-              allSets.push({
-                set_number: i,
-                reps: 0,
-                weight: 0,
-                rest_time: 60,
-                completed: false,
-                notes: ''
-              });
-            }
-          }
-          
-          // Add the workout exercise
-          workoutExercises.push({
-            routine_exercise_id: routineExercise.id,
-            exercise_id: exerciseRecord.exercise_id,
-            name: routineExercise.name,
-            sets: routineExercise.sets,
-            completedSets: exerciseRecord.sets_completed || 0,
-            exercise_order: routineExercise.order_num,
-            primary_muscle: routineExercise.primary_muscle,
-            category: routineExercise.category,
-            sets_data: allSets,
-            notes: exerciseRecord.notes || ''
-          });
         }
-      }
+        
+        return {
+          routine_exercise_id: re.id,
+          exercise_id: re.exercise_id,
+          name: re.name,
+          sets: re.sets,
+          completedSets: completedSets,
+          exercise_order: re.order_num,
+          primary_muscle: re.primary_muscle,
+          category: re.category,
+          sets_data: sets_data,
+          notes: notes
+        };
+      });
       
       // Sort workout exercises by order number
       workoutExercises.sort((a, b) => a.exercise_order - b.exercise_order);
