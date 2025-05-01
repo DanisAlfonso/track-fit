@@ -41,6 +41,8 @@ type RecentWorkout = {
   routine_name: string;
   duration: number;
   exercise_count: number;
+  max_weight?: number;    // Maximum weight used in the workout
+  primary_muscles?: string; // Main muscle groups worked
 };
 
 type WorkoutStats = {
@@ -118,8 +120,20 @@ export default function HomeScreen() {
       
       // Load recent workouts - Only select workouts that still exist and are completed
       const recentWorkoutsResults = await db.getAllAsync<RecentWorkout>(`
-        SELECT w.id, w.date, r.name as routine_name, w.duration,
-        (SELECT COUNT(DISTINCT we.exercise_id) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count
+        SELECT 
+          w.id, 
+          w.date, 
+          r.name as routine_name, 
+          w.duration,
+          (SELECT COUNT(DISTINCT we.exercise_id) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count,
+          (SELECT MAX(s.weight) FROM sets s 
+           JOIN workout_exercises we ON s.workout_exercise_id = we.id 
+           WHERE we.workout_id = w.id) as max_weight,
+          (SELECT GROUP_CONCAT(DISTINCT e.primary_muscle) 
+           FROM workout_exercises we 
+           JOIN exercises e ON we.exercise_id = e.id 
+           WHERE we.workout_id = w.id 
+           LIMIT 3) as primary_muscles
         FROM workouts w
         JOIN routines r ON w.routine_id = r.id
         WHERE w.completed_at IS NOT NULL
@@ -567,14 +581,7 @@ export default function HomeScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Workout</Text>
           
           <TouchableOpacity 
-            style={[
-              styles.todaysWorkoutCard, 
-              { 
-                backgroundColor: currentTheme === 'dark' ? '#252525' : colors.card,
-                borderLeftWidth: 4,
-                borderLeftColor: colors.primary
-              }
-            ]}
+            style={[styles.todaysWorkoutCard, { backgroundColor: colors.card }]}
             onPress={() => {
               if (todaysRoutine.exerciseCount > 0) {
                 // Check if there's already an active workout
@@ -676,21 +683,10 @@ export default function HomeScreen() {
       </View>
 
       {/* Recent Workouts */}
-      <Animated.View 
-        style={[
-          styles.recentWorkoutsContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: translateY }]
-          }
-        ]}
-      >
+      <View style={styles.recentWorkoutsContainer}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Workouts</Text>
-          <TouchableOpacity 
-            style={styles.viewAllButton}
-            onPress={navigateToHistory}
-          >
+          <TouchableOpacity onPress={navigateToHistory}>
             <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
           </TouchableOpacity>
         </View>
@@ -699,33 +695,61 @@ export default function HomeScreen() {
           recentWorkouts.map((workout, index) => (
             <TouchableOpacity 
               key={workout.id}
-              style={[styles.workoutCard, { backgroundColor: colors.card }]}
+              style={[
+                styles.workoutCard
+              ]}
               onPress={() => navigateToWorkout(workout.id)}
               activeOpacity={0.7}
             >
-              <View style={[styles.workoutDateContainer, { backgroundColor: colors.primaryLight }]}>
-                <Text style={[styles.workoutDate, { color: colors.primary }]}>
-                  {formatDate(workout.date)}
-                </Text>
-              </View>
-              <View style={styles.workoutContent}>
-                <Text style={[styles.workoutName, { color: colors.text }]}>{workout.routine_name}</Text>
-                <View style={styles.workoutMeta}>
-                  <View style={styles.workoutMetaItem}>
-                    <FontAwesome5 name="dumbbell" size={12} color={colors.subtext} style={styles.metaIcon} />
-                    <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
-                      {workout.exercise_count} exercises
-                    </Text>
+              <View style={[styles.cardInner, {backgroundColor: colors.card}]}>
+                <View style={[styles.workoutDateContainer, { backgroundColor: colors.primaryLight }]}>
+                  <Text style={[styles.workoutDate, { color: colors.primary }]}>
+                    {formatDate(workout.date)}
+                  </Text>
+                </View>
+                <View style={styles.workoutContent}>
+                  <Text style={[styles.workoutName, { color: colors.text }]}>{workout.routine_name}</Text>
+                  
+                  <View style={styles.workoutMeta}>
+                    <View style={styles.workoutMetaItem}>
+                      <FontAwesome5 name="dumbbell" size={12} color={colors.primary} style={styles.metaIcon} />
+                      <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
+                        {workout.exercise_count} exercises
+                      </Text>
+                    </View>
+                    <View style={styles.workoutMetaItem}>
+                      <FontAwesome5 name="clock" size={12} color={colors.primary} style={styles.metaIcon} />
+                      <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
+                        {formatDuration(workout.duration)}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.workoutMetaItem}>
-                    <FontAwesome5 name="clock" size={12} color={colors.subtext} style={styles.metaIcon} />
-                    <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
-                      {formatDuration(workout.duration)}
-                    </Text>
+                  
+                  {/* Additional Information */}
+                  <View style={styles.workoutExtraInfo}>
+                    {workout.max_weight ? (
+                      <View style={styles.workoutTagItem}>
+                        <FontAwesome5 name="weight" size={10} color={colors.primary} />
+                        <Text style={[styles.workoutTagText, { color: colors.subtext }]}>
+                          Max: {workout.max_weight}kg
+                        </Text>
+                      </View>
+                    ) : null}
+                    
+                    {workout.primary_muscles ? (
+                      <View style={styles.workoutTagItem}>
+                        <FontAwesome5 name="running" size={10} color={colors.primary} />
+                        <Text style={[styles.workoutTagText, { color: colors.subtext }]}>
+                          {workout.primary_muscles.split(',').slice(0, 2).join(', ')}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
+                <View style={styles.arrowContainer}>
+                  <FontAwesome5 name="chevron-right" size={14} color={colors.primary} />
+                </View>
               </View>
-              <FontAwesome5 name="chevron-right" size={16} color={colors.subtext} />
             </TouchableOpacity>
           ))
         ) : (
@@ -740,7 +764,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={[colors.primary, colors.secondary]}
+                colors={buttonGradients.startWorkout}
                 style={styles.startWorkoutGradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -750,7 +774,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </Animated.View>
+      </View>
 
       {/* Suggested Workouts */}
       {routines.length > 0 && (
@@ -760,23 +784,27 @@ export default function HomeScreen() {
           {routines.slice(0, 2).map((routine) => (
             <TouchableOpacity 
               key={routine.id}
-              style={[styles.suggestedCard, { backgroundColor: colors.card }]}
+              style={[
+                styles.suggestedCard
+              ]}
               onPress={() => handleRoutinePress(routine)}
               activeOpacity={0.7}
             >
-              <View style={styles.suggestedContent}>
-                <Text style={[styles.suggestedName, { color: colors.text }]}>{routine.name}</Text>
-                <Text style={[styles.suggestedCount, { color: colors.subtext }]}>
-                  {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={styles.startButtonContainer}>
-                <LinearGradient
-                  colors={[colors.primary, colors.secondary]}
-                  style={styles.startButton}
-                >
-                  <FontAwesome5 name="play" size={14} color="white" />
-                </LinearGradient>
+              <View style={[styles.cardInner, {backgroundColor: colors.card}]}>
+                <View style={styles.suggestedContent}>
+                  <Text style={[styles.suggestedName, { color: colors.text }]}>{routine.name}</Text>
+                  <Text style={[styles.suggestedCount, { color: colors.subtext }]}>
+                    {routine.exerciseCount} exercise{routine.exerciseCount !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <View style={styles.startButtonContainer}>
+                  <LinearGradient
+                    colors={buttonGradients.startWorkout}
+                    style={styles.startButton}
+                  >
+                    <FontAwesome5 name="play" size={14} color="white" />
+                  </LinearGradient>
+                </View>
               </View>
             </TouchableOpacity>
           ))}
@@ -850,11 +878,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
-  viewAllButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
   viewAllText: {
     fontSize: 14,
     fontWeight: '500',
@@ -895,21 +918,32 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   workoutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
     borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingVertical: 20, // Increased to make card larger
+  },
+  arrowContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   workoutDateContainer: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     marginRight: 14,
   },
   workoutDate: {
@@ -927,6 +961,7 @@ const styles = StyleSheet.create({
   workoutMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 8, // Added space for extra info
   },
   workoutMetaItem: {
     flexDirection: 'row',
@@ -934,25 +969,43 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   metaIcon: {
-    marginRight: 4,
+    marginRight: 5,
   },
   workoutMetaText: {
     fontSize: 13,
+  },
+  workoutExtraInfo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  workoutTagItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 153, 255, 0.1)', // Light blue that works in both themes
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+    marginBottom: 4,
+  },
+  workoutTagText: {
+    fontSize: 11,
+    marginLeft: 5,
+    fontWeight: '500',
   },
   suggestedContainer: {
     marginBottom: 30,
   },
   suggestedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
     borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
   },
   suggestedContent: {
     flex: 1,
@@ -1031,10 +1084,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     elevation: 3,
+    overflow: 'hidden',
   },
   todaysWorkoutContent: {
     flexDirection: 'row',
