@@ -57,6 +57,7 @@ export default function TabLayout() {
         name="routines"
         options={{
           title: 'Routines',
+          headerShown: false,
           tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="calendar" size={26} color={color} />,
         }}
       />
