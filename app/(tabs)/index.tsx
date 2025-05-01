@@ -54,6 +54,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
   const [userName, setUserName] = useState('Fitness Enthusiast');
+  const [isRestDayToday, setIsRestDayToday] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -157,6 +158,16 @@ export default function HomeScreen() {
       
       // Load today's scheduled workout if any
       await loadTodaysScheduledWorkout();
+
+      // Check if today is a rest day according to weekly schedule
+      const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const weeklyScheduleResult = await db.getAllAsync<{routine_id: number}>(
+        'SELECT routine_id FROM weekly_schedule WHERE day_of_week = ?',
+        [today]
+      );
+      
+      // It's a rest day if there are no routines scheduled for today
+      setIsRestDayToday(weeklyScheduleResult.length === 0);
 
       // Load user name from AsyncStorage
       try {
@@ -346,19 +357,61 @@ export default function HomeScreen() {
       return `${todaysRoutine.name} is on your schedule today`;
     }
     
-    // Check if user has a streak going
+    // If today is a rest day according to weekly schedule
+    if (isRestDayToday) {
+      return "Rest day today - recovery is key to progress";
+    }
+    
+    // Generate data-driven insights based on workout history
+    
+    // If user has recent workouts, give insights on their progress
+    if (recentWorkouts.length > 0) {
+      const latestWorkout = recentWorkouts[0];
+      const today = new Date().setHours(0, 0, 0, 0);
+      const latestWorkoutDate = new Date(latestWorkout.date).setHours(0, 0, 0, 0);
+      const daysSinceLastWorkout = Math.floor((today - latestWorkoutDate) / (1000 * 60 * 60 * 24));
+      
+      // Give insight based on recent activity
+      if (daysSinceLastWorkout === 1) {
+        // Day after a workout - don't assume it's a rest day
+        return `Yesterday: ${latestWorkout.routine_name}`;
+      } else if (daysSinceLastWorkout >= 2 && daysSinceLastWorkout <= 3) {
+        // 2-3 days since last workout - encourage a new session
+        return `${daysSinceLastWorkout} days since your last workout`;
+      } else if (daysSinceLastWorkout > 3) {
+        // More than 3 days - stronger encouragement
+        return `Time to get back to your fitness routine`;
+      }
+    }
+    
+    // Check if there's a streak going
     if (stats?.streak && stats.streak > 1) {
       return `${stats.streak} day streak! Keep it up!`;
     }
     
-    // Time-based greeting if no other conditions are met
+    // Weekly goal progress
+    if (stats?.this_week && stats.this_week > 0) {
+      // If user has at least one workout this week
+      if (stats.this_week === 1) {
+        return "1 workout this week — great start!";
+      } else {
+        return `${stats.this_week} workouts this week — impressive!`;
+      }
+    }
+    
+    // For new users with no workouts
+    if (stats?.total_workouts === 0) {
+      return "Start your fitness journey today";
+    }
+    
+    // Fallback to time-based encouragement
     const currentHour = new Date().getHours();
     if (currentHour < 12) {
-      return "Let's start the day strong!";
+      return "Morning workout gets you energized all day";
     } else if (currentHour < 17) {
-      return "Time for an afternoon boost?";
+      return "Afternoon sessions boost productivity";
     } else {
-      return "Evening workout to end the day?";
+      return "Evening workouts help reduce stress";
     }
   };
 
