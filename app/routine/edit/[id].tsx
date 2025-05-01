@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -19,12 +19,14 @@ import { getDatabase } from '@/utils/database';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
+import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
 
 type Exercise = {
   id: number;
   name: string;
   category: string;
   primary_muscle: string;
+  secondary_muscles?: string | null;
 };
 
 type RoutineExerciseResult = {
@@ -137,6 +139,32 @@ export default function EditRoutineScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
+  const muscleGroups = useMemo(() => [
+    'All',
+    'Chest',
+    'Back',
+    'Shoulders',
+    'Biceps',
+    'Triceps',
+    'Forearms',
+    'Quadriceps',
+    'Hamstrings',
+    'Glutes',
+    'Calves',
+    'Abs',
+  ], []);
+
+  // Create options for the filter action sheet
+  const filterOptions = useMemo(() => {
+    return muscleGroups.map(group => ({
+      label: group,
+      onPress: () => setSelectedFilter(group === 'All' ? null : group),
+      icon: selectedFilter === group || (group === 'All' && !selectedFilter) ? 'check' : undefined,
+    } as ActionSheetOption));
+  }, [muscleGroups, selectedFilter]);
 
   useEffect(() => {
     loadRoutineDetails();
@@ -144,16 +172,8 @@ export default function EditRoutineScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (searchQuery) {
-      const filtered = exercises.filter(exercise => 
-        exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        exercise.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredExercises(filtered);
-    } else {
-      setFilteredExercises(exercises);
-    }
-  }, [searchQuery, exercises]);
+    filterExercisesList();
+  }, [searchQuery, exercises, selectedFilter]);
 
   const loadRoutineDetails = async () => {
     if (!id) return;
@@ -477,6 +497,31 @@ export default function EditRoutineScreen() {
     </View>
   );
 
+  const filterExercisesList = () => {
+    let filtered = [...exercises];
+
+    // Apply search filter
+    if (searchQuery) {
+      const trimmedQuery = searchQuery.trim().toLowerCase();
+      if (trimmedQuery) {
+        filtered = filtered.filter(exercise => 
+          exercise.name.toLowerCase().includes(trimmedQuery) ||
+          exercise.primary_muscle.toLowerCase().includes(trimmedQuery)
+        );
+      }
+    }
+
+    // Apply muscle group filter
+    if (selectedFilter && selectedFilter !== 'All') {
+      filtered = filtered.filter(exercise => 
+        exercise.primary_muscle === selectedFilter || 
+        (exercise.secondary_muscles && exercise.secondary_muscles.includes(selectedFilter))
+      );
+    }
+
+    setFilteredExercises(filtered);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -599,26 +644,58 @@ export default function EditRoutineScreen() {
             </Text>
           </View>
           
-          <View style={[styles.searchContainer, { 
-            backgroundColor: colors.card,
-            borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
-          }]}>
-            <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search exercises by name or muscle group..."
-              placeholderTextColor={colors.subtext}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearSearch}
-                onPress={() => setSearchQuery('')}
+          <View style={styles.searchFilterContainer}>
+            <View style={[styles.searchContainer, { 
+              backgroundColor: colors.card,
+              borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'
+            }]}>
+              <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
+              <TextInput
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholder="Search exercises by name..."
+                placeholderTextColor={colors.subtext}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearSearch}
+                  onPress={() => setSearchQuery('')}
+                >
+                  <FontAwesome name="times-circle" size={16} color={colors.subtext} />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            <TouchableOpacity
+              style={[
+                styles.muscleFilterButton,
+                { backgroundColor: colors.card }
+              ]}
+              onPress={() => setShowFilterModal(true)}
+              activeOpacity={0.7}
+            >
+              <FontAwesome 
+                name="filter" 
+                size={14} 
+                color={colors.primary} 
+                style={styles.filterIcon} 
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: colors.text }
+                ]}
               >
-                <FontAwesome name="times-circle" size={16} color={colors.subtext} />
-              </TouchableOpacity>
-            )}
+                {selectedFilter || 'All'}
+              </Text>
+              <FontAwesome 
+                name="chevron-down" 
+                size={12} 
+                color={colors.subtext} 
+                style={styles.filterChevron} 
+              />
+            </TouchableOpacity>
           </View>
           
           {filteredExercises.length === 0 ? (
@@ -653,6 +730,15 @@ export default function EditRoutineScreen() {
           style={{ backgroundColor: colors.primary }}
         />
       </View>
+      
+      {/* Muscle group filter action sheet */}
+      <ActionSheet
+        visible={showFilterModal}
+        title="Filter by Muscle Group"
+        options={filterOptions}
+        onClose={() => setShowFilterModal(false)}
+        cancelLabel="Cancel"
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -711,14 +797,20 @@ const styles = StyleSheet.create({
     padding: 0,
     lineHeight: 22,
   },
+  searchFilterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 8,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
+    height: 48,
     borderWidth: 1,
+    flex: 1,
   },
   searchIcon: {
     marginRight: 12,
@@ -918,5 +1010,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  muscleFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  filterIcon: {
+    marginRight: 6,
+  },
+  filterChevron: {
+    marginLeft: 6,
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
