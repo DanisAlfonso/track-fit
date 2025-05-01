@@ -51,12 +51,12 @@ const DEFAULT_EXERCISES = [
   'Leg Press Calf Raise', 'Smith Machine Calf Raise', 'Ab Crunch Machine',
   'Cable Woodchoppers', 'Decline Sit-up', 'Machine Back Extension', 'Hyperextension',
   'Machine Abductor', 'Machine Adductor', 'Glute Kickback Machine',
-  'Wide Grip Chest Press Machine', 'Incline Chest Press Machine', 'Lat Pulldown Machine',
+  'Wide Grip Chest Press Machine', 'Incline Chest Press Machine',
   'Seated Row Machine', 'Bicep Curl (Machine)', 'Chin Up (Weighted)', 'Hip Thrust (Barbell)',
   'Iso-Lateral Low Row', 'Iso-Lateral Row (Machine)', 'Lat Pulldown (Machine)',
   'Leg Horizontal (Machine)', 'Pause Squat (Barbell)', 'Preacher Curl (Dumbbell)',
   'Tricep Extension (EZ Bar)', 'Prone Leg Curl (Machine)', 'Seated Leg Curl (Machine)',
-  'Standing Leg Curl (Machine)'
+  'Standing Leg Curl (Machine)', 'Bench Press (Dumbbell)', 'Hack Calf Raise'
 ];
 
 // Create memoized exercise item component to prevent unnecessary re-renders

@@ -302,13 +302,13 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Return the bar to the starting position with control',
     'Repeat for the desired number of repetitions'
   ],
-  'Lat Pulldown Machine': [
-    'Adjust the seat height so your thighs are secured under the pads',
-    'Grip the machine handles with a comfortable width',
-    'Pull the handles down toward your chest by engaging your back muscles',
-    'Squeeze your shoulder blades together at the bottom of the movement',
-    'Return to the starting position with control, feeling a stretch in your lats',
-    'Maintain good posture throughout the exercise'
+  'Bench Press (Dumbbell)': [
+    'Lie on a flat bench with your feet firmly on the ground',
+    'Hold a dumbbell in each hand at chest level, with palms facing forward',
+    'Press the dumbbells up until your arms are fully extended above your chest',
+    'Lower the dumbbells back to chest level with control',
+    'Keep your wrists straight and elbows at approximately 45 degrees to your body',
+    'Repeat for the desired number of repetitions'
   ],
   'Seated Cable Row (Cable)': [
     'Sit at a cable row machine with your feet against the platform',
@@ -474,6 +474,16 @@ export const exerciseInstructions: ExerciseInstructions = {
     'Lower your leg back to the starting position with control',
     'Complete all repetitions with one leg before switching to the other',
     'Maintain an upright posture throughout the exercise'
+  ],
+  'Hack Calf Raise': [
+    'Position yourself in a hack squat machine with your shoulders under the pads',
+    'Place the balls of your feet on the edge of the platform with heels hanging off',
+    'Release the safety handles and keep your legs straight or slightly bent',
+    'Lower your heels as far as comfortably possible to feel a stretch in your calves',
+    'Push through the balls of your feet to raise your heels as high as possible',
+    'Hold the contracted position for a brief moment, focusing on your calf muscles',
+    'Lower back down with control and repeat for the desired number of repetitions',
+    'Adjust foot position to target different parts of the calves: toes forward for overall development, toes out for inner head, toes in for outer head'
   ],
 };
 

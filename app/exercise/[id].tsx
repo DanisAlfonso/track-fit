@@ -44,7 +44,7 @@ const DEFAULT_EXERCISES = [
   'Iso-Lateral Low Row', 'Iso-Lateral Row (Machine)', 'Lat Pulldown (Machine)',
   'Leg Horizontal (Machine)', 'Pause Squat (Barbell)', 'Preacher Curl (Dumbbell)',
   'Tricep Extension (EZ Bar)', 'Prone Leg Curl (Machine)', 'Seated Leg Curl (Machine)',
-  'Standing Leg Curl (Machine)'
+  'Standing Leg Curl (Machine)', 'Bench Press (Dumbbell)', 'Hack Calf Raise'
 ];
 
 // Exercise types match our database schema

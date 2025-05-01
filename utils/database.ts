@@ -332,7 +332,6 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Wide Grip Chest Press Machine', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
     { name: 'Incline Chest Press Machine', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders,Triceps' },
     // Equipment-specific exercises
-    { name: 'Lat Pulldown Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
     { name: 'Seated Row Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
     { name: 'Bicep Curl (Machine)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
     { name: 'Chin Up (Weighted)', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
@@ -347,6 +346,8 @@ export const insertDefaultExercises = async (): Promise<void> => {
     { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
     { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+    { name: 'Bench Press (Dumbbell)', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+    { name: 'Hack Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
   ];
 
   try {
@@ -698,7 +699,6 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Wide Grip Chest Press Machine', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
       { name: 'Incline Chest Press Machine', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders,Triceps' },
       // Equipment-specific exercises
-      { name: 'Lat Pulldown Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Seated Row Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Bicep Curl (Machine)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
       { name: 'Chin Up (Weighted)', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
@@ -713,6 +713,8 @@ export const updateExercisesWithNewOnes = async (): Promise<void> => {
       { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Bench Press (Dumbbell)', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Hack Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
     ];
     
     // Filter out exercises that already exist
@@ -876,7 +878,6 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'Wide Grip Chest Press Machine', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
       { name: 'Incline Chest Press Machine', category: 'Compound', primary_muscle: 'Upper Chest', secondary_muscle: 'Shoulders,Triceps' },
       // Equipment-specific exercises
-      { name: 'Lat Pulldown Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Seated Row Machine', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
       { name: 'Bicep Curl (Machine)', category: 'Isolation', primary_muscle: 'Biceps', secondary_muscle: '' },
       { name: 'Chin Up (Weighted)', category: 'Compound', primary_muscle: 'Back', secondary_muscle: 'Biceps,Shoulders' },
@@ -891,6 +892,8 @@ export const syncExercises = async (): Promise<void> => {
       { name: 'Prone Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Seated Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
       { name: 'Standing Leg Curl (Machine)', category: 'Isolation', primary_muscle: 'Hamstrings', secondary_muscle: 'Calves' },
+      { name: 'Bench Press (Dumbbell)', category: 'Compound', primary_muscle: 'Chest', secondary_muscle: 'Triceps,Shoulders' },
+      { name: 'Hack Calf Raise', category: 'Isolation', primary_muscle: 'Calves', secondary_muscle: '' },
     ];
     
     // Create a set of names from the master list for quick lookups
