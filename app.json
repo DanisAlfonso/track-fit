@@ -8,6 +8,15 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/icons/splash-icon-light.png",
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "image": "./assets/icons/splash-icon-dark.png",
+        "backgroundColor": "#000000"
+      },
+      "resizeMode": "contain"
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -40,14 +49,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/icons/splash-icon-light.png",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "image": "./assets/icons/splash-icon-dark.png",
-            "backgroundColor": "#000000"
-          },
-          "imageWidth": 200,
-          "resizeMode": "contain"
+          "imageResizeMode": "contain"
         }
       ],
       [
