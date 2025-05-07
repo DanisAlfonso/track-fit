@@ -12,6 +12,8 @@ import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -120,15 +122,18 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      <ThemeProvider>
-        <ToastProvider>
-          <WorkoutProvider>
-            <RootLayoutNav />
-          </WorkoutProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </View>
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <ThemeProvider>
+          <ToastProvider>
+            <WorkoutProvider>
+              <RootLayoutNav />
+            </WorkoutProvider>
+          </ToastProvider>
+        </ThemeProvider>
+        <StatusBar style="auto" />
+      </View>
+    </SafeAreaProvider>
   );
 }
 
@@ -138,12 +143,12 @@ function RootLayoutNav() {
 
   return (
     <NavigationThemeProvider value={navTheme}>
-      <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
         <ActiveWorkoutIndicator />
-      </View>
+      </SafeAreaView>
     </NavigationThemeProvider>
   );
 }
