@@ -111,24 +111,27 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Reset state when new currentSet is provided
   useEffect(() => {
-    // Preserve rest time when it's not explicitly set in the currentSet
-    if (currentSet.rest_time === 0 && setData?.rest_time > 0) {
-      // Keep previous rest time if none is provided in the new set
-      setSetData({...currentSet, rest_time: setData.rest_time});
-    } else {
-      setSetData(currentSet);
-    }
-    
-    setTouchedFields({ reps: false, weight: false });
-    setShowBottomSheet(true);
-    setIsTimerActive(false);
-    setShouldBlockClose(false);
-    savedRef.current = false;
-    
-    // Reset timer state
-    setRemainingTime(0);
-    setProgress(0);
-    clearTimer();
+    // Use requestAnimationFrame to avoid synchronous state updates during render
+    requestAnimationFrame(() => {
+      // Preserve rest time when it's not explicitly set in the currentSet
+      if (currentSet.rest_time === 0 && setData?.rest_time > 0) {
+        // Keep previous rest time if none is provided in the new set
+        setSetData({...currentSet, rest_time: setData.rest_time});
+      } else {
+        setSetData(currentSet);
+      }
+      
+      setTouchedFields({ reps: false, weight: false });
+      setShowBottomSheet(true);
+      setIsTimerActive(false);
+      setShouldBlockClose(false);
+      savedRef.current = false;
+      
+      // Reset timer state
+      setRemainingTime(0);
+      setProgress(0);
+      clearTimer();
+    });
   }, [currentSet, visible]);
   
   // Handle back button press
@@ -149,26 +152,32 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   useEffect(() => {
     if (visible) {
       // Show animation
-      Animated.parallel([
-        Animated.timing(backdropOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(sheetTranslateY, {
-          toValue: 0,
-          tension: 65,
-          friction: 11,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      requestAnimationFrame(() => {
+        Animated.parallel([
+          Animated.timing(backdropOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            tension: 65,
+            friction: 11,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
     } else {
       // Reset states when modal is hidden
       clearTimer();
-      setIsTimerActive(false);
-      setShowBottomSheet(true);
-      setShouldBlockClose(false);
-      savedRef.current = false;
+      
+      // Use requestAnimationFrame to avoid synchronous state updates during render
+      requestAnimationFrame(() => {
+        setIsTimerActive(false);
+        setShowBottomSheet(true);
+        setShouldBlockClose(false);
+        savedRef.current = false;
+      });
       
       // Hide animation
       Animated.parallel([
@@ -402,17 +411,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Start rest timer
   const startRestTimer = () => {
-    // Set initial time
-    initialRestTime.current = setData.rest_time;
-    setRemainingTime(setData.rest_time);
-    
-    // Initialize progress to 0 (empty circle)
-    setProgress(0);
-    
-    // Show timer and hide bottom sheet
-    setIsTimerActive(true);
-    setShowBottomSheet(false);
-    
     // Calculate exact start and end times
     const now = Date.now();
     restStartTimeRef.current = now;
@@ -421,23 +419,37 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Schedule background notifications for vibrations
     scheduleTimerNotifications(setData.rest_time, restEndTimeRef.current);
     
-    // Animate timer in
-    Animated.parallel([
-      Animated.timing(timerOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(timerScale, {
-        toValue: 1,
-        tension: 65,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    
-    // Start the animation frame loop for the timer UI updates
-    updateRestTimer();
+    // Use requestAnimationFrame to avoid synchronous state updates
+    requestAnimationFrame(() => {
+      // Set initial time
+      initialRestTime.current = setData.rest_time;
+      setRemainingTime(setData.rest_time);
+      
+      // Initialize progress to 0 (empty circle)
+      setProgress(0);
+      
+      // Show timer and hide bottom sheet
+      setIsTimerActive(true);
+      setShowBottomSheet(false);
+      
+      // Animate timer in
+      Animated.parallel([
+        Animated.timing(timerOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(timerScale, {
+          toValue: 1,
+          tension: 65,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Start the animation frame loop for the timer UI updates
+      updateRestTimer();
+    });
   };
   
   // Update rest timer using animation frames
@@ -446,11 +458,14 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     
     // If time is up, complete the rest
     if (now >= restEndTimeRef.current) {
-      setRemainingTime(0);
-      setProgress(1);
-      
-      // Vibrate pattern for completion
-      Vibration.vibrate([100, 200, 100, 200, 100]);
+      // Use requestAnimationFrame to avoid synchronous state updates
+      requestAnimationFrame(() => {
+        setRemainingTime(0);
+        setProgress(1);
+        
+        // Vibrate pattern for completion
+        Vibration.vibrate([100, 200, 100, 200, 100]);
+      });
       
       // Clean up animation frame
       if (animationFrameRef.current) {
@@ -475,31 +490,37 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Calculate progress as a value from 0 to 1
     const calculatedProgress = 1 - (remaining / totalDuration);
     
-    // Update state with precise values
-    setRemainingTime(secondsRemaining);
-    setProgress(calculatedProgress);
-    
-    // Vibrate at specific intervals - check if we just crossed a threshold
-    if (appStateRef.current === 'active') {
-      const vibrationThresholds = [10, 5, 3, 2, 1];
-      if (vibrationThresholds.includes(secondsRemaining) && previousSecondsRemaining !== secondsRemaining) {
-        try {
-          // Check if vibration feedback is enabled
-          const db = await getDatabase();
-          const vibrationPref = await db.getFirstAsync<{enabled: number}>(`
-            SELECT enabled FROM notification_preferences WHERE key = 'timer_vibration'
-          `);
-          
-          // Only vibrate if the setting is enabled or the table doesn't exist yet
-          if (!vibrationPref || vibrationPref.enabled === 1) {
+    // Update state with precise values - use requestAnimationFrame
+    requestAnimationFrame(() => {
+      setRemainingTime(secondsRemaining);
+      setProgress(calculatedProgress);
+      
+      // Vibrate at specific intervals - check if we just crossed a threshold
+      if (appStateRef.current === 'active') {
+        const vibrationThresholds = [10, 5, 3, 2, 1];
+        if (vibrationThresholds.includes(secondsRemaining) && previousSecondsRemaining !== secondsRemaining) {
+          try {
+            // Check if vibration feedback is enabled
+            getDatabase().then(db => {
+              db.getFirstAsync<{enabled: number}>(`
+                SELECT enabled FROM notification_preferences WHERE key = 'timer_vibration'
+              `).then(vibrationPref => {
+                // Only vibrate if the setting is enabled or the table doesn't exist yet
+                if (!vibrationPref || vibrationPref.enabled === 1) {
+                  Vibration.vibrate(100);
+                }
+              }).catch(() => {
+                // If there's an error, fall back to default behavior
+                Vibration.vibrate(100);
+              });
+            });
+          } catch (error) {
+            // If there's an error, fall back to default behavior
             Vibration.vibrate(100);
           }
-        } catch (error) {
-          // If there's an error, fall back to default behavior
-          Vibration.vibrate(100);
         }
       }
-    }
+    });
     
     // Continue the animation loop
     animationFrameRef.current = requestAnimationFrame(updateRestTimer);
@@ -526,10 +547,13 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setIsTimerActive(false);
-      setShowBottomSheet(true);
-      setShouldBlockClose(false);
-      onClose(); // Close the entire modal
+      // Use requestAnimationFrame to avoid synchronous state updates
+      requestAnimationFrame(() => {
+        setIsTimerActive(false);
+        setShowBottomSheet(true);
+        setShouldBlockClose(false);
+        onClose(); // Close the entire modal
+      });
     });
   };
   
@@ -552,18 +576,21 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     const remaining = Math.max(0, restEndTimeRef.current - now);
     const secondsRemaining = Math.ceil(remaining / 1000);
     
-    // Update state
-    setRemainingTime(secondsRemaining);
-    
-    // Update progress
-    const calculatedProgress = 1 - (remaining / totalDuration);
-    setProgress(calculatedProgress);
-    
     // Reschedule notifications with updated time
     scheduleTimerNotifications(secondsRemaining, restEndTimeRef.current);
     
-    // Vibration feedback
-    Vibration.vibrate(50);
+    // Use requestAnimationFrame to avoid synchronous state updates
+    requestAnimationFrame(() => {
+      // Update state
+      setRemainingTime(secondsRemaining);
+      
+      // Update progress
+      const calculatedProgress = 1 - (remaining / totalDuration);
+      setProgress(calculatedProgress);
+      
+      // Vibration feedback
+      Vibration.vibrate(50);
+    });
   };
   
   // Render previous performance card
