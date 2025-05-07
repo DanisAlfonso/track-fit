@@ -28,7 +28,12 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.VIBRATE",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "softwareKeyboardLayoutMode": "pan",
+      "statusBar": {
+        "backgroundColor": "#F8F8F8",
+        "translucent": false
+      }
     },
     "web": {
       "bundler": "metro",

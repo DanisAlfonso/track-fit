@@ -14,6 +14,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
+import Colors from '@/constants/Colors';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -131,7 +133,6 @@ export default function RootLayout() {
             </WorkoutProvider>
           </ToastProvider>
         </ThemeProvider>
-        <StatusBar style="auto" />
       </View>
     </SafeAreaProvider>
   );
@@ -141,9 +142,27 @@ function RootLayoutNav() {
   const { currentTheme } = useTheme();
   const navTheme = currentTheme === 'dark' ? DarkTheme : DefaultTheme;
 
+  // Get the actual theme colors from your app's color constants
+  const backgroundColor = currentTheme === 'dark' ? Colors.dark.background : Colors.light.background;
+  const cardColor = currentTheme === 'dark' ? Colors.dark.card : Colors.light.card;
+
+  // Configure status bar and navigation bar based on theme
+  useEffect(() => {
+    // Set navigation bar style on Android
+    if (Platform.OS === 'android') {
+      NavigationBar.setPositionAsync('absolute');
+      NavigationBar.setBackgroundColorAsync(backgroundColor);
+      NavigationBar.setButtonStyleAsync(currentTheme === 'dark' ? 'light' : 'dark');
+    }
+  }, [currentTheme, backgroundColor]);
+
   return (
     <NavigationThemeProvider value={navTheme}>
-      <SafeAreaView style={{ flex: 1 }}>
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
+      <SafeAreaView style={{ 
+        flex: 1, 
+        backgroundColor: backgroundColor
+      }}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
