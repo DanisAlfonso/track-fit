@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
 import { getDatabase } from '@/utils/database';
+import { RestTimer } from './RestTimer';
 
 const { height, width } = Dimensions.get('window');
 
@@ -91,23 +92,11 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   const [showBottomSheet, setShowBottomSheet] = useState(true);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [shouldBlockClose, setShouldBlockClose] = useState(false);
-  
-  // Rest timer states
-  const [remainingTime, setRemainingTime] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const initialRestTime = useRef(0);
   const savedRef = useRef(false);
-  const restStartTimeRef = useRef<number>(0);
-  const restEndTimeRef = useRef<number>(0);
-  const animationFrameRef = useRef<number | null>(null);
-  const appStateRef = useRef(AppState.currentState);
   
   // Animation values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(height)).current;
-  const timerOpacity = useRef(new Animated.Value(0)).current;
-  const timerScale = useRef(new Animated.Value(0.9)).current;
   
   // Reset state when new currentSet is provided
   useEffect(() => {
@@ -126,27 +115,22 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       setIsTimerActive(false);
       setShouldBlockClose(false);
       savedRef.current = false;
-      
-      // Reset timer state
-      setRemainingTime(0);
-      setProgress(0);
-      clearTimer();
     });
   }, [currentSet, visible]);
   
   // Handle back button press
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (visible && showRestTimer) {
+      if (visible && showRestTimer && isTimerActive) {
         // If rest timer is showing, skip it on back press
-        skipRestTimer();
+        handleTimerSkip();
         return true;
       }
       return false;
     });
     
     return () => backHandler.remove();
-  }, [visible, showRestTimer]);
+  }, [visible, showRestTimer, isTimerActive]);
   
   // Animate backdrop and bottom sheet
   useEffect(() => {
@@ -169,15 +153,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       });
     } else {
       // Reset states when modal is hidden
-      clearTimer();
-      
-      // Use requestAnimationFrame to avoid synchronous state updates during render
-      requestAnimationFrame(() => {
-        setIsTimerActive(false);
-        setShowBottomSheet(true);
-        setShouldBlockClose(false);
-        savedRef.current = false;
-      });
+      setIsTimerActive(false);
+      setShowBottomSheet(true);
+      setShouldBlockClose(false);
+      savedRef.current = false;
       
       // Hide animation
       Animated.parallel([
@@ -195,77 +174,12 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     }
   }, [visible]);
   
-  // Handle app state changes (foreground/background)
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      const now = Date.now();
-      
-      // App is coming back to foreground
-      if (nextAppState === 'active' && (appStateRef.current === 'background' || appStateRef.current === 'inactive')) {
-        // If timer was active when app went to background, update the time
-        if (isTimerActive && restEndTimeRef.current > 0) {
-          // Calculate the new remaining time
-          const remaining = Math.max(0, restEndTimeRef.current - now);
-          const secondsRemaining = Math.ceil(remaining / 1000);
-          
-          // Update the timer state
-          setRemainingTime(secondsRemaining);
-          
-          // If time is up while in background, complete the timer
-          if (secondsRemaining <= 0) {
-            // Timer complete while in background
-            setProgress(1);
-            
-            // Close after a small delay
-            setTimeout(() => {
-              hideRestTimer();
-            }, 1000);
-          } else {
-            // Resume the animation frame loop
-            if (!animationFrameRef.current) {
-              updateRestTimer();
-            }
-          }
-        }
-      }
-      
-      appStateRef.current = nextAppState;
-    });
-    
-    return () => {
-      subscription.remove();
-    };
-  }, [isTimerActive]);
-  
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      clearTimer();
-    };
-  }, []);
-  
   // Create a wrapper around onClose to block closing during timer
   const handleClose = () => {
     if (shouldBlockClose) {
       return;
     }
-    
     onClose();
-  };
-  
-  // Clear the timer
-  const clearTimer = () => {
-    // Clear interval if using one
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    
-    // Cancel animation frame if using one
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
   };
   
   // Handle input changes with auto-suggestion for training type
@@ -309,13 +223,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
            (touchedFields.weight && setData.weight === 0);
   };
   
-  // Format time for display
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-  
   // Handle save button press
   const handleSave = () => {
     // Mark fields as touched for validation
@@ -344,7 +251,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     
     // Start rest timer if rest time is set
     if (shouldShowTimer) {
-      startRestTimer();
+      setIsTimerActive(true);
+      setShowBottomSheet(false);
     } else {
       // No rest time, close immediately
       setShouldBlockClose(false);
@@ -352,245 +260,29 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     }
   };
   
-  // Schedule notifications for timer vibrations
-  const scheduleTimerNotifications = async (duration: number, endTime: number) => {
-    // Cancel any existing notifications first
-    Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Check notification settings
-    try {
-      const db = await getDatabase();
-      
-      // First check if all notifications are enabled
-      const masterPref = await db.getFirstAsync<{enabled: number}>(`
-        SELECT enabled FROM notification_preferences WHERE key = 'all_notifications'
-      `);
-      
-      // If master switch is off, don't schedule any notifications
-      if (masterPref && masterPref.enabled === 0) {
-        return;
-      }
-      
-      // Check timer completion notification setting
-      const timerCompletePref = await db.getFirstAsync<{enabled: number}>(`
-        SELECT enabled FROM notification_preferences WHERE key = 'timer_complete'
-      `);
-      
-      // If timer completion is enabled, schedule the final notification
-      if (!timerCompletePref || timerCompletePref.enabled === 1) {
-        // Only schedule the final notification
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Timer Complete",
-            body: "Rest time is over!",
-            data: { type: 'timer-complete' },
-          },
-          trigger: { 
-            date: new Date(endTime),
-            type: Notifications.SchedulableTriggerInputTypes.DATE
-          },
-        });
-      }
-    } catch (error) {
-      console.log('Error checking notification settings:', error);
-      
-      // If there's an error, fall back to default behavior - just schedule the final notification
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Timer Complete",
-          body: "Rest time is over!",
-          data: { type: 'timer-complete' },
-        },
-        trigger: { 
-          date: new Date(endTime),
-          type: Notifications.SchedulableTriggerInputTypes.DATE
-        },
-      });
-    }
+  // Handle timer completion
+  const handleTimerComplete = () => {
+    setIsTimerActive(false);
+    setShowBottomSheet(true);
+    setShouldBlockClose(false);
+    onClose();
   };
   
-  // Start rest timer
-  const startRestTimer = () => {
-    // Calculate exact start and end times
-    const now = Date.now();
-    restStartTimeRef.current = now;
-    restEndTimeRef.current = now + (setData.rest_time * 1000);
-    
-    // Schedule background notifications for vibrations
-    scheduleTimerNotifications(setData.rest_time, restEndTimeRef.current);
-    
-    // Use requestAnimationFrame to avoid synchronous state updates
-    requestAnimationFrame(() => {
-      // Set initial time
-      initialRestTime.current = setData.rest_time;
-      setRemainingTime(setData.rest_time);
-      
-      // Initialize progress to 0 (empty circle)
-      setProgress(0);
-      
-      // Show timer and hide bottom sheet
-      setIsTimerActive(true);
-      setShowBottomSheet(false);
-      
-      // Animate timer in
-      Animated.parallel([
-        Animated.timing(timerOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(timerScale, {
-          toValue: 1,
-          tension: 65,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      
-      // Start the animation frame loop for the timer UI updates
-      updateRestTimer();
-    });
+  // Handle timer skip
+  const handleTimerSkip = () => {
+    setIsTimerActive(false);
+    setShowBottomSheet(true);
+    setShouldBlockClose(false);
+    onClose();
   };
   
-  // Update rest timer using animation frames
-  const updateRestTimer = async () => {
-    const now = Date.now();
-    
-    // If time is up, complete the rest
-    if (now >= restEndTimeRef.current) {
-      // Use requestAnimationFrame to avoid synchronous state updates
-      requestAnimationFrame(() => {
-        setRemainingTime(0);
-        setProgress(1);
-        
-        // Vibrate pattern for completion
-        Vibration.vibrate([100, 200, 100, 200, 100]);
-      });
-      
-      // Clean up animation frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      
-      // Close after a small delay
-      setTimeout(() => {
-        hideRestTimer();
-      }, 1000);
-      
-      return;
-    }
-    
-    // Calculate remaining time and progress precisely
-    const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
-    const remaining = restEndTimeRef.current - now;
-    const secondsRemaining = Math.ceil(remaining / 1000); // Round up to nearest second
-    const previousSecondsRemaining = remainingTime;
-    
-    // Calculate progress as a value from 0 to 1
-    const calculatedProgress = 1 - (remaining / totalDuration);
-    
-    // Update state with precise values - use requestAnimationFrame
-    requestAnimationFrame(() => {
-      setRemainingTime(secondsRemaining);
-      setProgress(calculatedProgress);
-      
-      // Vibrate at specific intervals - check if we just crossed a threshold
-      if (appStateRef.current === 'active') {
-        const vibrationThresholds = [10, 5, 3, 2, 1];
-        if (vibrationThresholds.includes(secondsRemaining) && previousSecondsRemaining !== secondsRemaining) {
-          try {
-            // Check if vibration feedback is enabled
-            getDatabase().then(db => {
-              db.getFirstAsync<{enabled: number}>(`
-                SELECT enabled FROM notification_preferences WHERE key = 'timer_vibration'
-              `).then(vibrationPref => {
-                // Only vibrate if the setting is enabled or the table doesn't exist yet
-                if (!vibrationPref || vibrationPref.enabled === 1) {
-                  Vibration.vibrate(100);
-                }
-              }).catch(() => {
-                // If there's an error, fall back to default behavior
-                Vibration.vibrate(100);
-              });
-            });
-          } catch (error) {
-            // If there's an error, fall back to default behavior
-            Vibration.vibrate(100);
-          }
-        }
-      }
-    });
-    
-    // Continue the animation loop
-    animationFrameRef.current = requestAnimationFrame(updateRestTimer);
-  };
-  
-  // Hide rest timer and close modal
-  const hideRestTimer = () => {
-    clearTimer();
-    
-    // Cancel any scheduled notifications
-    Notifications.cancelAllScheduledNotificationsAsync();
-    
-    // Animate timer out
-    Animated.parallel([
-      Animated.timing(timerOpacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.spring(timerScale, {
-        toValue: 0.9,
-        tension: 65,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      // Use requestAnimationFrame to avoid synchronous state updates
-      requestAnimationFrame(() => {
-        setIsTimerActive(false);
-        setShowBottomSheet(true);
-        setShouldBlockClose(false);
-        onClose(); // Close the entire modal
-      });
-    });
-  };
-  
-  // Skip rest timer
-  const skipRestTimer = () => {
-    hideRestTimer();
-  };
-  
-  // Add more rest time
-  const addMoreRestTime = (seconds: number) => {
-    // Update the end time reference with the additional time
-    restEndTimeRef.current += (seconds * 1000);
-    
-    // Recalculate the total duration
-    const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
-    initialRestTime.current = totalDuration / 1000;
-    
-    // Calculate new remaining time
-    const now = Date.now();
-    const remaining = Math.max(0, restEndTimeRef.current - now);
-    const secondsRemaining = Math.ceil(remaining / 1000);
-    
-    // Reschedule notifications with updated time
-    scheduleTimerNotifications(secondsRemaining, restEndTimeRef.current);
-    
-    // Use requestAnimationFrame to avoid synchronous state updates
-    requestAnimationFrame(() => {
-      // Update state
-      setRemainingTime(secondsRemaining);
-      
-      // Update progress
-      const calculatedProgress = 1 - (remaining / totalDuration);
-      setProgress(calculatedProgress);
-      
-      // Vibration feedback
-      Vibration.vibrate(50);
-    });
+  // Handle adding more time
+  const handleAddTime = (seconds: number) => {
+    // Update the rest time in the set data
+    setSetData(prev => ({
+      ...prev,
+      rest_time: prev.rest_time + seconds
+    }));
   };
   
   // Render previous performance card
@@ -615,9 +307,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       </View>
     );
   };
-  
-  // Don't render if not visible
-  if (!visible) return null;
   
   // Render main content
   const renderBottomSheet = () => {
@@ -867,125 +556,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     );
   };
   
-  // Render rest timer
-  const renderRestTimer = () => {
-    if (!isTimerActive) {
-      return null;
-    }
-    
-    const restColor = remainingTime < 5 ? '#FF3B30' : remainingTime < 15 ? '#FF9500' : '#34C759';
-    
-    // Calculate stroke dash values for the circle progress
-    const circumference = 2 * Math.PI * 88; // Match the circle radius (r="88")
-    
-    // Calculate strokeDashoffset from progress (0 = empty, 1 = full)
-    // When progress is 0, we want full circumference (empty circle)
-    // When progress is 1, we want 0 (full circle)
-    const strokeDashoffset = circumference * (1 - progress);
-    
-    return (
-      <Animated.View
-        style={[
-          styles.restTimerContainer,
-          {
-            opacity: timerOpacity,
-            transform: [{ scale: timerScale }],
-            backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.98)',
-            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-            borderWidth: isDark ? 1 : 0,
-          }
-        ]}
-      >
-        {/* Timer content */}
-        <View style={styles.restTimerContent}>
-          <Text style={[styles.restTimerTitle, { color: colors.text }]}>
-            Rest Time
-          </Text>
-          
-          {/* Timer Circle */}
-          <View style={styles.timerCircleContainer}>
-            <View style={styles.timerCircleOuter}>
-              {/* Progress circle */}
-              <Svg width={200} height={200} style={StyleSheet.absoluteFill}>
-                {/* Background circle */}
-                <Circle
-                  cx="100"
-                  cy="100"
-                  r="88"
-                  strokeWidth="10"
-                  stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
-                  fill="transparent"
-                />
-                {/* Progress circle */}
-                <Circle
-                  cx="100"
-                  cy="100"
-                  r="88"
-                  strokeWidth="10"
-                  stroke={restColor}
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  strokeDashoffset={strokeDashoffset}
-                  strokeLinecap="round"
-                  // Rotate to start from the top
-                  transform={`rotate(-90, 100, 100)`}
-                />
-              </Svg>
-              
-              {/* Timer display */}
-              <View style={styles.timerCircleInner}>
-                <Text style={[styles.timerText, { color: colors.text }]}>
-                  {formatTime(remainingTime)}
-                </Text>
-                <Text style={[styles.timerSubtext, { color: colors.subtext }]}>
-                  remaining
-                </Text>
-              </View>
-            </View>
-          </View>
-          
-          {/* Add time buttons */}
-          <View style={styles.restTimerActions}>
-            <Text style={[styles.addTimeLabel, { color: colors.subtext }]}>
-              Add time
-            </Text>
-            
-            <View style={styles.addTimeButtons}>
-              {[15, 30, 60].map(time => (
-                <TouchableOpacity
-                  key={time}
-                  style={[
-                    styles.addTimeButton,
-                    { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
-                  ]}
-                  onPress={() => addMoreRestTime(time)}
-                >
-                  <Text style={[styles.addTimeButtonText, { color: colors.text }]}>
-                    +{time}s
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            {/* Skip button */}
-            <TouchableOpacity
-              style={[
-                styles.skipButton,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.primary + '15' }
-              ]}
-              onPress={skipRestTimer}
-            >
-              <FontAwesome5 name="forward" size={14} color={isDark ? colors.text : colors.primary} style={styles.skipButtonIcon} />
-              <Text style={[styles.skipButtonText, { color: isDark ? colors.text : colors.primary }]}>
-                Skip Rest
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Animated.View>
-    );
-  };
-  
   return (
     <Modal
       visible={visible}
@@ -996,7 +566,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     >
       <View style={styles.container}>
         {/* Backdrop with blur */}
-        <TouchableWithoutFeedback onPress={showRestTimer ? skipRestTimer : handleClose}>
+        <TouchableWithoutFeedback onPress={isTimerActive ? handleTimerSkip : handleClose}>
           <Animated.View
             style={[
               styles.backdrop,
@@ -1012,10 +582,16 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
         </TouchableWithoutFeedback>
         
         {/* Bottom sheet */}
-        {renderBottomSheet()}
+        {showBottomSheet && renderBottomSheet()}
         
         {/* Rest Timer */}
-        {renderRestTimer()}
+        <RestTimer
+          visible={isTimerActive}
+          duration={setData.rest_time}
+          onComplete={handleTimerComplete}
+          onSkip={handleTimerSkip}
+          onAddTime={handleAddTime}
+        />
       </View>
     </Modal>
   );
@@ -1233,108 +809,5 @@ const styles = StyleSheet.create({
   previousPerformanceHint: {
     fontSize: 12,
     fontStyle: 'italic',
-  },
-  // Timer container and content
-  restTimerContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: width * 0.85,
-    maxWidth: 360,
-    marginLeft: -(width * 0.85) / 2,
-    marginTop: -200,
-    borderRadius: 28,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 12,
-    zIndex: 1000,
-  },
-  restTimerContent: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  restTimerTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  
-  // Timer circle
-  timerCircleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 16,
-  },
-  timerCircleOuter: {
-    width: 200,
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timerCircleInner: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'transparent',
-  },
-  timerText: {
-    fontSize: 48,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  timerSubtext: {
-    fontSize: 14,
-    marginTop: 4,
-    fontWeight: '500',
-    opacity: 0.7,
-  },
-  
-  // Action buttons
-  restTimerActions: {
-    width: '100%',
-    marginTop: 30,
-  },
-  addTimeLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  addTimeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  addTimeButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 16,
-    marginHorizontal: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addTimeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  skipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 16,
-  },
-  skipButtonIcon: {
-    marginRight: 8,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 }); 
