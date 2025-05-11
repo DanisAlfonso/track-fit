@@ -24,7 +24,7 @@ export default function WorkoutTimer({
   
   const [workoutDuration, setWorkoutDuration] = useState(0);
   const timerAnimation = useRef(new Animated.Value(0)).current;
-  const workoutTimer = useRef<NodeJS.Timeout | null>(null);
+  const workoutTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Animation pulse for timer
   useEffect(() => {
@@ -54,8 +54,18 @@ export default function WorkoutTimer({
 
   // Update workout duration every second
   useEffect(() => {
-    if (workoutStarted && workoutStartTime.current) {
-      // Use a more reliable method to track time that accounts for background state
+    // Clear any existing timer
+    if (workoutTimer.current) {
+      clearInterval(workoutTimer.current);
+      workoutTimer.current = null;
+    }
+    
+    if (workoutStarted) {
+      // Initialize the workout start time if it hasn't been set
+      if (!workoutStartTime.current) {
+        workoutStartTime.current = Date.now();
+      }
+      
       const calculateElapsedTime = () => {
         if (!workoutStartTime.current) return;
         
@@ -68,12 +78,13 @@ export default function WorkoutTimer({
         }
       };
       
-      // Initial calculation
+      // Initial calculation immediately
       calculateElapsedTime();
       
-      // Set up interval
+      // Then set up interval for updates
       workoutTimer.current = setInterval(calculateElapsedTime, 1000);
     }
+    
     return () => {
       if (workoutTimer.current) {
         clearInterval(workoutTimer.current);
