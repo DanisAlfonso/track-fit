@@ -190,7 +190,7 @@ export default function StartWorkoutScreen() {
 
   // Periodically save workout progress even if app stays in foreground
   useEffect(() => {
-    let autoSaveTimer: NodeJS.Timeout | null = null;
+    let autoSaveTimer: number | null = null;
     
     if (workoutId && workoutStarted) {
       // Auto-save every 2 minutes
@@ -1547,25 +1547,22 @@ export default function StartWorkoutScreen() {
         foreground: prev.foreground + 1
       }));
       
-      // If app was in background for more than 5 minutes, refresh the workout data
-      if (lastBackgroundTime.current && (now - lastBackgroundTime.current > 5 * 60 * 1000)) {
-        console.log('App was in background for a long time, refreshing workout data');
+      // If app was in background for more than 5 minutes, just refresh the workout data
+      // Do NOT end the workout automatically regardless of time spent in background
+      if (lastBackgroundTime.current && workoutId && workoutStarted) {
+        console.log('App was in background, refreshing workout data');
         
-        if (workoutId && workoutStarted) {
-          // Recalculate workout duration based on actual start time
-          if (workoutStartTime.current) {
-            const elapsed = Math.floor((now - workoutStartTime.current) / 1000);
-            setWorkoutDuration(elapsed);
-          }
-          
-          // Reload workout data from database to ensure we have latest state
-          if (workoutId) {
-            refreshWorkoutDataFromDatabase(workoutId)
-              .catch(error => {
-                console.error('Failed to refresh workout data:', error);
-              });
-          }
+        // Recalculate workout duration based on actual start time
+        if (workoutStartTime.current) {
+          const elapsed = Math.floor((now - workoutStartTime.current) / 1000);
+          setWorkoutDuration(elapsed);
         }
+        
+        // Reload workout data from database to ensure we have latest state
+        refreshWorkoutDataFromDatabase(workoutId)
+          .catch(error => {
+            console.error('Failed to refresh workout data:', error);
+          });
       }
     }
     
