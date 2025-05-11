@@ -21,6 +21,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { ExerciseCard } from '@/components/ExerciseCard';
 import { StartWorkoutPrompt } from '@/components/StartWorkoutPrompt';
 import { MuscleGroupPopup } from '@/components/MuscleGroupPopup';
+import { SortOptionsModal } from '@/components/SortOptionsModal';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -1677,33 +1678,13 @@ export default function StartWorkoutScreen() {
         }}
       />
 
-      {/* --- Overflow Menu Modal --- */}
-      <Modal
-        transparent={true}
+      <SortOptionsModal
         visible={overflowMenuVisible}
-        animationType="fade"
-        onRequestClose={() => setOverflowMenuVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setOverflowMenuVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.overflowMenu, { backgroundColor: colors.card }]}>
-              <Text style={[styles.menuTitle, { color: colors.text }]}>Sort Exercises By</Text>
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('default')}>
-                <FontAwesome5 name="sort-numeric-down" size={16} color={sortOption === 'default' ? colors.primary : colors.text} style={styles.menuIcon} />
-                <Text style={[styles.menuItemText, { color: sortOption === 'default' ? colors.primary : colors.text }]}>Default Order</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('muscle')}>
-                <FontAwesome5 name="dumbbell" size={16} color={sortOption === 'muscle' ? colors.primary : colors.text} style={styles.menuIcon} />
-                <Text style={[styles.menuItemText, { color: sortOption === 'muscle' ? colors.primary : colors.text }]}>Muscle Group</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleSortSelection('category')}>
-                <FontAwesome5 name="tags" size={16} color={sortOption === 'category' ? colors.primary : colors.text} style={styles.menuIcon} />
-                <Text style={[styles.menuItemText, { color: sortOption === 'category' ? colors.primary : colors.text }]}>Category</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        sortOption={sortOption}
+        onSelect={handleSortSelection}
+        onClose={() => setOverflowMenuVisible(false)}
+        colors={colors}
+      />
 
       {/* --- Muscle Group Popup Modal --- */}
       <MuscleGroupPopup
