@@ -64,6 +64,7 @@ interface SetBottomSheetProps {
   weightUnit: 'kg' | 'lb';
   previousPerformance?: PreviousSet;
   showRestTimer?: boolean;
+  nextExerciseName?: string;
 }
 
 export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
@@ -74,7 +75,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   exerciseName,
   weightUnit,
   previousPerformance,
-  showRestTimer = true
+  showRestTimer = true,
+  nextExerciseName
 }) => {
   const { theme } = useTheme();
   const colorScheme = useColorScheme();
@@ -591,6 +593,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
           onComplete={handleTimerComplete}
           onSkip={handleTimerSkip}
           onAddTime={handleAddTime}
+          exerciseName={nextExerciseName || exerciseName}
         />
       </View>
     </Modal>

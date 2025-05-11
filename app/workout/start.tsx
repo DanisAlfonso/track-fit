@@ -24,6 +24,7 @@ import { MuscleGroupPopup } from '@/components/MuscleGroupPopup';
 import { SortOptionsModal } from '@/components/SortOptionsModal';
 import { HeaderTitle } from '@/components/HeaderTitle';
 import { FinishWorkoutModal } from '@/components/FinishWorkoutModal';
+import { RestTimer } from '@/components/RestTimer';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -128,25 +129,15 @@ export default function StartWorkoutScreen() {
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>('kg');
   const [sortOption, setSortOption] = useState<SortOption>('default');
+  
+  // Rest timer related state
   const [isResting, setIsResting] = useState(false);
-  const [restTimeRemaining, setRestTimeRemaining] = useState(0);
-  const [initialRestTime, setInitialRestTime] = useState(0);
-  const [restPercent, setRestPercent] = useState(100);
-  const restTimeoutFlash = useRef(new Animated.Value(0)).current;
-  const restTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const restStartTimeRef = useRef<number>(0);
-  const restEndTimeRef = useRef<number>(0);
-  // Add state for finish workout confirmation modal
-  const [finishConfirmationVisible, setFinishConfirmationVisible] = useState(false);
-  const [restTimerCountdown, setRestTimerCountdown] = useState(0);
-  const [restTimerDuration, setRestTimerDuration] = useState(0);
-  const [isRestTimerRunning, setIsRestTimerRunning] = useState(false);
-  const [restModalVisible, setRestModalVisible] = useState(false);
+  const [restTimerVisible, setRestTimerVisible] = useState(false);
   const [activeRestExercise, setActiveRestExercise] = useState<string | null>(null);
+  const [showBottomSheetTimer, setShowBottomSheetTimer] = useState(true);
+  const [finishConfirmationVisible, setFinishConfirmationVisible] = useState(false);
   const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
   const [musclePopupVisible, setMusclePopupVisible] = useState(false);
-  const [showBottomSheetTimer, setShowBottomSheetTimer] = useState(true);
   
   // Load user's weight unit preference
   useEffect(() => {
@@ -342,100 +333,87 @@ export default function StartWorkoutScreen() {
   };
 
   const openSetModal = (exerciseIndex: number, setIndex: number) => {
-    if (!workoutStarted) return;
-    
+    // Save current exercise and set
     setSelectedExercise(exerciseIndex);
     setSelectedSetIndex(setIndex);
-    const exercise = exercises[exerciseIndex];
-    const currentSetData = {...exercise.sets_data[setIndex]};
     
-    // Check if previous performance data exists for this exercise and set
-    if (previousWorkoutData.has(exercise.routine_exercise_id) && 
-        previousWorkoutData.get(exercise.routine_exercise_id)![setIndex]) {
-      
-      const prevSet = previousWorkoutData.get(exercise.routine_exercise_id)![setIndex];
-      
-      // Only pre-fill values if they haven't been changed already
-      if (currentSetData.reps === 0) {
-        currentSetData.reps = prevSet.reps;
-        
-        // Suggest training type based on rep count
-        if (!currentSetData.training_type) {
-          if (prevSet.reps <= 5) {
-            currentSetData.training_type = 'heavy';
-          } else if (prevSet.reps <= 12) {
-            currentSetData.training_type = 'moderate';
-          } else {
-            currentSetData.training_type = 'light';
-          }
-        }
-      }
-      
-      if (currentSetData.weight === 0) {
-        currentSetData.weight = prevSet.weight;
-      }
+    const exercise = exercises[exerciseIndex];
+    
+    // Check if there's a next exercise to show in the rest timer
+    let nextExerciseName = null;
+    
+    if (setIndex < exercise.sets_data.length - 1) {
+      // If there are more sets in this exercise, the next exercise is the same
+      nextExerciseName = exercise.name;
+    } else if (exerciseIndex < exercises.length - 1) {
+      // If this is the last set of this exercise, get the next exercise
+      nextExerciseName = exercises[exerciseIndex + 1].name;
     }
     
-    setCurrentSet(currentSetData);
+    setActiveRestExercise(nextExerciseName);
     
-    // Reset touched fields state when opening modal
-    setTouchedFields({ reps: false, weight: false });
+    // Get the current set data
+    const setData = exercise.sets_data[setIndex];
     
+    // If set is already completed, just edit it without showing timer afterward
+    if (setData.completed) {
+      setShowBottomSheetTimer(false);
+    } else {
+      setShowBottomSheetTimer(true);
+    }
+    
+    setCurrentSet({
+      ...setData
+    });
+    
+    // Show the set modal
     setSetModalVisible(true);
   };
 
   const saveSet = (updatedSet: Set) => {
     if (selectedExercise === null) return;
     
-    // Validate reps
-    if (!updatedSet.reps || updatedSet.reps < 1) {
-      showToast('Please enter at least 1 repetition for this set.', 'error');
-      return;
-    }
-    
-    // Validate weight directly from the state value
-    if (updatedSet.weight <= 0) { 
-      showToast(`Please enter a weight value greater than 0 ${weightUnit}.`, 'error');
-      return;
-    }
-    
+    // Create a copy of the exercises array
     const updatedExercises = [...exercises];
+    
+    // Get the selected exercise
     const exercise = updatedExercises[selectedExercise];
     
-    // Find the set index
-    const setIndex = exercise.sets_data.findIndex(s => s.set_number === updatedSet.set_number);
+    // Find the set to update
+    const setIndex = exercise.sets_data.findIndex(set => set.set_number === updatedSet.set_number);
     if (setIndex === -1) return;
     
-    // Store the weight in kg in the database, regardless of display preference
-    const convertedWeight = getStoredWeight(updatedSet.weight);
+    // Check if the set was previously incomplete and is now complete
+    const wasCompleted = exercise.sets_data[setIndex].completed;
+    const isNowCompleted = updatedSet.completed;
     
-    // Update the set
-    exercise.sets_data[setIndex] = {
-      ...updatedSet,
-      weight: convertedWeight, // Store in kg
-      completed: true
-    };
+    // Update the set in the exercise
+    exercise.sets_data[setIndex] = updatedSet;
     
-    // Update completed sets count
-    exercise.completedSets = exercise.sets_data.filter(s => s.completed).length;
+    // If set was completed, increment the completedSets counter
+    if (!wasCompleted && isNowCompleted) {
+      exercise.completedSets += 1;
+    } else if (wasCompleted && !isNowCompleted) {
+      // If set was uncompleted, decrement the counter
+      exercise.completedSets -= 1;
+    }
     
+    // Update the exercises state
     setExercises(updatedExercises);
     
-    // Set flag to show timer in bottom sheet
-    setShowBottomSheetTimer(true);
+    // Save to database
+    saveWorkoutProgress();
     
-    // Save progress to database immediately after saving a set
-    saveWorkoutProgress().catch(error => {
-      console.error('Failed to save set data:', error);
-    });
+    // Start rest timer if set is completed and has rest time
+    if (isNowCompleted && updatedSet.rest_time > 0) {
+      startRestTimer(updatedSet.rest_time);
+    }
   };
 
-  // Add this function to handle close events from the SetBottomSheet
+  // Handle closing the set modal
   const handleSetBottomSheetClose = () => {
-    console.log('Bottom sheet close requested');
     setSetModalVisible(false);
-    // Reset the timer flag when modal is closed
-    setShowBottomSheetTimer(false);
+    setIsResting(false);
   };
 
   const updateExerciseNotes = (exerciseIndex: number, notes: string) => {
@@ -445,7 +423,8 @@ export default function StartWorkoutScreen() {
   };
 
   const finishWorkout = async () => {
-    if (!workoutId) return;
+    // Make sure to save progress before finishing
+    await saveWorkoutProgress(true);
     
     // Show the confirmation modal
     setFinishConfirmationVisible(true);
@@ -747,151 +726,19 @@ export default function StartWorkoutScreen() {
     return muscleColors[muscle] || '#4CAF50';
   };
 
-  // Run a smooth animation frame loop when resting
-  useEffect(() => {
-    if (isResting && restTimeRemaining > 0) {
-      // Set start and end time references for precise timing
-      const now = Date.now();
-      restStartTimeRef.current = now;
-      restEndTimeRef.current = now + (restTimeRemaining * 1000);
-      
-      // Clear any existing animation frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      
-      // Function to update both timer and progress bar
-      const updateRestTimer = () => {
-        const now = Date.now();
-        
-        // If time is up, complete the rest
-        if (now >= restEndTimeRef.current) {
-          setRestTimeRemaining(0);
-          setRestPercent(0);
-          notifyRestComplete();
-          return;
-        }
-        
-        // Calculate remaining time and percentage precisely
-        const totalDuration = restEndTimeRef.current - restStartTimeRef.current;
-        const elapsed = now - restStartTimeRef.current;
-        const remaining = restEndTimeRef.current - now;
-        const percent = Math.max(0, (remaining / totalDuration) * 100);
-        
-        // Update state with precise values
-        setRestTimeRemaining(Math.ceil(remaining / 1000)); // Round up to nearest second
-        setRestPercent(percent);
-        
-        // Continue the animation loop
-        animationFrameRef.current = requestAnimationFrame(updateRestTimer);
-      };
-      
-      // Start the animation loop
-      animationFrameRef.current = requestAnimationFrame(updateRestTimer);
-    }
-    
-    return () => {
-      // Clean up the animation frame on unmount
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [isResting]);
-  
-  // Function to notify user that rest time is complete
-  const notifyRestComplete = () => {
-    // Cancel any existing animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    // Vibrate the device - note this may not work in Expo Go
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      try {
-        Vibration.vibrate(500);
-      } catch (error) {
-        console.log('Vibration may not work in Expo Go');
-      }
-    }
-    
-    // Visual notification with flash animation
-    Animated.sequence([
-      Animated.timing(restTimeoutFlash, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-      Animated.timing(restTimeoutFlash, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-      Animated.timing(restTimeoutFlash, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-      Animated.timing(restTimeoutFlash, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: false,
-      }),
-    ]).start();
-    
-    // Stop the rest timer after a short delay to show the completion
-    setTimeout(() => {
-      setIsResting(false);
-    }, 600);
-    
-    // Show alert to user
-    showToast('Time to do your next set!', 'info');
-  };
-  
   // Start the rest timer with the specified duration
   const startRestTimer = (duration: number) => {
-    // Cancel any existing animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    // Reset rest timer states
-    setRestTimeRemaining(duration);
-    setInitialRestTime(duration);
-    setRestPercent(100);
-    restTimeoutFlash.setValue(0);
-    
-    // Calculate exact start and end times
-    const now = Date.now();
-    restStartTimeRef.current = now;
-    restEndTimeRef.current = now + (duration * 1000);
-    
-    // Start the rest timer
+    // No need to control the visibility here as the SetBottomSheet handles the timer
     setIsResting(true);
   };
   
-  // Skip the rest timer
+  // Skip the rest timer - we don't need to control visibility here either
   const skipRestTimer = () => {
-    // Cancel any existing animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
     setIsResting(false);
   };
   
   // Add extra time to the rest timer
   const addRestTime = (seconds: number) => {
-    // Update the end time reference with the additional time
-    restEndTimeRef.current += (seconds * 1000);
-    
-    // Update the initial rest time for progress calculation
-    const newTotalDuration = restEndTimeRef.current - restStartTimeRef.current;
-    setInitialRestTime(newTotalDuration / 1000);
-    
-    
     // Calculate the new rest time
     const newRestTime = currentSet.rest_time + seconds;
     
@@ -913,7 +760,6 @@ export default function StartWorkoutScreen() {
         // Update the rest_time in the exercises array
         exercise.sets_data[setIndex].rest_time = newRestTime;
         setExercises(updatedExercises);
-        
       }
     }
     
@@ -921,8 +767,6 @@ export default function StartWorkoutScreen() {
     saveWorkoutProgress().catch(error => {
       console.error('Failed to save updated rest time:', error);
     });
-    
-    // The animation loop will automatically update the display on next frame
   };
 
   // Reference to the scroll view for muscle groups
@@ -1247,6 +1091,7 @@ export default function StartWorkoutScreen() {
           undefined
         }
         showRestTimer={showBottomSheetTimer}
+        nextExerciseName={activeRestExercise || undefined}
       />
       
       {renderDiagnostics()}
