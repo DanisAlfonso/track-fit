@@ -22,6 +22,7 @@ import { ExerciseCard } from '@/components/ExerciseCard';
 import { StartWorkoutPrompt } from '@/components/StartWorkoutPrompt';
 import { MuscleGroupPopup } from '@/components/MuscleGroupPopup';
 import { SortOptionsModal } from '@/components/SortOptionsModal';
+import { HeaderTitle } from '@/components/HeaderTitle';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -756,16 +757,13 @@ export default function StartWorkoutScreen() {
 
   // Memoize the custom header title component function
   const renderHeaderTitle = useCallback(() => (
-    <View style={styles.headerTitleContainer}>
-      <WorkoutTimer
-        workoutStarted={workoutStarted}
-        workoutStartTime={workoutStartTime}
-        onDurationChange={handleDurationChange}
-      />
-      {/* Conditionally render circular progress */}
-      {workoutStarted && renderCircularProgress()} 
-    </View>
-  ), [workoutStarted, workoutStartTime, handleDurationChange, renderCircularProgress]); // Add renderCircularProgress dependency
+    <HeaderTitle
+      workoutStarted={workoutStarted}
+      workoutStartTime={workoutStartTime}
+      onDurationChange={handleDurationChange}
+      renderCircularProgress={renderCircularProgress()}
+    />
+  ), [workoutStarted, workoutStartTime, handleDurationChange, renderCircularProgress]);
 
   // Simplify the renderExerciseItem function to use the ExerciseCard component
   const renderExerciseItem = ({ item, index, muscleColor }: { item: WorkoutExercise, index: number, muscleColor?: string }) => {
