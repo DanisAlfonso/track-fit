@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SetBottomSheet } from '@/components/SetBottomSheet';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { ExerciseCard } from '@/components/ExerciseCard';
+import { StartWorkoutPrompt } from '@/components/StartWorkoutPrompt';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -1738,32 +1739,13 @@ export default function StartWorkoutScreen() {
       </Modal>
 
       {!workoutStarted && skipReady !== 'true' ? (
-        <View style={styles.startWorkoutContainer}>
-          <View style={styles.startWorkoutContent}>
-            <FontAwesome name="trophy" size={48} color={colors.primary} style={styles.startWorkoutIcon} />
-            <Text style={[styles.startWorkoutTitle, { color: colors.text }]}>Ready to Begin?</Text>
-            <Text style={[styles.startWorkoutDescription, { color: colors.subtext }]}>
-              You're about to start "{routineName}" with {exercises.length} exercises and {
-                exercises.reduce((sum, exercise) => sum + exercise.sets_data.length, 0)
-              } total sets.
-            </Text>
-            
-            <TouchableOpacity 
-              style={[styles.startButton, { backgroundColor: colors.primary }]}
-              onPress={startWorkout}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <ActivityIndicator color="white" size="small" />
-              ) : (
-                <>
-                  <FontAwesome name="play-circle" size={20} color="white" style={styles.startButtonIcon} />
-                  <Text style={styles.startButtonText}>Start Workout</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+        <StartWorkoutPrompt
+          routineName={routineName}
+          exerciseCount={exercises.length}
+          setCount={exercises.reduce((sum, exercise) => sum + exercise.sets_data.length, 0)}
+          isSaving={isSaving}
+          onStart={startWorkout}
+        />
       ) : (
         <>
           {/* workoutStatusContainer View is removed entirely */}
