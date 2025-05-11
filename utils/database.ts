@@ -214,6 +214,13 @@ export const initDatabase = async (): Promise<void> => {
         FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE,
         UNIQUE (day_of_week, routine_id)
       );
+      
+      CREATE TABLE IF NOT EXISTS notification_preferences (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        category TEXT NOT NULL
+      );
     `);
   } catch (error) {
     console.error('Error creating database tables:', error);
@@ -400,6 +407,75 @@ export const insertDefaultExercises = async (): Promise<void> => {
   }
 };
 
+// Initialize default notification preferences
+export const initNotificationPreferences = async (): Promise<void> => {
+  const database = await getDatabase();
+  
+  try {
+    // Check if we need to insert default preferences
+    const countResult = await database.getFirstAsync<{count: number}>(
+      'SELECT COUNT(*) as count FROM notification_preferences'
+    );
+    
+    // If table is empty, insert default preferences
+    if (countResult && countResult.count === 0) {
+      await database.withTransactionAsync(async () => {
+        // Master switch
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['all_notifications', 1, 'system']
+        );
+        
+        // Timer notifications
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['timer', 1, 'timer']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['timer_complete', 1, 'timer']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['timer_vibration', 1, 'timer']
+        );
+        
+        // Workout notifications
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['workout', 1, 'workout']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['workout_scheduled', 1, 'workout']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['workout_missed', 1, 'workout']
+        );
+        
+        // Progress notifications
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['progress', 1, 'progress']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['progress_milestone', 1, 'progress']
+        );
+        await database.runAsync(
+          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
+          ['progress_weekly', 1, 'progress']
+        );
+      });
+      
+      console.log('Default notification preferences inserted successfully');
+    }
+  } catch (error) {
+    console.error('Error inserting default notification preferences:', error);
+  }
+};
+
 // Check if an exercise is favorited
 export const isExerciseFavorited = async (exerciseId: number): Promise<boolean> => {
   const database = await getDatabase();
@@ -520,6 +596,7 @@ export const resetDatabase = async (): Promise<void> => {
       DROP TABLE IF EXISTS routines;
       DROP TABLE IF EXISTS exercises;
       DROP TABLE IF EXISTS weekly_schedule;
+      DROP TABLE IF EXISTS notification_preferences;
     `);
     
     console.log('Database reset: All tables dropped');
@@ -531,6 +608,10 @@ export const resetDatabase = async (): Promise<void> => {
     // Insert default exercises
     await insertDefaultExercises();
     console.log('Database reset: Default exercises inserted');
+    
+    // Initialize notification preferences
+    await initNotificationPreferences();
+    console.log('Database reset: Notification preferences initialized');
   } catch (error) {
     console.error('Error resetting database:', error);
     throw error;

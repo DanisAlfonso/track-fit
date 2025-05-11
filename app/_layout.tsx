@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useCallback } from 'react';
 import { useColorScheme, Alert, View, Platform, Vibration } from 'react-native';
-import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises } from '@/utils/database';
+import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises, initNotificationPreferences } from '@/utils/database';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -48,6 +48,11 @@ export default function RootLayout() {
         await insertDefaultExercises();
         console.log('Default exercises inserted successfully');
         
+        // Initialize notification preferences
+        console.log('Setting up notification preferences...');
+        await initNotificationPreferences();
+        console.log('Notification preferences initialized');
+        
         // Synchronize exercises with master list (adding new ones and removing deprecated ones)
         console.log('Synchronizing exercises...');
         await syncExercises();
@@ -75,7 +80,6 @@ export default function RootLayout() {
     // Configure the notification handler
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
-        shouldShowAlert: true,
         shouldPlaySound: false,
         shouldSetBadge: false,
         shouldShowBanner: true,
@@ -171,3 +175,5 @@ function RootLayoutNav() {
     </NavigationThemeProvider>
   );
 }
+
+export { ErrorBoundary } from 'expo-router';
