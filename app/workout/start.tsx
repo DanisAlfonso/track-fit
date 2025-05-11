@@ -20,6 +20,7 @@ import { SetBottomSheet } from '@/components/SetBottomSheet';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { ExerciseCard } from '@/components/ExerciseCard';
 import { StartWorkoutPrompt } from '@/components/StartWorkoutPrompt';
+import { MuscleGroupPopup } from '@/components/MuscleGroupPopup';
 
 type Exercise = {
   routine_exercise_id: number;
@@ -1705,38 +1706,13 @@ export default function StartWorkoutScreen() {
       </Modal>
 
       {/* --- Muscle Group Popup Modal --- */}
-      <Modal
-        transparent={true}
+      <MuscleGroupPopup
         visible={musclePopupVisible}
-        animationType="slide"
-        onRequestClose={() => setMusclePopupVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setMusclePopupVisible(false)}>
-          <View style={styles.modalOverlayCenter}>
-            <View style={[styles.musclePopup, { backgroundColor: colors.card }]}>
-              <Text style={[styles.popupTitle, { color: colors.text }]}>Select Muscle Group</Text>
-              <ScrollView>
-                {Object.keys(muscleGroups).map((muscle) => (
-                  <TouchableOpacity
-                    key={`popup-${muscle}`}
-                    style={styles.musclePopupItem}
-                    onPress={() => handleMuscleSelect(muscle)}
-                  >
-                    <View style={[styles.muscleNavDot, { backgroundColor: getMuscleColor(muscle) }]} />
-                    <Text style={[styles.musclePopupItemText, { color: colors.text }]}>{muscle}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.popupCloseButton}
-                onPress={() => setMusclePopupVisible(false)}
-              >
-                <Text style={[styles.popupCloseButtonText, { color: colors.primary }]}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        muscleGroups={muscleGroups}
+        onSelect={handleMuscleSelect}
+        onClose={() => setMusclePopupVisible(false)}
+        getMuscleColor={getMuscleColor}
+      />
 
       {!workoutStarted && skipReady !== 'true' ? (
         <StartWorkoutPrompt
