@@ -26,6 +26,7 @@ import { HeaderTitle } from '@/components/HeaderTitle';
 import { FinishWorkoutModal } from '@/components/FinishWorkoutModal';
 import { RestTimer } from '@/components/RestTimer';
 import { useWorkoutSession, WorkoutExercise, Set, SortOption } from '@/hooks/useWorkoutSession';
+import { AddExerciseSheet } from '@/components/AddExerciseSheet';
 
 // Import new components and utils
 import { DefaultExerciseList } from '@/components/workout/DefaultExerciseList';
@@ -55,6 +56,9 @@ export default function StartWorkoutScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme]; // Get colors this way
   const [showingMenu, setShowingMenu] = useState<number | null>(null);
+  
+  // New state for exercise picker sheet
+  const [addExerciseSheetVisible, setAddExerciseSheetVisible] = useState(false);
 
   // Use the workout session hook
   const {
@@ -81,6 +85,7 @@ export default function StartWorkoutScreen() {
     minimizeWorkoutAndSave,
     calculateProgressPercentage,
     setWorkoutDuration,
+    addExerciseToWorkout
   } = useWorkoutSession(routineId, existingWorkoutId);
   
   // Get workout context functions
@@ -430,6 +435,11 @@ export default function StartWorkoutScreen() {
     return groups;
   }, [exercises]);
 
+  // Function to handle adding an exercise to the workout
+  const handleAddExercise = (exerciseId: number, name: string, primaryMuscle: string, category: string) => {
+    addExerciseToWorkout(exerciseId, name, primaryMuscle, category);
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -480,6 +490,7 @@ export default function StartWorkoutScreen() {
         sortOption={sortOption}
         onSelect={handleSortSelection}
         onClose={() => setOverflowMenuVisible(false)}
+        onAddExercise={() => setAddExerciseSheetVisible(true)}
         colors={colors}
       />
 
@@ -490,6 +501,14 @@ export default function StartWorkoutScreen() {
         onSelect={handleMuscleSelect}
         onClose={() => setMusclePopupVisible(false)}
         getMuscleColor={getMuscleColor}
+      />
+
+      {/* --- Add Exercise Sheet --- */}
+      <AddExerciseSheet
+        visible={addExerciseSheetVisible}
+        onClose={() => setAddExerciseSheetVisible(false)}
+        onSelectExercise={handleAddExercise}
+        colors={colors}
       />
 
       {!workoutStarted && skipReady !== 'true' ? (
@@ -520,13 +539,13 @@ export default function StartWorkoutScreen() {
             />
           )}
 
-          {/* Finish Button remains */} 
-          <View style={[styles.finishButtonContainer, { 
+          {/* Add Exercise Button Container - Now only contains Finish Workout */}
+          <View style={[styles.addExerciseButtonContainer, { 
             backgroundColor: currentTheme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
             borderTopColor: colors.border
           }]}>
             <TouchableOpacity 
-              style={styles.finishButton}
+              style={styles.finishButtonFullWidth}
               onPress={finishWorkout}
               disabled={isSaving}
               activeOpacity={0.8}
@@ -719,7 +738,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
   },
-  finishButtonContainer: {
+  addExerciseButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -728,8 +747,37 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingTop: 8,
     borderTopWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  addExerciseButton: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+    marginRight: 8,
+  },
+  addExerciseButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+  },
+  addExerciseButtonIcon: {
+    marginRight: 8,
+  },
+  addExerciseButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   finishButton: {
+    flex: 1,
     borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -742,14 +790,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
+    padding: 14,
   },
   finishButtonIcon: {
     marginRight: 8,
   },
   finishButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   // Add styles for header menu button
@@ -767,5 +815,16 @@ const styles = StyleSheet.create({
     fontSize: 11, // Small text
     fontWeight: '500',
     marginLeft: 5, // Space between circle and text
+  },
+  // Update to full width finish button
+  finishButtonFullWidth: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
   },
 });

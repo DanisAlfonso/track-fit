@@ -10,6 +10,7 @@ interface SortOptionsModalProps {
   sortOption: SortOption;
   onSelect: (option: SortOption) => void;
   onClose: () => void;
+  onAddExercise?: () => void;
   colors: typeof Colors['light']; // Pass the current theme colors
 }
 
@@ -18,6 +19,7 @@ export const SortOptionsModal: React.FC<SortOptionsModalProps> = ({
   sortOption,
   onSelect,
   onClose,
+  onAddExercise,
   colors,
 }) => {
   return (
@@ -30,7 +32,27 @@ export const SortOptionsModal: React.FC<SortOptionsModalProps> = ({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.modalOverlay}>
           <View style={[styles.overflowMenu, { backgroundColor: colors.card }]}> 
-            <Text style={[styles.menuTitle, { color: colors.text }]}>Sort Exercises By</Text>
+            <Text style={[styles.menuTitle, { color: colors.text }]}>Workout Options</Text>
+            
+            {onAddExercise && (
+              <>
+                <TouchableOpacity 
+                  style={styles.menuItem} 
+                  onPress={() => {
+                    onClose();
+                    onAddExercise();
+                  }}
+                >
+                  <FontAwesome5 name="plus-circle" size={16} color={colors.primary} style={styles.menuIcon} />
+                  <Text style={[styles.menuItemText, { color: colors.primary }]}>Add Exercise</Text>
+                </TouchableOpacity>
+                
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              </>
+            )}
+            
+            <Text style={[styles.menuSubtitle, { color: colors.text }]}>Sort Exercises By</Text>
+            
             <TouchableOpacity style={styles.menuItem} onPress={() => onSelect('default')}>
               <FontAwesome5 name="sort-numeric-down" size={16} color={sortOption === 'default' ? colors.primary : colors.text} style={styles.menuIcon} />
               <Text style={[styles.menuItemText, { color: sortOption === 'default' ? colors.primary : colors.text }]}>Default Order</Text>
@@ -78,6 +100,14 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     opacity: 0.7,
   },
+  menuSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingTop: 4,
+    opacity: 0.7,
+  },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -89,5 +119,10 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 16,
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 16,
+    marginVertical: 4,
   },
 }); 

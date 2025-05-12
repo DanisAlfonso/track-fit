@@ -482,6 +482,7 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     return totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
   }, [exercises]);
 
+  // Return object with all hooks and functions
   return {
     // State
     routineName,
@@ -509,5 +510,55 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     minimizeWorkoutAndSave,
     calculateProgressPercentage,
     setWorkoutDuration,
+    
+    // New method to add a new exercise to the current workout
+    addExerciseToWorkout: async (exerciseId: number, exerciseName: string, primaryMuscle: string, category: string) => {
+      if (!workoutId || !workoutStarted) {
+        showToast('No active workout to add exercise to', 'error');
+        return false;
+      }
+      
+      try {
+        // Create a new exercise entry to add to the current workout
+        const newExercise: WorkoutExercise = {
+          routine_exercise_id: -1, // Will be replaced with actual ID after saving
+          exercise_id: exerciseId,
+          name: exerciseName,
+          sets: 3, // Default of 3 sets
+          completedSets: 0,
+          exercise_order: exercises.length + 1,
+          primary_muscle: primaryMuscle,
+          category: category,
+          sets_data: [],
+          notes: ''
+        };
+        
+        // Create 3 default sets
+        for (let i = 1; i <= 3; i++) {
+          newExercise.sets_data.push({
+            set_number: i,
+            reps: 0,
+            weight: 0,
+            rest_time: 60, // Default 60 seconds rest
+            completed: false,
+            notes: ''
+          });
+        }
+        
+        // Add the new exercise to the state
+        const updatedExercises = [...exercises, newExercise];
+        setExercises(updatedExercises);
+        
+        // Save to database to persist the changes
+        await saveWorkoutProgress(true);
+        
+        showToast(`${exerciseName} added to workout`, 'success');
+        return true;
+      } catch (error) {
+        console.error('Error adding exercise to workout:', error);
+        showToast('Failed to add exercise to workout', 'error');
+        return false;
+      }
+    }
   };
 } 
