@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, TextInput, Animated, Easing, PanResponder, Platform, Vibration } from 'react-native';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -67,6 +67,14 @@ export const ExerciseCard = ({
   const { theme } = useTheme();
   const colorScheme = theme === 'system' ? 'light' : theme; // Default to light if system
   const colors = Colors[colorScheme];
+  // State for collapsible content
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
+  // Animation values
+  const collapsibleHeight = useRef(new Animated.Value(1)).current; // 1 = open, 0 = collapsed
+  const rotateAnimation = useRef(new Animated.Value(0)).current; // 0 = not rotated, 1 = rotated
+  const fadeAnimation = useRef(new Animated.Value(1)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
   
   // Use the original index if it exists (for grouped views), otherwise use the provided index
   const exerciseIndex = item.originalIndex !== undefined ? item.originalIndex : index;
@@ -75,12 +83,113 @@ export const ExerciseCard = ({
   const totalSets = item.sets_data.length;
   const completedSets = item.sets_data.filter(set => set.completed).length;
   const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+  const allSetsCompleted = completedSets === totalSets && totalSets > 0;
+
+  // Configure pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to horizontal swipes
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dy) < 20;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (gestureState.dx > 50) {
+          // Swipe right - expand
+          setIsCollapsed(false);
+        } else if (gestureState.dx < -50) {
+          // Swipe left - collapse
+          setIsCollapsed(true);
+        }
+      },
+    })
+  ).current;
+
+  // Auto-collapse when all sets are completed
+  useEffect(() => {
+    if (allSetsCompleted && workoutStarted) {
+      // Add a small delay to make it noticeable that all sets are completed
+      const timeout = setTimeout(() => {
+        setIsCollapsed(true);
+        
+        // Add a subtle "completion" animation
+        Animated.sequence([
+          Animated.timing(scaleAnimation, {
+            toValue: 1.03,
+            duration: 200,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true
+          }),
+          Animated.timing(scaleAnimation, {
+            toValue: 1,
+            duration: 200,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true
+          })
+        ]).start();
+      }, 500);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [allSetsCompleted, workoutStarted]);
   
   // Use the muscle color if provided, otherwise use the default primary/success color
-  const borderColor = progress === 100 
+  const borderColor = allSetsCompleted 
     ? colors.success 
     : (muscleColor || colors.primary);
   
+  // Rotate the collapse arrow when the card is collapsed/expanded
+  const arrowRotation = rotateAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg']
+  });
+
+  // Trigger animations when collapsed state changes
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(collapsibleHeight, {
+        toValue: isCollapsed ? 0 : 1,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      }),
+      Animated.timing(rotateAnimation, {
+        toValue: isCollapsed ? 1 : 0,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }),
+      Animated.timing(fadeAnimation, {
+        toValue: isCollapsed ? 0 : 1,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      })
+    ]).start();
+  }, [isCollapsed]);
+
+  // Function to toggle collapsed state
+  const toggleCollapsed = () => {
+    // Add haptic feedback on toggle
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      Vibration.vibrate(5); // very short vibration
+    }
+    setIsCollapsed(!isCollapsed);
+  };
+
+  // Use different border styles for collapsed vs expanded
+  const getBorderStyles = () => {
+    if (isCollapsed) {
+      return {
+        borderBottomWidth: 0,
+        paddingBottom: 8
+      };
+    }
+    return {
+      borderBottomWidth: 1,
+      paddingBottom: 16
+    };
+  };
+
   // Function to render set items with the correct exercise index
   const renderExerciseSetItem = (setItem: Set, setIndex: number) => {
     // Get training type display
@@ -160,11 +269,22 @@ export const ExerciseCard = ({
   };
 
   return (
-    <View style={[styles.exerciseItem, { 
-      backgroundColor: colors.card,
-      borderLeftWidth: 4,
-      borderLeftColor: borderColor,
-    }]}>
+    <Animated.View 
+      {...panResponder.panHandlers}
+      style={[
+        styles.exerciseItem, 
+        { 
+          backgroundColor: colors.card,
+          borderLeftWidth: 4,
+          borderLeftColor: borderColor,
+          transform: [{ scale: scaleAnimation }]
+        },
+        allSetsCompleted && {
+          borderColor: colors.success,
+          borderWidth: 0.5
+        }
+      ]}
+    >
       {/* Add ellipsis menu in top right corner */}
       {workoutStarted && (
         <View style={styles.cardMenuContainer}>
@@ -202,18 +322,63 @@ export const ExerciseCard = ({
                   <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
                 </TouchableOpacity>
               )}
+
+              <TouchableOpacity 
+                style={styles.menuOption}
+                onPress={() => {
+                  onToggleMenu(null);
+                  toggleCollapsed();
+                }}
+              >
+                <FontAwesome5 
+                  name={isCollapsed ? "chevron-down" : "chevron-up"} 
+                  size={14} 
+                  color={colors.primary} 
+                  style={styles.menuIcon} 
+                />
+                <Text style={[styles.menuText, { color: colors.text }]}>
+                  {isCollapsed ? "Expand" : "Collapse"}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
       )}
       
-      <View style={[styles.exerciseHeader, { borderBottomColor: colors.border }]}>
-        <View style={styles.exerciseTitleArea}>
-          <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[styles.exerciseSets, { color: completedSets === totalSets ? colors.success : colors.subtext }]}>
-            {completedSets}/{totalSets} sets completed
-          </Text>
-        </View>
+      <View style={[styles.exerciseHeader, getBorderStyles()]}>
+        <TouchableOpacity 
+          style={styles.exerciseTitleArea}
+          onPress={toggleCollapsed}
+          activeOpacity={0.7}
+        >
+          <View style={styles.exerciseTitleRow}>
+            <Text style={[styles.exerciseName, { color: colors.text }]}>{item.name}</Text>
+            <Animated.View style={{ transform: [{ rotate: arrowRotation }], marginRight: 32 }}>
+              <FontAwesome 
+                name="chevron-down" 
+                size={14} 
+                color={colors.text} 
+                style={styles.collapseIcon}
+              />
+            </Animated.View>
+          </View>
+          <View style={styles.exerciseProgressRow}>
+            <Text style={[
+              styles.exerciseSets, 
+              { color: allSetsCompleted ? colors.success : colors.subtext }
+            ]}>
+              {completedSets}/{totalSets} sets completed
+            </Text>
+            {isCollapsed && allSetsCompleted && (
+              <FontAwesome 
+                name="check-circle" 
+                size={14} 
+                color={colors.success} 
+                style={{ marginLeft: 6 }}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
         
         <View style={styles.exerciseHeaderRight}>
           {/* Elegant circular progress indicator */}
@@ -247,38 +412,47 @@ export const ExerciseCard = ({
         </View>
       </View>
       
-      <View style={[styles.setsContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
-        <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets</Text>
-        
-        <FlatList
-          data={item.sets_data}
-          renderItem={({ item: setItem, index: setIndex }) => {
-            return renderExerciseSetItem(setItem, setIndex);
-          }}
-          keyExtractor={(set) => `set-${set.set_number}`}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.setsList}
-          contentContainerStyle={styles.setsListContent}
-        />
-      </View>
+      <Animated.View 
+        style={[
+          { opacity: fadeAnimation, maxHeight: collapsibleHeight.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 1000] // Use a high value that will accommodate any content
+          }) }
+        ]}
+      >
+        <View style={[styles.setsContainer, { backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)' }]}>
+          <Text style={[styles.setsLabel, { color: colors.subtext }]}>Sets</Text>
+          
+          <FlatList
+            data={item.sets_data}
+            renderItem={({ item: setItem, index: setIndex }) => {
+              return renderExerciseSetItem(setItem, setIndex);
+            }}
+            keyExtractor={(set) => `set-${set.set_number}`}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.setsList}
+            contentContainerStyle={styles.setsListContent}
+          />
+        </View>
 
-      <View style={styles.exerciseNotes}>
-        <Text style={[styles.notesLabel, { color: colors.subtext }]}>Exercise Notes</Text>
-        <TextInput
-          style={[styles.notesInput, { 
-            color: colors.text, 
-            borderColor: colors.border,
-            backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
-          }]}
-          placeholder="Add notes for this exercise..."
-          placeholderTextColor={colors.subtext}
-          value={item.notes}
-          onChangeText={(text) => onUpdateNotes(exerciseIndex, text)}
-          multiline
-        />
-      </View>
-    </View>
+        <View style={styles.exerciseNotes}>
+          <Text style={[styles.notesLabel, { color: colors.subtext }]}>Exercise Notes</Text>
+          <TextInput
+            style={[styles.notesInput, { 
+              color: colors.text, 
+              borderColor: colors.border,
+              backgroundColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'
+            }]}
+            placeholder="Add notes for this exercise..."
+            placeholderTextColor={colors.subtext}
+            value={item.notes}
+            onChangeText={(text) => onUpdateNotes(exerciseIndex, text)}
+            multiline
+          />
+        </View>
+      </Animated.View>
+    </Animated.View>
   );
 };
 
@@ -301,14 +475,28 @@ const styles = StyleSheet.create({
   exerciseTitleArea: {
     marginBottom: 8,
   },
+  exerciseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  exerciseProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   exerciseName: {
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 4,
+    flex: 1,
   },
   exerciseSets: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  collapseIcon: {
+    marginLeft: 8,
   },
   exerciseHeaderRight: {
     flexDirection: 'row',
@@ -421,12 +609,13 @@ const styles = StyleSheet.create({
   },
   cardMenuContainer: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 20,
+    right: 20,
     zIndex: 10,
   },
   cardMenuButton: {
     padding: 8,
+    backgroundColor: 'transparent',
   },
   menuPopup: {
     position: 'absolute',
