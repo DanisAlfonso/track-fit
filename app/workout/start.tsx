@@ -27,6 +27,11 @@ import { FinishWorkoutModal } from '@/components/FinishWorkoutModal';
 import { RestTimer } from '@/components/RestTimer';
 import { useWorkoutSession, WorkoutExercise, Set, SortOption } from '@/hooks/useWorkoutSession';
 
+// Import new components and utils
+import { DefaultExerciseList } from '@/components/workout/DefaultExerciseList';
+import { GroupedExerciseList } from '@/components/workout/GroupedExerciseList';
+import { formatDuration, getMuscleColor } from '@/utils/workoutUtils';
+
 // Add TouchedFields type to track field interaction
 type TouchedFields = {
   reps: boolean;
@@ -104,6 +109,9 @@ export default function StartWorkoutScreen() {
   const [finishConfirmationVisible, setFinishConfirmationVisible] = useState(false);
   const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
   const [musclePopupVisible, setMusclePopupVisible] = useState(false);
+  
+  // Replace the scrollToMuscle function to use a callback instead of direct ref access
+  const [scrollToMuscleCallback, setScrollToMuscleCallback] = useState<((muscle: string) => void) | null>(null);
   
   // Auto-start workout if skipReady is 'true'
   useEffect(() => {
@@ -186,14 +194,6 @@ export default function StartWorkoutScreen() {
     setFinishConfirmationVisible(true);
   };
 
-  const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    return `${hours > 0 ? `${hours}:` : ''}${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   // Memoize the duration change handler
   const handleDurationChange = useCallback((duration: number) => {
     setWorkoutDuration(duration);
@@ -233,7 +233,7 @@ export default function StartWorkoutScreen() {
   ), [workoutStarted, workoutStartTime, handleDurationChange, renderCircularProgress]);
 
   // Simplify the renderExerciseItem function to use the ExerciseCard component
-  const renderExerciseItem = ({ item, index, muscleColor }: { item: WorkoutExercise, index: number, muscleColor?: string }) => {
+  const renderExerciseItem = useCallback(({ item, index, muscleColor }: { item: WorkoutExercise; index: number; muscleColor?: string }) => {
       return (
       <ExerciseCard
         item={item}
@@ -249,7 +249,7 @@ export default function StartWorkoutScreen() {
         onToggleMenu={setShowingMenu}
       />
     );
-  };
+  }, [workoutStarted, weightUnit, showingMenu, setShowingMenu, openSetModal, updateExerciseNotes, addSet, removeSet]);
 
   // Modify minimizeWorkoutAndNavigate to save data before minimizing
   const minimizeWorkoutAndNavigate = async () => {
@@ -312,67 +312,6 @@ export default function StartWorkoutScreen() {
       </View>
     );
   };
-
-  // Organize exercises by muscle groups for rendering (similar to routine details screen)
-  const muscleGroups = useMemo(() => {
-    const groups: Record<string, WorkoutExercise[]> = {};
-    
-    exercises.forEach(exercise => {
-      const muscle = exercise.primary_muscle || 'Other';
-      if (!groups[muscle]) {
-        groups[muscle] = [];
-      }
-      groups[muscle].push({
-        ...exercise,
-        // Store the original index in the exercises array
-        originalIndex: exercises.findIndex(e => e.routine_exercise_id === exercise.routine_exercise_id)
-      });
-    });
-    
-    return groups;
-  }, [exercises]);
-
-  // Organize exercises by category for rendering (similar to routine details screen)
-  const exerciseCategories = useMemo(() => {
-    const categories: Record<string, WorkoutExercise[]> = {};
-    
-    exercises.forEach(exercise => {
-      const category = exercise.category || 'Other';
-      if (!categories[category]) {
-        categories[category] = [];
-      }
-      categories[category].push({
-        ...exercise,
-        // Store the original index in the exercises array
-        originalIndex: exercises.findIndex(e => e.routine_exercise_id === exercise.routine_exercise_id)
-      });
-    });
-    
-    return categories;
-  }, [exercises]);
-
-  // Helper function to get color based on muscle group (similar to routine details screen)
-  const getMuscleColor = (muscle: string) => {
-    const muscleColors: Record<string, string> = {
-      'Chest': '#E91E63',
-      'Back': '#3F51B5',
-      'Shoulders': '#009688',
-      'Biceps': '#FF5722',
-      'Triceps': '#FF9800',
-      'Legs': '#8BC34A',
-      'Quadriceps': '#8BC34A',
-      'Hamstrings': '#CDDC39',
-      'Calves': '#FFEB3B',
-      'Glutes': '#FFC107',
-      'Abs': '#00BCD4',
-      'Core': '#00BCD4',
-      'Forearms': '#795548',
-      'Traps': '#9C27B0',
-      'Full Body': '#607D8B',
-    };
-    
-    return muscleColors[muscle] || '#4CAF50';
-  };
   
   // Start the rest timer with the specified duration
   const startRestTimer = (duration: number) => {
@@ -417,45 +356,48 @@ export default function StartWorkoutScreen() {
     });
   };
 
-  // Reference to the scroll view for muscle groups
+  // Go back to simpler approach with ScrollView reference
   const muscleScrollViewRef = useRef<ScrollView>(null);
   
   // References to position of each muscle group section
   const musclePositions = useRef<Record<string, number>>({});
   
-  // Track scroll position to show/hide navigation bar
-  const [scrollY, setScrollY] = useState(0);
-  
-  // Function to scroll to a specific muscle group
-  const scrollToMuscle = (muscle: string) => {
-    if (muscleScrollViewRef.current && musclePositions.current[muscle] !== undefined) {
-      muscleScrollViewRef.current.scrollTo({
-        y: musclePositions.current[muscle], // Adjust offset as needed if header changes height
-        animated: true,
-      });
-    }
-  };
-  
   // Function to measure and store position of muscle groups
   const measureMusclePosition = (muscle: string, y: number) => {
     musclePositions.current[muscle] = y;
   };
-
-  // Add useEffect to handle tapping outside the menu to dismiss it
-  useEffect(() => {
-    const handlePressOutside = () => {
-      if (showingMenu !== null) {
-        setShowingMenu(null);
-      }
-    };
-
-    // Add event listener for tap outside
-    const subscription = Dimensions.addEventListener('change', handlePressOutside);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [showingMenu]);
+  
+  // Function to scroll to a specific muscle group
+  const scrollToMuscle = (muscle: string) => {
+    console.log(`Attempting to scroll to ${muscle}, position: ${musclePositions.current[muscle]}`);
+    
+    if (muscleScrollViewRef.current && musclePositions.current[muscle] !== undefined) {
+      // Add console for debugging
+      console.log(`Scrolling to ${muscle} at position ${musclePositions.current[muscle]}`);
+      
+      // Add a small delay to ensure UI is ready
+      setTimeout(() => {
+        muscleScrollViewRef.current?.scrollTo({
+          y: musclePositions.current[muscle],
+          animated: true,
+        });
+      }, 100);
+    } else {
+      console.log('Cannot scroll: ScrollView ref or position undefined');
+      console.log('ScrollView ref:', muscleScrollViewRef.current);
+      console.log('Position:', musclePositions.current[muscle]);
+    }
+  };
+  
+  // Function to handle muscle selection from the popup
+  const handleMuscleSelect = (muscle: string) => {
+    setMusclePopupVisible(false);
+    
+    // Add a small delay to ensure the popup is closed before scrolling
+    setTimeout(() => {
+      scrollToMuscle(muscle);
+    }, 100);
+  };
 
   // Updated function to handle sort option selection from menu
   const handleSortSelection = (option: SortOption) => {
@@ -469,11 +411,24 @@ export default function StartWorkoutScreen() {
     }
   };
 
-  // Function to handle muscle selection from the popup
-  const handleMuscleSelect = (muscle: string) => {
-    scrollToMuscle(muscle);
-    setMusclePopupVisible(false);
-  };
+  // Organize exercises by muscle groups for rendering (similar to routine details screen)
+  const muscleGroups = useMemo(() => {
+    const groups: Record<string, WorkoutExercise[]> = {};
+    
+    exercises.forEach(exercise => {
+      const muscle = exercise.primary_muscle || 'Other';
+      if (!groups[muscle]) {
+        groups[muscle] = [];
+      }
+      groups[muscle].push({
+        ...exercise,
+        // Store the original index in the exercises array
+        originalIndex: exercises.findIndex(e => e.routine_exercise_id === exercise.routine_exercise_id)
+      });
+    });
+    
+    return groups;
+  }, [exercises]);
 
   if (isLoading) {
     return (
@@ -545,76 +500,24 @@ export default function StartWorkoutScreen() {
           isSaving={isSaving}
           onStart={startWorkout}
         />
-              ) : (
-                <>
-          {/* Conditional rendering for exercises based on sortOption */}
-          {sortOption === 'default' && (
-            <FlatList
-              data={exercises}
-              renderItem={renderExerciseItem}
-              keyExtractor={(item) => `exercise-${item.routine_exercise_id}`}
-              contentContainerStyle={styles.exerciseList}
+      ) : (
+        <>
+          {/* Conditionally render exercise list based on sort option */}
+          {sortOption === 'default' ? (
+            <DefaultExerciseList 
+              exercises={exercises}
+              renderExerciseItem={renderExerciseItem}
             />
-          )}
-
-          {sortOption === 'muscle' && (
-            <ScrollView
-              ref={muscleScrollViewRef}
-              contentContainerStyle={styles.exerciseList}
-              onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
-              scrollEventThrottle={16}
-            >
-              {Object.entries(muscleGroups).map(([muscle, muscleExercises]) => (
-                <View 
-                  key={muscle} 
-                  style={styles.exerciseGroup}
-                  onLayout={(event) => {
-                    const { y } = event.nativeEvent.layout;
-                    measureMusclePosition(muscle, y);
-                  }}
-                >
-                  <View style={[styles.groupHeader, { 
-                    backgroundColor: colors.card, 
-                    borderLeftColor: getMuscleColor(muscle),
-                    borderLeftWidth: 4 
-                  }]}>
-                    <Text style={[styles.groupTitle, { color: colors.text }]}>{muscle}</Text>
-                    <Text style={[styles.groupCount, { color: colors.subtext }]}>
-                      {muscleExercises.length} exercise{muscleExercises.length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  {muscleExercises.map((exercise, index) => (
-                    <View key={`${exercise.routine_exercise_id}`}>
-                      {renderExerciseItem({ 
-                        item: exercise, 
-                        index,
-                        muscleColor: getMuscleColor(muscle) 
-                      })}
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </ScrollView>
-          )}
-
-          {sortOption === 'category' && (
-            <ScrollView contentContainerStyle={styles.exerciseList}>
-              {Object.entries(exerciseCategories).map(([category, categoryExercises]) => (
-                <View key={category} style={styles.exerciseGroup}>
-                  <View style={[styles.groupHeader, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.groupTitle, { color: colors.text }]}>{category}</Text>
-                    <Text style={[styles.groupCount, { color: colors.subtext }]}>
-                      {categoryExercises.length} exercise{categoryExercises.length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  {categoryExercises.map((exercise, index) => (
-                    <View key={`${exercise.routine_exercise_id}`}>
-                      {renderExerciseItem({ item: exercise, index })}
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </ScrollView>
+          ) : (
+            <GroupedExerciseList
+              exercises={exercises}
+              groupingType={sortOption}
+              renderExerciseItem={renderExerciseItem}
+              getMuscleColor={getMuscleColor}
+              onMeasureGroupPosition={measureMusclePosition}
+              colors={colors}
+              scrollViewRef={muscleScrollViewRef}
+            />
           )}
 
           {/* Finish Button remains */} 
@@ -797,251 +700,6 @@ const styles = StyleSheet.create({
     paddingTop: 16, // Add padding if needed after removing header elements
     paddingBottom: 100, // Give extra padding at bottom for finish button
   },
-  exerciseItem: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  exerciseHeader: {
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    paddingBottom: 16,
-  },
-  exerciseTitleArea: {
-    marginBottom: 8,
-  },
-  exerciseName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  exerciseSets: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  exerciseHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  progressCircleContainer: {
-    width: 36,
-    height: 36,
-    marginRight: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Keep these styles for backwards compatibility
-  miniProgressContainer: {
-    width: 80,
-    marginRight: 10,
-  },
-  miniProgressBackground: {
-    height: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  miniProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  setsContainer: {
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-  },
-  setsLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  setsList: {
-    marginBottom: 8,
-  },
-  setsListContent: {
-    paddingRight: 16,
-  },
-  setItem: {
-    borderRadius: 12,
-    marginRight: 10,
-    width: 100,
-    height: 85,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  completedGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  setContent: {
-    flex: 1,
-    padding: 10,
-    justifyContent: 'space-between',
-    zIndex: 1,
-  },
-  setHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  setText: {
-    fontWeight: 'bold',
-    fontSize: 13,
-  },
-  setDetail: {
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  tapToLog: {
-    fontSize: 12,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  trainingTypeTag: {
-    marginTop: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-    borderLeftWidth: 2,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  trainingTypeTagText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  exerciseNotes: {
-    marginTop: 8,
-  },
-  notesLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  notesInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    minHeight: 40,
-    fontSize: 15,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 450,
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-    maxHeight: '90%',
-  },
-  closeButton: {
-    padding: 6,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  inputLabelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  requiredIndicator: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  optionalIndicator: {
-    fontSize: 12,
-    marginLeft: 8,
-    fontStyle: 'italic',
-  },
-  inputError: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-  },
-  modalNotesInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  saveButtonIcon: {
-    marginRight: 8,
-  },
-  saveButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  previousPerformance: {
-    marginTop: 6,
-  },
-  previousPerformanceText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   previousPerformanceCard: {
     padding: 16,
     borderRadius: 12,
@@ -1060,34 +718,6 @@ const styles = StyleSheet.create({
   previousPerformanceHint: {
     fontSize: 12,
     fontStyle: 'italic',
-  },
-  minimizeButton: {
-    marginRight: 16,
-    padding: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  exerciseHistoryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderRadius: 18,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: 'transparent',
-  },
-  historyIcon: {
-    marginRight: 6,
-  },
-  historyButtonText: {
-    fontWeight: '600',
-    fontSize: 14,
   },
   finishButtonContainer: {
     position: 'absolute',
@@ -1122,367 +752,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  sortOptions: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  sortButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    marginHorizontal: 6,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  sortButtonActive: {
-    borderWidth: 1,
-  },
-  sortButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  exerciseGroup: {
-    marginBottom: 16,
-  },
-  groupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  groupTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  groupCount: {
-    fontSize: 12,
-  },
-  // Rest Timer Styles
-  restModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  restModalContent: {
-    width: '80%',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  restTimerHeader: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  restTimerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  restTimerClock: {
-    marginBottom: 24,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 30,
-    paddingVertical: 20,
-    borderRadius: 16,
-    minWidth: 160,
-    alignItems: 'center',
-  },
-  restTimerCountdown: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    fontVariant: ['tabular-nums'],
-  },
-  restProgressBarContainer: {
-    width: '100%',
-    height: 10,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 5,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  restProgressBarFill: {
-    height: '100%',
-    borderRadius: 5,
-  },
-  restTimerActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  restTimerButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  restTimerButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  skipRestButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  skipRestText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  restTimerNote: {
-    fontSize: 12,
-    marginBottom: 16,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  trainingTypeContainer: {
-    flexDirection: 'row',
-    marginBottom: 8,
-  },
-  trainingTypeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trainingTypeText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  trainingTypeDescription: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  trainingTypeHint: {
-    fontSize: 12,
-    marginTop: 4,
-    
-  },
-  trainingTypeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    marginLeft: 4,
-    shadowColor: 'rgba(0,0,0,0.1)',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.6,
-    shadowRadius: 2,
-    elevation: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trainingTypeBadgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  muscleNavContainer: {
-    borderWidth: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    zIndex: 10,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  muscleNavContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 2,
-  },
-  muscleNavItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
-    elevation: 1,
-  },
-  muscleNavDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  muscleNavText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Diagnostic display styles
-  diagnosticContainer: {
-    position: 'absolute',
-    bottom: 120,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(100, 100, 255, 0.15)',
-    padding: 12,
-    borderRadius: 12,
-    zIndex: 999,
-  },
-  diagnosticTitle: {
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  diagnosticText: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  cardMenuContainer: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    zIndex: 10,
-  },
-  cardMenuButton: {
-    padding: 8,
-  },
-  menuPopup: {
-    position: 'absolute',
-    top: 35,
-    right: 0,
-    width: 150,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
-    zIndex: 100,
-  },
-  menuOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  menuIcon: {
-    marginRight: 10,
-  },
-  menuText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
   // Add styles for header menu button
   headerMenuButton: {
     marginRight: 16,
     padding: 8,
   },
-
-  // Add styles for the new workout status container
-  workoutStatusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-
-  overflowMenu: {
-    position: 'absolute',
-    top: (Platform.OS === 'ios' ? 44 : 0) + 5, // Adjust based on actual header height
-    right: 10,
-    width: 200,
-    borderRadius: 8,
-    paddingVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  menuTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    opacity: 0.7,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  menuItemText: {
-    fontSize: 16,
-  },
-
-  // Styles for Muscle Group Popup
-  modalOverlayCenter: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  musclePopup: {
-    width: '85%',
-    maxHeight: '70%',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  popupTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  musclePopupItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    // Use colors.border here
-  },
-  musclePopupItemText: {
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  popupCloseButton: {
-    marginTop: 15,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  popupCloseButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-
-  // Add styles for the custom header title container
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    // Remove flex: 1 and marginRight, let React Navigation handle centering
-  },
-  
   // Styles for the circular progress in the header
   circularProgressContainer: {
     flexDirection: 'row',
@@ -1494,27 +768,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 5, // Space between circle and text
   },
-
-  // Header specific progress bar styles
-  headerProgressBarContainer: {
-    flex: 1, // Allow it to take available space
-    marginLeft: 12, 
-    maxWidth: 100, // Keep it relatively small in header
-  },
-  headerProgressBarBackground: {
-    height: 5, // Smaller height for header
-    backgroundColor: 'rgba(120, 120, 128, 0.2)', 
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 1, 
-  },
-  headerProgressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  headerProgressText: {
-    fontSize: 12, 
-    marginLeft: 8,
-  },
-
 });
