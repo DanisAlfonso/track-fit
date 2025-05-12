@@ -6,10 +6,10 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useCallback } from 'react';
 import { useColorScheme, Alert, View, Platform, Vibration } from 'react-native';
 import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises, initNotificationPreferences } from '@/utils/database';
-import { WorkoutProvider } from '@/context/WorkoutContext';
+import { WorkoutProvider, useWorkout } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
-import { ToastProvider } from '@/context/ToastContext';
+import { ToastProvider, useToast } from '@/context/ToastContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -143,8 +143,29 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const { currentTheme } = useTheme();
+  const colorScheme = useColorScheme();
+  const { theme: appTheme } = useTheme();
+  const currentTheme = appTheme === 'system' ? colorScheme ?? 'light' : appTheme;
   const navTheme = currentTheme === 'dark' ? DarkTheme : DefaultTheme;
+  const { checkForAbandonedWorkout } = useWorkout();
+  const { showToast } = useToast();
+
+  // Check for abandoned workouts when app starts
+  useEffect(() => {
+    const checkWorkouts = async () => {
+      const hasRecovered = await checkForAbandonedWorkout();
+      if (hasRecovered) {
+        // Show a notification to the user
+        showToast(
+          'Recovered a workout in progress. You can resume it from the home screen.',
+          'info',
+          5000
+        );
+      }
+    };
+    
+    checkWorkouts();
+  }, []);
 
   // Get the actual theme colors from your app's color constants
   const backgroundColor = currentTheme === 'dark' ? Colors.dark.background : Colors.light.background;
@@ -152,8 +173,9 @@ function RootLayoutNav() {
 
   // Configure status bar and navigation bar based on theme
   useEffect(() => {
-    // Set navigation bar style on Android
     if (Platform.OS === 'android') {
+      // Configure Android navigation bar (bottom system buttons)
+      NavigationBar.setVisibilityAsync('visible');
       NavigationBar.setPositionAsync('absolute');
       NavigationBar.setBackgroundColorAsync(backgroundColor);
       NavigationBar.setButtonStyleAsync(currentTheme === 'dark' ? 'light' : 'dark');
@@ -165,7 +187,7 @@ function RootLayoutNav() {
       <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={{ 
         flex: 1, 
-        backgroundColor: backgroundColor
+        backgroundColor: backgroundColor,
       }}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

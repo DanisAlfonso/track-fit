@@ -50,6 +50,9 @@ export default function HistoryScreen() {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [translateY] = useState(new Animated.Value(20));
 
+  // Before the loadWorkouts function, add this new function to handle finishing a workout:
+  const [finishingWorkout, setFinishingWorkout] = useState(false);
+  
   // Use focus effect to reload data when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -274,6 +277,28 @@ export default function HistoryScreen() {
     return `${minutes}m`;
   };
 
+  const finishWorkout = async (workoutId: number) => {
+    try {
+      setFinishingWorkout(true);
+      const db = await getDatabase();
+      
+      // Mark the workout as completed
+      await db.runAsync(
+        'UPDATE workouts SET completed_at = ? WHERE id = ?',
+        [Date.now(), workoutId]
+      );
+      
+      // Refresh the workouts list
+      await loadWorkouts();
+      showToast('Workout marked as completed', 'success');
+    } catch (error) {
+      console.error('Error finishing workout:', error);
+      showToast('Failed to finish workout', 'error');
+    } finally {
+      setFinishingWorkout(false);
+    }
+  };
+
   const renderWorkoutItem = ({ item, index }: { item: Workout, index: number }) => {
     const isSelected = selectedWorkouts.includes(item.id);
     const isExpanded = expandedWorkouts.includes(item.id);
@@ -393,6 +418,14 @@ export default function HistoryScreen() {
               <Text style={[styles.summaryText, { color: colors.subtext }]}>
                 {item.completed_at ? 'Completed' : 'In Progress'}
               </Text>
+              {!item.completed_at && (
+                <TouchableOpacity 
+                  style={[styles.resumeButton, { backgroundColor: colors.primary }]}
+                  onPress={() => router.push({ pathname: "/workout/start", params: { workoutId: item.id } })}
+                >
+                  <Text style={styles.resumeButtonText}>Resume</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
           
@@ -430,6 +463,18 @@ export default function HistoryScreen() {
                     {item.routine_name || 'Custom Workout'}
                   </Text>
                 </View>
+                
+                {!item.completed_at && (
+                  <View style={styles.workoutActionsContainer}>
+                    <TouchableOpacity 
+                      style={[styles.finishWorkoutButton, { backgroundColor: colors.primary }]}
+                      onPress={() => finishWorkout(item.id)}
+                    >
+                      <FontAwesome name="check-circle" size={16} color="white" style={{ marginRight: 8 }} />
+                      <Text style={styles.finishWorkoutText}>Finish Workout</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </>
           )}
@@ -841,5 +886,33 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     fontWeight: '600',
+  },
+  resumeButton: {
+    marginLeft: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  resumeButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  workoutActionsContainer: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  finishWorkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  finishWorkoutText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
 }); 

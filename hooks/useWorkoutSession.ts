@@ -126,17 +126,18 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     let autoSaveTimer: number | null = null;
     
     if (workoutId && workoutStarted) {
-      // Auto-save every 2 minutes
+      // Auto-save every 30 seconds instead of 2 minutes
       autoSaveTimer = setInterval(() => {
-        // Only attempt to save if not currently saving and if it's been at least 30 seconds since last attempt
+        // Only attempt to save if not currently saving and if it's been at least 10 seconds since last attempt
+        // Reduced from 30 seconds to ensure more frequent saves
         const now = Date.now();
-        if (!saveInProgress.current && now - lastSaveAttempt.current >= 30000) {
+        if (!saveInProgress.current && now - lastSaveAttempt.current >= 10000) {
           console.log('Auto-saving workout progress...');
           saveWorkoutProgress(false).catch(error => {
             console.error('Auto-save failed:', error);
           });
         }
-      }, 2 * 60 * 1000); // 2 minutes
+      }, 30 * 1000); // 30 seconds instead of 2 minutes
     }
     
     return () => {
