@@ -64,8 +64,8 @@ export const ExerciseCard = ({
   onToggleMenu
 }: ExerciseCardProps) => {
   const router = useRouter();
-  const { theme } = useTheme();
-  const colorScheme = theme === 'system' ? 'light' : theme; // Default to light if system
+  const { theme, currentTheme } = useTheme();
+  const colorScheme = currentTheme; // Use the actual current theme from context
   const colors = Colors[colorScheme];
   // State for collapsible content
   const [isCollapsed, setIsCollapsed] = useState(false);
