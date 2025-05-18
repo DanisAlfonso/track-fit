@@ -29,11 +29,7 @@
         "android.permission.VIBRATE",
         "android.permission.RECORD_AUDIO"
       ],
-      "softwareKeyboardLayoutMode": "pan",
-      "statusBar": {
-        "backgroundColor": "#F8F8F8",
-        "translucent": false
-      }
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "bundler": "metro",
@@ -68,7 +64,8 @@
           "icon": "./assets/icons/adaptive-icon.png",
           "color": "#ffffff"
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true
