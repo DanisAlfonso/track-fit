@@ -555,33 +555,31 @@ export function useWorkoutDatabase() {
     try {
       const db = await getDatabase();
       
-      // Get the most recent completed workout for this routine
-      const recentWorkout = await db.getFirstAsync<{ id: number }>(
-        `SELECT id FROM workouts 
-         WHERE routine_id = ? AND completed_at IS NOT NULL 
-         ORDER BY date DESC LIMIT 1`,
-        [routineId]
-      );
-      
-      if (!recentWorkout) return new Map();
-      
       const workoutData = new Map<number, { reps: number, weight: number }[]>();
       
-      // For each exercise, get the sets data from the most recent workout
+      // For each exercise, find the most recent workout where that specific exercise was performed
       for (const exercise of exercises) {
-        const workoutExercise = await db.getFirstAsync<{ id: number }>(
-          `SELECT we.id 
+        // Find the most recent completed workout where this specific exercise was performed
+        const recentWorkoutExercise = await db.getFirstAsync<{ 
+          workout_exercise_id: number, 
+          workout_id: number, 
+          workout_date: string 
+        }>(
+          `SELECT we.id as workout_exercise_id, w.id as workout_id, w.date as workout_date
            FROM workout_exercises we
-           WHERE we.workout_id = ? AND we.exercise_id = ?`,
-          [recentWorkout.id, exercise.exercise_id]
+           JOIN workouts w ON we.workout_id = w.id
+           WHERE we.exercise_id = ? AND w.routine_id = ? AND w.completed_at IS NOT NULL
+           ORDER BY w.date DESC
+           LIMIT 1`,
+          [exercise.exercise_id, routineId]
         );
         
-        if (workoutExercise) {
+        if (recentWorkoutExercise) {
           const sets = await db.getAllAsync<{ set_number: number, reps: number, weight: number }>(
             `SELECT set_number, reps, weight FROM sets
              WHERE workout_exercise_id = ? AND completed = 1
              ORDER BY set_number`,
-            [workoutExercise.id]
+            [recentWorkoutExercise.workout_exercise_id]
           );
           
           if (sets.length > 0) {
