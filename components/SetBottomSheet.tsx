@@ -375,21 +375,47 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
                     <Text style={[styles.inputLabel, { color: colors.text }]}>Reps</Text>
                     <Text style={[styles.requiredIndicator, { color: colors.error }]}>*</Text>
                   </View>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: colors.text,
-                        borderColor: touchedFields.reps && setData.reps === 0 ? colors.error : colors.border,
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)'
-                      }
-                    ]}
-                    keyboardType="number-pad"
-                    value={setData.reps === 0 ? '' : setData.reps.toString()}
-                    onChangeText={(text) => handleInputChange('reps', text)}
-                    placeholder="0"
-                    placeholderTextColor={colors.subtext}
-                  />
+                  <View style={styles.inputWithControls}>
+                    <TouchableOpacity
+                      style={[
+                        styles.controlButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          borderColor: colors.border,
+                        }
+                      ]}
+                      onPress={() => handleInputChange('reps', Math.max(0, setData.reps - 1))}
+                    >
+                      <FontAwesome5 name="minus" size={12} color={colors.text} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[
+                        styles.inputWithControlsField,
+                        {
+                          color: colors.text,
+                          borderColor: touchedFields.reps && setData.reps === 0 ? colors.error : colors.border,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)'
+                        }
+                      ]}
+                      keyboardType="number-pad"
+                      value={setData.reps === 0 ? '' : setData.reps.toString()}
+                      onChangeText={(text) => handleInputChange('reps', text)}
+                      placeholder="0"
+                      placeholderTextColor={colors.subtext}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.controlButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          borderColor: colors.border,
+                        }
+                      ]}
+                      onPress={() => handleInputChange('reps', setData.reps + 1)}
+                    >
+                      <FontAwesome5 name="plus" size={12} color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
                   {touchedFields.reps && setData.reps === 0 && (
                     <Text style={[styles.errorText, { color: colors.error }]}>Required</Text>
                   )}
@@ -402,21 +428,47 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
                     <Text style={[styles.weightUnit, { color: colors.subtext }]}>({weightUnit})</Text>
                     <Text style={[styles.requiredIndicator, { color: colors.error }]}>*</Text>
                   </View>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: colors.text,
-                        borderColor: touchedFields.weight && setData.weight === 0 ? colors.error : colors.border,
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)'
-                      }
-                    ]}
-                    keyboardType="decimal-pad"
-                    value={setData.weight === 0 ? '' : setData.weight.toString()}
-                    onChangeText={(text) => handleInputChange('weight', text)}
-                    placeholder="0"
-                    placeholderTextColor={colors.subtext}
-                  />
+                  <View style={styles.inputWithControls}>
+                    <TouchableOpacity
+                      style={[
+                        styles.controlButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          borderColor: colors.border,
+                        }
+                      ]}
+                      onPress={() => handleInputChange('weight', Math.max(0, setData.weight - (weightUnit === 'lb' ? 2.5 : 1.25)))}
+                    >
+                      <FontAwesome5 name="minus" size={12} color={colors.text} />
+                    </TouchableOpacity>
+                    <TextInput
+                      style={[
+                        styles.inputWithControlsField,
+                        {
+                          color: colors.text,
+                          borderColor: touchedFields.weight && setData.weight === 0 ? colors.error : colors.border,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.03)'
+                        }
+                      ]}
+                      keyboardType="decimal-pad"
+                      value={setData.weight === 0 ? '' : setData.weight.toString()}
+                      onChangeText={(text) => handleInputChange('weight', text)}
+                      placeholder="0"
+                      placeholderTextColor={colors.subtext}
+                    />
+                    <TouchableOpacity
+                      style={[
+                        styles.controlButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          borderColor: colors.border,
+                        }
+                      ]}
+                      onPress={() => handleInputChange('weight', setData.weight + (weightUnit === 'lb' ? 2.5 : 1.25))}
+                    >
+                      <FontAwesome5 name="plus" size={12} color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
                   {touchedFields.weight && setData.weight === 0 && (
                     <Text style={[styles.errorText, { color: colors.error }]}>Required</Text>
                   )}
@@ -812,5 +864,28 @@ const styles = StyleSheet.create({
   previousPerformanceHint: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  inputWithControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  controlButton: {
+    width: 40,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  inputWithControlsField: {
+    flex: 1,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    padding: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    height: 48,
   },
 }); 

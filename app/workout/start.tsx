@@ -165,9 +165,34 @@ export default function StartWorkoutScreen() {
       setShowBottomSheetTimer(true);
     }
     
-    setCurrentSet({
-      ...setData
-    });
+    // Pre-populate with previous performance data if available and current set is empty
+    let updatedSetData = { ...setData };
+    
+    if (!setData.completed && setData.reps === 0 && setData.weight === 0) {
+      // Check if we have previous workout data for this exercise
+      if (previousWorkoutData.has(exercise.routine_exercise_id)) {
+        const prevSets = previousWorkoutData.get(exercise.routine_exercise_id)!;
+        if (prevSets.length > setIndex) {
+          // Use the corresponding set from previous workout
+          const prevSetData = prevSets[setIndex];
+          updatedSetData = {
+            ...setData,
+            reps: prevSetData.reps,
+            weight: prevSetData.weight
+          };
+        } else if (prevSets.length > 0) {
+          // If no corresponding set, use the last available set from previous workout
+          const lastPrevSet = prevSets[prevSets.length - 1];
+          updatedSetData = {
+            ...setData,
+            reps: lastPrevSet.reps,
+            weight: lastPrevSet.weight
+          };
+        }
+      }
+    }
+    
+    setCurrentSet(updatedSetData);
     
     // Show the set modal
     setSetModalVisible(true);

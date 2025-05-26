@@ -299,6 +299,7 @@ export function useWorkoutDatabase() {
       workoutStartTime: number;
     };
     exercises: WorkoutExercise[];
+    previousWorkoutData: Map<number, { reps: number, weight: number }[]>;
   }> => {
     setIsLoading(true);
     
@@ -449,13 +450,26 @@ export function useWorkoutDatabase() {
       // Sort workout exercises by order number
       workoutExercises.sort((a, b) => a.exercise_order - b.exercise_order);
       
+      // Load previous workout data for reference
+      const exerciseResults = routineExercises.map(re => ({
+        routine_exercise_id: re.id,
+        exercise_id: re.exercise_id,
+        name: re.name,
+        sets: re.sets,
+        exercise_order: re.order_num,
+        primary_muscle: re.primary_muscle,
+        category: re.category
+      }));
+      const previousWorkoutData = await loadPreviousWorkoutData(workout.routine_id, exerciseResults);
+      
       return {
         workoutData: {
           routineId: workout.routine_id,
           routineName: workout.name,
           workoutStartTime: workout.date
         },
-        exercises: workoutExercises
+        exercises: workoutExercises,
+        previousWorkoutData
       };
     } catch (error) {
       console.error('Error resuming workout:', error);

@@ -261,6 +261,9 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
       
       setExercises(result.exercises);
       
+      // Set previous workout data for reference
+      setPreviousWorkoutData(result.previousWorkoutData);
+      
       // Register with global workout context
       resumeWorkout();
       
