@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View, Dimensions, Vibration, Platform } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View, Dimensions, Vibration, Platform, TouchableWithoutFeedback } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/Colors';
@@ -16,6 +16,10 @@ interface RestTimerProps {
   onSkip: () => void;
   onAddTime: (seconds: number) => void;
   exerciseName?: string;
+  onDismiss?: (remainingTime: number) => void;
+  onRemainingTimeChange?: (remainingTime: number) => void;
+  isResumed?: boolean;
+  originalDuration?: number;
 }
 
 export const RestTimer: React.FC<RestTimerProps> = ({
@@ -24,7 +28,11 @@ export const RestTimer: React.FC<RestTimerProps> = ({
   onComplete,
   onSkip,
   onAddTime,
-  exerciseName
+  exerciseName,
+  onDismiss,
+  onRemainingTimeChange,
+  isResumed,
+  originalDuration
 }) => {
   const { theme } = useTheme();
   const colorScheme = useColorScheme();
@@ -55,10 +63,21 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       restStartTimeRef.current = now;
       restEndTimeRef.current = now + (duration * 1000);
 
+      // Calculate initial progress for resumed timers
+      let initialProgress = 0;
+      let effectiveInitialDuration = duration;
+      
+      if (isResumed && originalDuration) {
+        // For resumed timers, calculate progress based on how much time has elapsed
+        const elapsedTime = originalDuration - duration;
+        initialProgress = elapsedTime / originalDuration;
+        effectiveInitialDuration = originalDuration;
+      }
+
       // Reset state
       setRemainingTime(duration);
-      setInitialDuration(duration);
-      setProgress(0);
+      setInitialDuration(effectiveInitialDuration);
+      setProgress(initialProgress);
       timeoutFlash.setValue(0);
 
       // Animate timer in
@@ -106,7 +125,7 @@ export const RestTimer: React.FC<RestTimerProps> = ({
         animationFrameRef.current = null;
       }
     };
-  }, [visible, duration]);
+  }, [visible, duration, isResumed, originalDuration]);
 
   // Update rest timer using animation frames
   const updateRestTimer = () => {
@@ -126,9 +145,17 @@ export const RestTimer: React.FC<RestTimerProps> = ({
     const secondsRemaining = Math.ceil(remaining / 1000);
     const calculatedProgress = 1 - (remaining / totalDuration);
 
+    // Ensure progress doesn't exceed 1 and is at least 0
+    const clampedProgress = Math.min(1, Math.max(0, calculatedProgress));
+
     // Update state
     setRemainingTime(secondsRemaining);
-    setProgress(calculatedProgress);
+    setProgress(clampedProgress);
+
+    // Notify parent of remaining time change
+    if (onRemainingTimeChange) {
+      onRemainingTimeChange(secondsRemaining);
+    }
 
     // Vibrate at specific intervals
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -149,6 +176,10 @@ export const RestTimer: React.FC<RestTimerProps> = ({
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+    
+    // Ensure progress is set to 1 and force a re-render
+    setProgress(1);
+    setRemainingTime(0);
     
     // Vibrate the device
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
@@ -186,10 +217,10 @@ export const RestTimer: React.FC<RestTimerProps> = ({
     // Show toast to user
     showToast('Time to do your next set!', 'info');
     
-    // Call the onComplete callback after a short delay
+    // Call the onComplete callback after a short delay to ensure the UI updates
     setTimeout(() => {
       onComplete();
-    }, 600);
+    }, 700); // Slightly longer delay to ensure visual completion
   };
 
   // Handle adding time to the timer
@@ -216,127 +247,155 @@ export const RestTimer: React.FC<RestTimerProps> = ({
 
   const restColor = remainingTime < 5 ? '#FF3B30' : remainingTime < 15 ? '#FF9500' : '#34C759';
   const circumference = 2 * Math.PI * 88;
-  const strokeDashoffset = circumference * (1 - progress);
+  // Ensure strokeDashoffset is exactly 0 when progress is 1 (completed)
+  const strokeDashoffset = progress >= 1 ? 0 : circumference * (1 - progress);
 
   return (
-    <Animated.View
-      style={[
-        styles.restTimerContainer,
-        {
-          opacity: timerOpacity,
-          transform: [{ scale: timerScale }],
-          backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.98)',
-          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-          borderWidth: isDark ? 1 : 0,
-        }
-      ]}
-    >
-      <Animated.View 
-        style={[
-          StyleSheet.absoluteFill, 
-          { 
-            backgroundColor: '#FF3B30',
-            opacity: timeoutFlash 
-          }
-        ]} 
-      />
+    <View style={styles.container}>
+      {/* Backdrop */}
+      {onDismiss && (
+        <TouchableWithoutFeedback onPress={() => onDismiss(remainingTime)}>
+          <Animated.View
+            style={[
+              styles.backdrop,
+              { opacity: timerOpacity }
+            ]}
+          />
+        </TouchableWithoutFeedback>
+      )}
       
-      <View style={styles.restTimerContent}>
-        <Text style={[styles.restTimerTitle, { color: colors.text }]}>
-          Rest Time
-        </Text>
+      {/* Timer Content */}
+      <Animated.View
+        style={[
+          styles.restTimerContainer,
+          {
+            opacity: timerOpacity,
+            transform: [{ scale: timerScale }],
+            backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(255,255,255,0.98)',
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+            borderWidth: isDark ? 1 : 0,
+          }
+        ]}
+      >
+        <Animated.View 
+          style={[
+            StyleSheet.absoluteFill, 
+            { 
+              backgroundColor: '#FF3B30',
+              opacity: timeoutFlash 
+            }
+          ]} 
+        />
         
-        {exerciseName && (
-          <Text style={[styles.exerciseName, { color: colors.subtext }]}>
-            Next: {exerciseName}
+        <View style={styles.restTimerContent}>
+          <Text style={[styles.restTimerTitle, { color: colors.text }]}>
+            Rest Time
           </Text>
-        )}
+          
+          {exerciseName && (
+            <Text style={[styles.exerciseName, { color: colors.subtext }]}>
+              Next: {exerciseName}
+            </Text>
+          )}
 
-        <View style={styles.timerCircleContainer}>
-          <View style={styles.timerCircleOuter}>
-            <Svg width={200} height={200} style={StyleSheet.absoluteFill}>
-              <Circle
-                cx="100"
-                cy="100"
-                r="88"
-                strokeWidth="10"
-                stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
-                fill="transparent"
-              />
-              <Circle
-                cx="100"
-                cy="100"
-                r="88"
-                strokeWidth="10"
-                stroke={restColor}
-                fill="transparent"
-                strokeDasharray={circumference}
-                strokeDashoffset={strokeDashoffset}
-                strokeLinecap="round"
-                transform={`rotate(-90, 100, 100)`}
-              />
-            </Svg>
+          <View style={styles.timerCircleContainer}>
+            <View style={styles.timerCircleOuter}>
+              <Svg width={200} height={200} style={StyleSheet.absoluteFill}>
+                <Circle
+                  cx="100"
+                  cy="100"
+                  r="88"
+                  strokeWidth="10"
+                  stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
+                  fill="transparent"
+                />
+                <Circle
+                  cx="100"
+                  cy="100"
+                  r="88"
+                  strokeWidth="10"
+                  stroke={restColor}
+                  fill="transparent"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  transform={`rotate(-90, 100, 100)`}
+                />
+              </Svg>
 
-            <View style={styles.timerCircleInner}>
-              <Text style={[styles.timerText, { color: colors.text }]}>
-                {formatTime(remainingTime)}
-              </Text>
-              <Text style={[styles.timerSubtext, { color: colors.subtext }]}>
-                remaining
-              </Text>
+              <View style={styles.timerCircleInner}>
+                <Text style={[styles.timerText, { color: colors.text }]}>
+                  {formatTime(remainingTime)}
+                </Text>
+                <Text style={[styles.timerSubtext, { color: colors.subtext }]}>
+                  remaining
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.restTimerActions}>
-          <Text style={[styles.addTimeLabel, { color: colors.subtext }]}>
-            Add time
-          </Text>
-
-          <View style={styles.addTimeButtons}>
-            {[15, 30, 60].map(time => (
-              <TouchableOpacity
-                key={time}
-                style={[
-                  styles.addTimeButton,
-                  { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
-                ]}
-                onPress={() => handleAddTime(time)}
-              >
-                <Text style={[styles.addTimeButtonText, { color: colors.text }]}>
-                  +{time}s
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity
-            style={[
-              styles.skipButton,
-              { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.primary + '15' }
-            ]}
-            onPress={onSkip}
-          >
-            <FontAwesome5 name="forward" size={14} color={isDark ? colors.text : colors.primary} style={styles.skipButtonIcon} />
-            <Text style={[styles.skipButtonText, { color: isDark ? colors.text : colors.primary }]}>
-              Skip Rest
+          <View style={styles.restTimerActions}>
+            <Text style={[styles.addTimeLabel, { color: colors.subtext }]}>
+              Add time
             </Text>
-          </TouchableOpacity>
+
+            <View style={styles.addTimeButtons}>
+              {[15, 30, 60].map(time => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.addTimeButton,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)' }
+                  ]}
+                  onPress={() => handleAddTime(time)}
+                >
+                  <Text style={[styles.addTimeButtonText, { color: colors.text }]}>
+                    +{time}s
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.skipButton,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : colors.primary + '15' }
+              ]}
+              onPress={onSkip}
+            >
+              <FontAwesome5 name="forward" size={14} color={isDark ? colors.text : colors.primary} style={styles.skipButtonIcon} />
+              <Text style={[styles.skipButtonText, { color: isDark ? colors.text : colors.primary }]}>
+                Skip Rest
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  restTimerContainer: {
+  container: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  restTimerContainer: {
     width: width * 0.85,
     maxWidth: 360,
-    marginLeft: -(width * 0.85) / 2,
-    marginTop: -200,
     borderRadius: 28,
     overflow: 'hidden',
     shadowColor: '#000',

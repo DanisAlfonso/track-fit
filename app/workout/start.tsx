@@ -85,6 +85,8 @@ export default function StartWorkoutScreen() {
     minimizeWorkoutAndSave,
     calculateProgressPercentage,
     setWorkoutDuration,
+    saveDismissedRestTimer,
+    loadDismissedRestTimer,
     addExerciseToWorkout
   } = useWorkoutSession(routineId, existingWorkoutId);
   
@@ -115,8 +117,28 @@ export default function StartWorkoutScreen() {
   const [overflowMenuVisible, setOverflowMenuVisible] = useState(false);
   const [musclePopupVisible, setMusclePopupVisible] = useState(false);
   
+  // Add state for dismissed rest timer
+  const [dismissedRestTimer, setDismissedRestTimer] = useState<{
+    exerciseName: string;
+    duration: number;
+    startTime: number;
+    originalDuration: number;
+  } | null>(null);
+  
+  // Add state to track if we're resuming a timer
+  const [resumingTimer, setResumingTimer] = useState(false);
+  
+  // Add state to track original duration for resumed timers
+  const [resumedTimerOriginalDuration, setResumedTimerOriginalDuration] = useState<number | undefined>(undefined);
+  
+  // Animation value for floating rest button
+  const floatingRestAnimation = useRef(new Animated.Value(0)).current;
+  
   // Replace the scrollToMuscle function to use a callback instead of direct ref access
   const [scrollToMuscleCallback, setScrollToMuscleCallback] = useState<((muscle: string) => void) | null>(null);
+  
+  // Real-time countdown for dismissed timer
+  const [dismissedTimerRemaining, setDismissedTimerRemaining] = useState(0);
   
   // Auto-start workout if skipReady is 'true'
   useEffect(() => {
@@ -125,6 +147,49 @@ export default function StartWorkoutScreen() {
     }
   }, [skipReady, routineId, workoutStarted, existingWorkoutId, isLoading]);
 
+  // Load dismissed rest timer state when workout is started or resumed
+  useEffect(() => {
+    if (workoutStarted && workoutId) {
+      loadDismissedRestTimer().then(timerData => {
+        if (timerData) {
+          // Check if the timer is still valid (not expired)
+          const elapsed = Math.floor((Date.now() - timerData.startTime) / 1000);
+          const remaining = Math.max(0, timerData.duration - elapsed);
+          
+          if (remaining > 0) {
+            // Update the timer with current remaining time
+            setDismissedRestTimer({
+              ...timerData,
+              duration: remaining,
+              startTime: Date.now()
+            });
+          } else {
+            // Timer has expired, clear it from database
+            saveDismissedRestTimer(null);
+          }
+        }
+      }).catch(error => {
+        console.error('Error loading dismissed rest timer:', error);
+      });
+    }
+  }, [workoutStarted, workoutId]);
+
+  // Separate effect to handle animation when dismissedRestTimer changes
+  useEffect(() => {
+    if (dismissedRestTimer) {
+      // Animate in the floating button
+      Animated.spring(floatingRestAnimation, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }).start();
+    } else {
+      // Reset animation value when timer is cleared
+      floatingRestAnimation.setValue(0);
+    }
+  }, [dismissedRestTimer]);
+
   // When leaving the screen, handle minimization
   useEffect(() => {
     return () => {
@@ -132,6 +197,9 @@ export default function StartWorkoutScreen() {
       if (workoutId && workoutStarted) {
         minimizeWorkoutAndSave();
       }
+      
+      // Clean up animation
+      floatingRestAnimation.removeAllListeners();
     };
   }, [workoutId, workoutStarted]);
 
@@ -209,6 +277,97 @@ export default function StartWorkoutScreen() {
       startRestTimer(restTime);
     }
   };
+
+  // Handle rest timer dismissal
+  const handleRestTimerDismissed = (exerciseName: string, remainingTime: number) => {
+    const timerData = {
+      exerciseName,
+      duration: remainingTime, // Store the remaining time, not the original duration
+      startTime: Date.now(),
+      originalDuration: currentSet.rest_time // Store the original duration from currentSet
+    };
+    
+    setDismissedRestTimer(timerData);
+    
+    // Save to database
+    saveDismissedRestTimer(timerData).catch(error => {
+      console.error('Error saving dismissed rest timer:', error);
+    });
+  };
+
+  // Handle resuming dismissed rest timer
+  const resumeRestTimer = () => {
+    if (!dismissedRestTimer) return;
+    
+    const remaining = dismissedTimerRemaining;
+    
+    if (remaining > 0) {
+      // Resume with remaining time - start standalone timer directly
+      setCurrentSet(prev => ({ 
+        ...prev, 
+        rest_time: remaining
+      }));
+      setActiveRestExercise(dismissedRestTimer.exerciseName);
+      setResumedTimerOriginalDuration(dismissedRestTimer.originalDuration);
+      setResumingTimer(true);
+      setIsResting(true);
+      // Don't open the modal, just start the timer
+    }
+    
+    setDismissedRestTimer(null);
+    
+    // Clear from database
+    saveDismissedRestTimer(null).catch(error => {
+      console.error('Error clearing dismissed rest timer:', error);
+    });
+  };
+
+  // Clear dismissed timer when it expires
+  useEffect(() => {
+    if (!dismissedRestTimer) return;
+    
+    const timer = setTimeout(() => {
+      setDismissedRestTimer(null);
+      
+      // Clear from database when timer expires
+      saveDismissedRestTimer(null).catch(error => {
+        console.error('Error clearing expired dismissed rest timer:', error);
+      });
+    }, dismissedRestTimer.duration * 1000);
+    
+    return () => clearTimeout(timer);
+  }, [dismissedRestTimer]);
+
+  // Real-time countdown for dismissed timer
+  useEffect(() => {
+    if (!dismissedRestTimer) {
+      setDismissedTimerRemaining(0);
+      return;
+    }
+    
+    const updateRemaining = () => {
+      const elapsed = Math.floor((Date.now() - dismissedRestTimer.startTime) / 1000);
+      const remaining = Math.max(0, dismissedRestTimer.duration - elapsed);
+      setDismissedTimerRemaining(remaining);
+      
+      if (remaining <= 0) {
+        setDismissedRestTimer(null);
+        
+        // Clear from database when timer reaches 0
+        saveDismissedRestTimer(null).catch(error => {
+          console.error('Error clearing expired dismissed rest timer:', error);
+        });
+      }
+    };
+    
+    // Update immediately
+    updateRemaining();
+    
+    // Update every second
+    const interval = setInterval(updateRemaining, 1000);
+    
+    return () => clearInterval(interval);
+  }, [dismissedRestTimer]);
 
   // Handle closing the set modal
   const handleSetBottomSheetClose = () => {
@@ -592,6 +751,104 @@ export default function StartWorkoutScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
+
+          {/* Floating Resume Rest Button */}
+          {dismissedRestTimer && (
+            <Animated.View style={[
+              styles.floatingRestButtonContainer,
+              {
+                transform: [
+                  {
+                    translateY: floatingRestAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [100, 0],
+                    }),
+                  },
+                  {
+                    scale: floatingRestAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+                opacity: floatingRestAnimation,
+              }
+            ]}>
+              <TouchableOpacity
+                style={[styles.floatingRestButton, { 
+                  backgroundColor: colors.primary,
+                  shadowColor: colors.primary,
+                }]}
+                onPress={resumeRestTimer}
+                activeOpacity={0.8}
+              >
+                <View style={styles.floatingRestContent}>
+                  <View style={styles.floatingRestIconSection}>
+                    <FontAwesome5 name="play" size={16} color="white" />
+                    <View style={styles.floatingRestProgressRing}>
+                      <Progress.Circle 
+                        size={32}
+                        progress={dismissedTimerRemaining / dismissedRestTimer.originalDuration}
+                        color="white"
+                        unfilledColor="rgba(255, 255, 255, 0.3)"
+                        borderWidth={0}
+                        thickness={2}
+                        showsText={false}
+                      />
+                      <Text style={styles.floatingRestProgressText}>
+                        {dismissedTimerRemaining}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.floatingRestTextSection}>
+                    <Text style={styles.floatingRestTitle}>Resume Rest</Text>
+                    <Text style={styles.floatingRestSubtitle}>
+                      {dismissedRestTimer.exerciseName} • {Math.floor(dismissedTimerRemaining / 60)}:{(dismissedTimerRemaining % 60).toString().padStart(2, '0')}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* Standalone Rest Timer for resumed timers */}
+          {isResting && !setModalVisible && (
+            <RestTimer
+              key={resumingTimer ? `resumed-timer-${currentSet.rest_time}` : 'standalone-timer'}
+              visible={true}
+              duration={currentSet.rest_time}
+              isResumed={resumingTimer}
+              originalDuration={resumedTimerOriginalDuration}
+              onComplete={() => {
+                setIsResting(false);
+                setResumingTimer(false);
+                setResumedTimerOriginalDuration(undefined);
+                showToast('Rest time complete!', 'success');
+              }}
+              onSkip={() => {
+                setIsResting(false);
+                setResumingTimer(false);
+                setResumedTimerOriginalDuration(undefined);
+              }}
+              onDismiss={(remainingTime) => {
+                // Handle dismissal - same logic as before
+                if (activeRestExercise) {
+                  handleRestTimerDismissed(activeRestExercise, remainingTime);
+                }
+                setIsResting(false);
+                setResumingTimer(false);
+                setResumedTimerOriginalDuration(undefined);
+              }}
+              onAddTime={(seconds) => {
+                setCurrentSet(prev => ({
+                  ...prev,
+                  rest_time: prev.rest_time + seconds
+                }));
+              }}
+              exerciseName={activeRestExercise || undefined}
+            />
+          )}
         </>
       )}
       
@@ -610,6 +867,7 @@ export default function StartWorkoutScreen() {
         }
         showRestTimer={showBottomSheetTimer}
         nextExerciseName={activeRestExercise || undefined}
+        onRestTimerDismissed={handleRestTimerDismissed}
       />
       
       {/* Use the FinishWorkoutModal component */}
@@ -851,5 +1109,63 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 6,
+  },
+  // Floating Resume Rest Button styles
+  floatingRestButtonContainer: {
+    position: 'absolute',
+    bottom: 100, // Position above the finish button
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+  },
+  floatingRestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    maxWidth: 320,
+    width: '100%',
+  },
+  floatingRestContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  floatingRestIconSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  floatingRestProgressRing: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  floatingRestProgressText: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'white',
+    textAlign: 'center',
+  },
+  floatingRestTextSection: {
+    flex: 1,
+  },
+  floatingRestTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 2,
+  },
+  floatingRestSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });

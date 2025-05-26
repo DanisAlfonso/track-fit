@@ -632,6 +632,63 @@ export function useWorkoutDatabase() {
     }
   };
 
+  /**
+   * Save dismissed rest timer state to the database
+   */
+  const saveDismissedRestTimer = async (
+    workoutId: number | null,
+    dismissedRestTimer: {
+      exerciseName: string;
+      duration: number;
+      startTime: number;
+      originalDuration: number;
+    } | null
+  ): Promise<void> => {
+    if (!workoutId) return;
+    
+    try {
+      const db = await getDatabase();
+      const timerData = dismissedRestTimer ? JSON.stringify(dismissedRestTimer) : null;
+      
+      await db.runAsync(
+        'UPDATE workouts SET dismissed_rest_timer = ? WHERE id = ?',
+        [timerData, workoutId]
+      );
+    } catch (error) {
+      console.error('Error saving dismissed rest timer:', error);
+    }
+  };
+
+  /**
+   * Load dismissed rest timer state from the database
+   */
+  const loadDismissedRestTimer = async (
+    workoutId: number
+  ): Promise<{
+    exerciseName: string;
+    duration: number;
+    startTime: number;
+    originalDuration: number;
+  } | null> => {
+    try {
+      const db = await getDatabase();
+      
+      const result = await db.getFirstAsync<{ dismissed_rest_timer: string | null }>(
+        'SELECT dismissed_rest_timer FROM workouts WHERE id = ?',
+        [workoutId]
+      );
+      
+      if (result?.dismissed_rest_timer) {
+        return JSON.parse(result.dismissed_rest_timer);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error loading dismissed rest timer:', error);
+      return null;
+    }
+  };
+
   return {
     isLoading,
     saveWorkoutProgress,
@@ -640,6 +697,8 @@ export function useWorkoutDatabase() {
     loadRoutineExercises,
     loadPreviousWorkoutData,
     createNewWorkout,
+    saveDismissedRestTimer,
+    loadDismissedRestTimer,
     workoutStartTime: workoutStartTime
   };
 } 

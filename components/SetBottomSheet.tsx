@@ -65,6 +65,7 @@ interface SetBottomSheetProps {
   previousPerformance?: PreviousSet;
   showRestTimer?: boolean;
   nextExerciseName?: string;
+  onRestTimerDismissed?: (exerciseName: string, remainingTime: number) => void;
 }
 
 export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
@@ -76,7 +77,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   weightUnit,
   previousPerformance,
   showRestTimer = true,
-  nextExerciseName
+  nextExerciseName,
+  onRestTimerDismissed
 }) => {
   const { theme } = useTheme();
   const colorScheme = useColorScheme();
@@ -94,6 +96,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   const [showBottomSheet, setShowBottomSheet] = useState(true);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [shouldBlockClose, setShouldBlockClose] = useState(false);
+  const [currentRemainingTime, setCurrentRemainingTime] = useState(0);
   const savedRef = useRef(false);
   
   // Animation values
@@ -272,6 +275,24 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   
   // Handle timer skip
   const handleTimerSkip = () => {
+    // When skipping rest, we don't want to create a dismissed timer state
+    // The user intentionally wants to skip the rest period completely
+    
+    setIsTimerActive(false);
+    setShowBottomSheet(true);
+    setShouldBlockClose(false);
+    onClose();
+  };
+  
+  // Handle timer dismiss (tap outside)
+  const handleTimerDismiss = () => {
+    // When dismissing by tapping outside, we want to create a dismissed timer state
+    // so the user can resume the timer later
+    
+    if (exerciseName && onRestTimerDismissed) {
+      onRestTimerDismissed(exerciseName, currentRemainingTime);
+    }
+    
     setIsTimerActive(false);
     setShowBottomSheet(true);
     setShouldBlockClose(false);
@@ -620,7 +641,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     >
       <View style={styles.container}>
         {/* Backdrop with blur */}
-        <TouchableWithoutFeedback onPress={isTimerActive ? handleTimerSkip : handleClose}>
+        <TouchableWithoutFeedback onPress={isTimerActive ? handleTimerDismiss : handleClose}>
           <Animated.View
             style={[
               styles.backdrop,
@@ -645,6 +666,8 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
           onComplete={handleTimerComplete}
           onSkip={handleTimerSkip}
           onAddTime={handleAddTime}
+          onRemainingTimeChange={setCurrentRemainingTime}
+          onDismiss={handleTimerDismiss}
           exerciseName={nextExerciseName || exerciseName}
         />
       </View>

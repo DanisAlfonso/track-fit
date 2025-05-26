@@ -87,6 +87,8 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     resumeExistingWorkout: dbResumeExistingWorkout, 
     loadRoutineExercises: dbLoadRoutineExercises,
     createNewWorkout: dbCreateNewWorkout,
+    saveDismissedRestTimer: dbSaveDismissedRestTimer,
+    loadDismissedRestTimer: dbLoadDismissedRestTimer,
     workoutStartTime: dbWorkoutStartTime
   } = useWorkoutDatabase();
 
@@ -276,6 +278,30 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     }
     
     return true;
+  };
+
+  // Dismissed rest timer management functions
+  const saveDismissedRestTimer = async (dismissedRestTimer: {
+    exerciseName: string;
+    duration: number;
+    startTime: number;
+    originalDuration: number;
+  } | null) => {
+    if (workoutId) {
+      await dbSaveDismissedRestTimer(workoutId, dismissedRestTimer);
+    }
+  };
+
+  const loadDismissedRestTimer = async (): Promise<{
+    exerciseName: string;
+    duration: number;
+    startTime: number;
+    originalDuration: number;
+  } | null> => {
+    if (workoutId) {
+      return await dbLoadDismissedRestTimer(workoutId);
+    }
+    return null;
   };
 
   const startWorkout = async () => {
@@ -513,6 +539,8 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     minimizeWorkoutAndSave,
     calculateProgressPercentage,
     setWorkoutDuration,
+    saveDismissedRestTimer,
+    loadDismissedRestTimer,
     
     // New method to add a new exercise to the current workout
     addExerciseToWorkout: async (exerciseId: number, exerciseName: string, primaryMuscle: string, category: string) => {

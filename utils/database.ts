@@ -52,6 +52,24 @@ export const migrateDatabase = async (): Promise<void> => {
       console.log('Training type column added successfully');
     }
 
+    // Check if dismissed_rest_timer column exists in workouts table
+    const workoutsTableInfo = await database.getAllAsync(
+      "PRAGMA table_info(workouts)"
+    );
+    
+    const hasDismissedRestTimerColumn = workoutsTableInfo.some((column: any) => 
+      column.name === 'dismissed_rest_timer'
+    );
+    
+    // Add dismissed_rest_timer column if it doesn't exist
+    if (!hasDismissedRestTimerColumn) {
+      console.log('Adding dismissed_rest_timer column to workouts table...');
+      await database.execAsync(
+        'ALTER TABLE workouts ADD COLUMN dismissed_rest_timer TEXT;'
+      );
+      console.log('Dismissed rest timer column added successfully');
+    }
+
     // Check if weekly_schedule table needs to be modified for multiple routines per day
     try {
       // Try to insert two routines for the same day to see if it fails
@@ -172,6 +190,7 @@ export const initDatabase = async (): Promise<void> => {
         completed_at INTEGER,
         duration INTEGER, -- Duration in seconds
         notes TEXT,
+        dismissed_rest_timer TEXT, -- JSON string for dismissed rest timer state
         FOREIGN KEY (routine_id) REFERENCES routines (id) ON DELETE CASCADE
       );
 
