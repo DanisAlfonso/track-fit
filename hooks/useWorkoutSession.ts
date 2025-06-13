@@ -4,6 +4,7 @@ import { useWorkoutDatabase } from './useWorkoutDatabase';
 import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
 import { WeightUnit, getWeightUnitPreference, kgToLb, lbToKg } from '@/app/(tabs)/profile';
+import { getDatabase } from '@/utils/database';
 
 // Types
 export type Exercise = {
@@ -549,10 +550,46 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
         return false;
       }
       
+      if (!routineId) {
+        showToast('No routine ID available', 'error');
+        return false;
+      }
+      
       try {
+        const db = await getDatabase();
+        const parsedRoutineId = parseInt(String(routineId), 10);
+        
+        // Check if this exercise is already in the routine
+        const existingRoutineExercise = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM routine_exercises WHERE routine_id = ? AND exercise_id = ?',
+          [parsedRoutineId, exerciseId]
+        );
+        
+        let routineExerciseId: number;
+        
+        if (existingRoutineExercise) {
+          // Exercise already exists in routine, use existing ID
+          routineExerciseId = existingRoutineExercise.id;
+        } else {
+          // Add exercise to routine permanently
+          const maxOrderResult = await db.getFirstAsync<{ max_order: number | null }>(
+            'SELECT MAX(order_num) as max_order FROM routine_exercises WHERE routine_id = ?',
+            [parsedRoutineId]
+          );
+          
+          const nextOrder = (maxOrderResult?.max_order || 0) + 1;
+          
+          const routineExerciseResult = await db.runAsync(
+            'INSERT INTO routine_exercises (routine_id, exercise_id, order_num, sets) VALUES (?, ?, ?, ?)',
+            [parsedRoutineId, exerciseId, nextOrder, 3] // Default 3 sets
+          );
+          
+          routineExerciseId = routineExerciseResult.lastInsertRowId as number;
+        }
+        
         // Create a new exercise entry to add to the current workout
         const newExercise: WorkoutExercise = {
-          routine_exercise_id: -1, // Will be replaced with actual ID after saving
+          routine_exercise_id: routineExerciseId,
           exercise_id: exerciseId,
           name: exerciseName,
           sets: 3, // Default of 3 sets
@@ -583,7 +620,11 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
         // Save to database to persist the changes
         await saveWorkoutProgress(true);
         
-        showToast(`${exerciseName} added to workout`, 'success');
+        if (existingRoutineExercise) {
+          showToast(`${exerciseName} added to workout`, 'success');
+        } else {
+          showToast(`${exerciseName} added to workout and routine`, 'success');
+        }
         return true;
       } catch (error) {
         console.error('Error adding exercise to workout:', error);
@@ -592,4 +633,4 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
       }
     }
   };
-} 
+}
