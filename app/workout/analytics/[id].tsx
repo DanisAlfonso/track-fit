@@ -1064,10 +1064,10 @@ export default function WorkoutAnalyticsScreen() {
                 {Object.entries(muscleGroups)
                   .sort(([, a], [, b]) => b - a)
                   .slice(0, 6)
-                  .map(([muscleName, volume], index) => {
-                    // Calculate percentage of this muscle group's volume compared to the highest
-                    const maxVolume = Math.max(...Object.values(muscleGroups));
-                    const percentage = Math.round((volume / maxVolume) * 100);
+                  .map(([muscleName, volume], index, sortedArray) => {
+                    // Calculate percentage of this muscle group's volume compared to highest volume muscle group
+                    const highestVolume = sortedArray[0][1];
+                    const percentage = Math.round((volume / highestVolume) * 100);
                     const barColor = chartColors[index % chartColors.length];
                     
                     return (
@@ -1089,7 +1089,7 @@ export default function WorkoutAnalyticsScreen() {
                             ]} 
                           />
                           {/* Add percentage label inside bar for better visualization */}
-                          {percentage > 15 && (
+                          {percentage > 5 && (
                             <Text style={styles.muscleBarPercentage}>
                               {percentage}%
                             </Text>
