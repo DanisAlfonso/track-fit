@@ -10,6 +10,40 @@ import { getDatabase } from '../utils/database';
 import { LineChart, PieChart } from 'react-native-gifted-charts';
 import { useTheme } from '@/context/ThemeContext';
 
+// 1RM Calculation Functions
+const calculate1RM = {
+  // Brzycki formula: weight × (36 / (37 - reps))
+  brzycki: (weight: number, reps: number): number => {
+    if (reps === 1) return weight;
+    if (reps >= 37) return weight; // Formula breaks down at high reps
+    return weight * (36 / (37 - reps));
+  },
+  
+  // Epley formula: weight × (1 + reps/30)
+  epley: (weight: number, reps: number): number => {
+    if (reps === 1) return weight;
+    return weight * (1 + reps / 30);
+  },
+  
+  // McGlothin formula: weight × (100 / (101.3 - 2.67123 × reps))
+  mcglothin: (weight: number, reps: number): number => {
+    if (reps === 1) return weight;
+    return weight * (100 / (101.3 - 2.67123 * reps));
+  },
+  
+  // Average of multiple formulas for better accuracy
+  average: (weight: number, reps: number): number => {
+    if (reps === 1) return weight;
+    if (reps > 15) return weight; // Formulas become unreliable at very high reps
+    
+    const brzycki = calculate1RM.brzycki(weight, reps);
+    const epley = calculate1RM.epley(weight, reps);
+    const mcglothin = calculate1RM.mcglothin(weight, reps);
+    
+    return (brzycki + epley + mcglothin) / 3;
+  }
+};
+
 // Types
 interface WorkoutSummary {
   id: number;
@@ -48,6 +82,18 @@ interface TrainingTypeDistribution {
   unspecified: number;
 }
 
+interface StrengthProgression {
+  exercise_id: number;
+  exercise_name: string;
+  data: {
+    date: string;
+    max_weight: number;
+    total_volume: number;
+    best_set_reps: number;
+    estimated_1rm: number;
+  }[];
+}
+
 export default function WorkoutAnalyticsScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -64,7 +110,8 @@ export default function WorkoutAnalyticsScreen() {
   const [volumeTrends, setVolumeTrends] = useState<VolumeTrend[]>([]);
   const [muscleGroupVolumes, setMuscleGroupVolumes] = useState<MuscleGroupVolume[]>([]);
   const [exerciseTrends, setExerciseTrends] = useState<ExerciseTrend[]>([]);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'volume' | 'muscles' | 'exercises'>('overview');
+  const [strengthProgressions, setStrengthProgressions] = useState<StrengthProgression[]>([]);
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'volume' | 'muscles' | 'exercises' | 'strength'>('overview');
   const [trainingTypeVolumes, setTrainingTypeVolumes] = useState<TrainingTypeDistribution>({
     heavy: 0,
     moderate: 0,
@@ -99,6 +146,9 @@ export default function WorkoutAnalyticsScreen() {
         
         // Load exercise trends
         await loadExerciseTrends(db);
+        
+        // Load strength progressions
+        await loadStrengthProgressions(db);
         
         // Load training type distribution
         await loadTrainingTypeDistribution(db);
@@ -314,6 +364,86 @@ export default function WorkoutAnalyticsScreen() {
       }
     };
 
+    const loadStrengthProgressions = async (db: any) => {
+      if (!isMounted) return;
+      
+      try {
+        // Get top exercises by frequency (exercises done most often)
+        const topExercises = await db.getAllAsync(`
+          SELECT 
+            e.id,
+            e.name,
+            COUNT(DISTINCT w.id) as workout_count
+          FROM workouts w
+          JOIN workout_exercises we ON w.id = we.workout_id
+          JOIN exercises e ON we.exercise_id = e.id
+          WHERE w.completed_at IS NOT NULL
+          GROUP BY e.id
+          ORDER BY workout_count DESC
+          LIMIT 8
+        `);
+        
+        if (!isMounted) return;
+        
+        const progressions: StrengthProgression[] = [];
+        
+        for (const exercise of topExercises) {
+          if (!isMounted) return;
+          
+          // Get strength progression data for each exercise with best set details
+          const progressionData = await db.getAllAsync(`
+            SELECT 
+              w.date,
+              s.weight as best_weight,
+              s.reps as best_reps,
+              MAX(s.weight) as max_weight,
+              SUM(s.weight * s.reps) as total_volume
+            FROM workouts w
+            JOIN workout_exercises we ON w.id = we.workout_id
+            JOIN sets s ON we.id = s.workout_exercise_id
+            WHERE w.completed_at IS NOT NULL 
+              AND we.exercise_id = ?
+              AND s.weight > 0
+              AND s.weight = (
+                SELECT MAX(s2.weight)
+                FROM sets s2
+                JOIN workout_exercises we2 ON s2.workout_exercise_id = we2.id
+                WHERE we2.workout_id = w.id AND we2.exercise_id = ?
+              )
+            GROUP BY w.date
+            ORDER BY w.date ASC
+            LIMIT 20
+          `, [exercise.id, exercise.id]);
+          
+          if (progressionData.length > 0) {
+            progressions.push({
+              exercise_id: exercise.id,
+              exercise_name: exercise.name,
+              data: progressionData.map((data: any) => {
+                const weight = data.best_weight || 0;
+                const reps = data.best_reps || 0;
+                const estimated1RM = weight > 0 && reps > 0 ? calculate1RM.average(weight, reps) : 0;
+                
+                return {
+                  date: data.date,
+                  max_weight: data.max_weight || 0,
+                  total_volume: data.total_volume || 0,
+                  best_set_reps: reps,
+                  estimated_1rm: Math.round(estimated1RM * 10) / 10 // Round to 1 decimal place
+                };
+              })
+            });
+          }
+        }
+        
+        if (isMounted) {
+          setStrengthProgressions(progressions);
+        }
+      } catch (error) {
+        console.error('Error loading strength progressions:', error);
+      }
+    };
+
     const loadTrainingTypeDistribution = async (db: any) => {
       if (!isMounted) return;
       
@@ -376,87 +506,53 @@ export default function WorkoutAnalyticsScreen() {
   
   // Render tab selector
   const renderTabSelector = () => {
+    const tabs = [
+      { key: 'overview', label: 'Overview', icon: 'analytics-outline' },
+      { key: 'volume', label: 'Volume', icon: 'bar-chart-outline' },
+      { key: 'muscles', label: 'Muscles', icon: 'body-outline' },
+      { key: 'exercises', label: 'Exercises', icon: 'fitness-outline' },
+      { key: 'strength', label: 'Strength', icon: 'trending-up-outline' }
+    ];
+
     return (
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            { borderColor: colors.border },
-            selectedTab === 'overview' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('overview')}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabScrollContainer}
+          style={styles.tabScrollView}
         >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: colors.text },
-            selectedTab === 'overview' && {color: '#fff'}
-          ]}>
-            Overview
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            { borderColor: colors.border },
-            selectedTab === 'volume' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('volume')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: colors.text },
-            selectedTab === 'volume' && {color: '#fff'}
-          ]}>
-            Volume
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            { borderColor: colors.border },
-            selectedTab === 'muscles' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('muscles')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: colors.text },
-            selectedTab === 'muscles' && {color: '#fff'}
-          ]}>
-            Muscles
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            { borderColor: colors.border },
-            selectedTab === 'exercises' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('exercises')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: colors.text },
-            selectedTab === 'exercises' && {color: '#fff'}
-          ]}>
-            Exercises
-          </Text>
-        </TouchableOpacity>
+          {tabs.map((tab, index) => (
+            <TouchableOpacity 
+              key={tab.key}
+              style={[
+                styles.tabButton, 
+                { borderColor: colors.border },
+                selectedTab === tab.key && {
+                  backgroundColor: colors.primary, 
+                  borderColor: colors.primary
+                },
+                index === 0 && styles.firstTabButton,
+                index === tabs.length - 1 && styles.lastTabButton
+              ]} 
+              onPress={() => setSelectedTab(tab.key as any)}
+            >
+              <Ionicons 
+                name={tab.icon as any} 
+                size={18} 
+                color={selectedTab === tab.key ? '#fff' : colors.primary} 
+                style={styles.tabIcon}
+              />
+              <Text style={[
+                styles.tabButtonText, 
+                { color: colors.text },
+                selectedTab === tab.key && {color: '#fff'}
+              ]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -1676,6 +1772,172 @@ export default function WorkoutAnalyticsScreen() {
     );
   };
 
+  // Render strength progression tab content
+  const renderStrengthTab = () => {
+    const lightBackgroundColor = currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)';
+    
+    return (
+      <View style={styles.tabContent}>
+        <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Strength Progression Charts
+          </Text>
+          
+          {strengthProgressions.length > 0 ? (
+            <View style={styles.exerciseTrendsContainer}>
+              {strengthProgressions.map((progression, index) => {
+                if (progression.data.length === 0) return null;
+                
+                // Calculate strength trend (max weight progression)
+                let strengthTrend = 0;
+                if (progression.data.length >= 2) {
+                  const firstWeight = progression.data[0].max_weight;
+                  const lastWeight = progression.data[progression.data.length - 1].max_weight;
+                  strengthTrend = firstWeight > 0 
+                    ? ((lastWeight - firstWeight) / firstWeight) * 100
+                    : 0;
+                }
+                
+                // Get current max weight and best performance
+                const currentMaxWeight = Math.max(...progression.data.map(d => d.max_weight));
+                const totalSessions = progression.data.length;
+                const avgVolume = progression.data.reduce((sum, d) => sum + d.total_volume, 0) / totalSessions;
+                
+                return (
+                  <View key={index} style={[styles.exerciseCard, { backgroundColor: lightBackgroundColor }]}>
+                    <View style={styles.exerciseCardHeader}>
+                      <Text style={[styles.exerciseName, { color: colors.text }]}>
+                        {progression.exercise_name}
+                      </Text>
+                      <View style={styles.exerciseStatsCompact}>
+                         <View style={styles.statItem}>
+                           <Text style={[styles.statLabel, { color: colors.subtext }]}>Max</Text>
+                           <Text style={[styles.exerciseStatCompact, { color: colors.text }]}>
+                             {currentMaxWeight} kg
+                           </Text>
+                         </View>
+                         <View style={styles.statItem}>
+                           <Text style={[styles.statLabel, { color: colors.subtext }]}>1RM</Text>
+                           <Text style={[styles.exerciseStatCompact, { color: '#FF6B35' }]}>
+                             {Math.max(...progression.data.map(d => d.estimated_1rm)).toFixed(1)} kg
+                           </Text>
+                         </View>
+                         <View style={styles.statItem}>
+                           <Text style={[styles.statLabel, { color: colors.subtext }]}>Trend</Text>
+                           <Text 
+                             style={[
+                               styles.exerciseStatCompact, 
+                               { color: strengthTrend >= 0 ? '#4CAF50' : '#F44336' }
+                             ]}
+                           >
+                             {strengthTrend >= 0 ? '+' : ''}{strengthTrend.toFixed(1)}%
+                           </Text>
+                         </View>
+                       </View>
+                    </View>
+                    
+                    <View style={[styles.chartContainer, { overflow: 'hidden' }]}>
+                      <Text style={[styles.chartTitle, { color: colors.text, marginBottom: 8 }]}>Max Weight Progress</Text>
+                      {progression.data.length > 0 && (
+                        <LineChart
+                          data={progression.data.slice(-8).map((d, idx) => ({
+                            value: d.max_weight || 0,
+                            label: (() => {
+                              const date = new Date(d.date);
+                              return `${date.getMonth()+1}/${date.getDate()}`;
+                            })()
+                          }))}
+                          width={windowWidth - 80}
+                          height={160}
+                          color={currentTheme === 'dark' ? '#8641F4' : '#8641F4'}
+                          thickness={3}
+                          curved
+                          hideDataPoints={false}
+                          dataPointsColor={currentTheme === 'dark' ? '#8641F4' : '#8641F4'}
+                          dataPointsRadius={4}
+                          yAxisTextStyle={{ color: colors.subtext, fontSize: 12 }}
+                           xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 12 }}
+                           backgroundColor={'transparent'}
+                           noOfSections={4}
+                           maxValue={Math.max(...progression.data.map(d => d.max_weight || 0)) * 1.1}
+                           initialSpacing={10}
+                           endSpacing={10}
+                        />
+                      )}
+                    </View>
+                    
+                    {/* 1RM Estimation Chart */}
+                    <View style={[styles.chartContainer, { marginTop: 16, overflow: 'hidden' }]}>
+                      <Text style={[styles.chartTitle, { color: colors.text, marginBottom: 8 }]}>Estimated 1RM Progress</Text>
+                      {progression.data.length > 0 && progression.data.some(d => d.estimated_1rm > 0) && (
+                        <LineChart
+                          data={progression.data.slice(-8).filter(d => d.estimated_1rm > 0).map((d, idx) => ({
+                            value: d.estimated_1rm || 0,
+                            label: (() => {
+                              const date = new Date(d.date);
+                              return `${date.getMonth()+1}/${date.getDate()}`;
+                            })()
+                          }))}
+                          width={windowWidth - 80}
+                          height={160}
+                          color={currentTheme === 'dark' ? '#FF6B35' : '#FF6B35'}
+                          thickness={3}
+                          curved
+                          hideDataPoints={false}
+                          dataPointsColor={currentTheme === 'dark' ? '#FF6B35' : '#FF6B35'}
+                          dataPointsRadius={4}
+                          yAxisTextStyle={{ color: colors.subtext, fontSize: 12 }}
+                           xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 12 }}
+                           backgroundColor={'transparent'}
+                           noOfSections={4}
+                           maxValue={Math.max(...progression.data.map(d => d.estimated_1rm || 0)) * 1.1}
+                           initialSpacing={10}
+                           endSpacing={10}
+                        />
+                      )}
+                    </View>
+                    
+                    {/* Additional stats */}
+                    <View style={[styles.exerciseStatsRow, { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }]}>
+                      <View style={styles.exerciseStatItem}>
+                        <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>Sessions</Text>
+                        <Text style={[styles.exerciseStatValue, { color: colors.text }]}>
+                          {totalSessions}
+                        </Text>
+                      </View>
+                      <View style={styles.exerciseStatItem}>
+                        <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>Avg Volume</Text>
+                        <Text style={[styles.exerciseStatValue, { color: colors.text }]}>
+                          {avgVolume.toFixed(0)} kg
+                        </Text>
+                      </View>
+                      <View style={styles.exerciseStatItem}>
+                        <Text style={[styles.exerciseStatLabel, { color: colors.subtext }]}>Best Session</Text>
+                        <Text style={[styles.exerciseStatValue, { color: colors.text }]}>
+                          {Math.max(...progression.data.map(d => d.total_volume)).toLocaleString()} kg
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.noDataContainer}>
+              <MaterialCommunityIcons name="trending-up" size={40} color={colors.subtext} />
+              <Text style={[styles.noDataText, {color: colors.subtext}]}>
+                No strength progression data available
+              </Text>
+              <Text style={[styles.noDataSubtext, {color: colors.subtext, marginTop: 8, textAlign: 'center'}]}>
+                Complete more workouts with weights to see your strength progression
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
@@ -1725,6 +1987,7 @@ export default function WorkoutAnalyticsScreen() {
             {selectedTab === 'volume' && renderVolumeTab()}
             {selectedTab === 'muscles' && renderMusclesTab()}
             {selectedTab === 'exercises' && renderExercisesTab()}
+            {selectedTab === 'strength' && renderStrengthTab()}
           </>
         )}
       </ScrollView>
@@ -1767,17 +2030,34 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   tabContainer: {
-    flexDirection: 'row',
     marginBottom: 16,
-    borderRadius: 8,
-    overflow: 'hidden',
+  },
+  tabScrollView: {
+    flexGrow: 0,
+  },
+  tabScrollContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
   },
   tabButton: {
-    flex: 1,
+    minWidth: 100,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  firstTabButton: {
+    marginLeft: 0,
+  },
+  lastTabButton: {
+    marginRight: 0,
+  },
+  tabIcon: {
+    marginRight: 6,
   },
   tabButtonText: {
     fontSize: 14,
@@ -1839,9 +2119,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 2,
   },
-  statLabel: {
-    fontSize: 14,
-  },
   recentWorkoutsList: {
     marginTop: 8,
   },
@@ -1884,6 +2161,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
     textAlign: 'center',
+  },
+  noDataSubtext: {
+    fontSize: 12,
+    textAlign: 'center',
+    opacity: 0.7,
   },
   trendContainer: {
     flexDirection: 'row',
@@ -2003,8 +2285,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   exerciseCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     alignItems: 'flex-start',
     marginBottom: 10,
   },
@@ -2023,13 +2304,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     flex: 1,
+    marginBottom: 4,
   },
   exerciseStats: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  exerciseStatsCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  exerciseStatCompact: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exerciseStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
   exerciseStat: {
     alignItems: 'flex-end',
     marginLeft: 16,
+    minWidth: 80,
+    flex: 1,
   },
   exerciseStatLabel: {
     fontSize: 12,
@@ -2049,7 +2359,14 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginHorizontal: -4,
     borderRadius: 12,
-    overflow: 'hidden'
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 8
+  },
+  chartTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   exerciseChart: {
     borderRadius: 12,
@@ -2393,5 +2710,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginRight: 4,
+  },
+  exerciseStatItem: {
+    flex: 1,
+    alignItems: 'center',
   },
 });
