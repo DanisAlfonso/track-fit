@@ -1089,45 +1089,6 @@ export default function ProfileScreen() {
         </View>
       </LinearGradient>
       
-      {/* Stats Cards */}
-      <View style={styles.statsCardsContainer}>
-        <View style={[styles.statsCard, { backgroundColor: colors.card }]}>
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{workoutStats.totalWorkouts}</Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>Workouts</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{workoutStats.totalExercises}</Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>Exercises</Text>
-            </View>
-          </View>
-          <View style={[styles.statDividerHorizontal, { backgroundColor: colors.border }]} />
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: colors.text }]}>{workoutStats.daysActive}</Text>
-              <Text style={[styles.statLabel, { color: colors.subtext }]}>Days Active</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-            <TouchableOpacity 
-              style={styles.statItem}
-              onPress={() => router.push('/progress')}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.viewProgressButton}
-              >
-                <Text style={styles.viewProgressText}>View Progress</Text>
-                <FontAwesome5 name="trophy" size={14} color="white" style={styles.viewProgressIcon} />
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-      
       {/* Settings Sections */}
       <View style={styles.settingsSections}>
         {/* Personal Information Section */}
@@ -1843,4 +1804,4 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'white',
   },
-}); 
+});
