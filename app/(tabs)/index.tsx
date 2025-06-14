@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ProgressBottomSheet } from '@/components/ProgressBottomSheet';
 
 // User profile key from profile.tsx
 const USER_NAME_KEY = 'user_name';
@@ -96,6 +97,11 @@ export default function HomeScreen() {
   const [strengthProgress, setStrengthProgress] = useState<StrengthProgress[]>([]);
   const [monthlyGains, setMonthlyGains] = useState<MonthlyStrengthGains | null>(null);
 
+  // ProgressBottomSheet state
+  const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+  const [bottomSheetType, setBottomSheetType] = useState<'totalWorkouts' | 'totalTime' | 'thisWeek' | 'streak'>('totalWorkouts');
+  const [bottomSheetValue, setBottomSheetValue] = useState<string | number>('');
+
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
   const [translateY] = useState(new Animated.Value(20));
@@ -169,8 +175,15 @@ export default function HomeScreen() {
       
       // Load workout stats
       const now = new Date();
+      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      
+      // Calculate days to subtract to get to Monday
+      // If today is Sunday (0), go back 6 days to get to Monday
+      // If today is Monday (1), go back 0 days
+      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
       const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
+      startOfWeek.setDate(now.getDate() - daysToSubtract); // Start of current week (Monday)
       startOfWeek.setHours(0, 0, 0, 0);
       
       const statsResult = await db.getFirstAsync<WorkoutStats>(`
@@ -653,35 +666,51 @@ export default function HomeScreen() {
     value: string | number, 
     label: string, 
     gradientColors: string[],
-    index: number
+    index: number,
+    type: 'totalWorkouts' | 'totalTime' | 'thisWeek' | 'streak'
   ) => {
     // Stagger animation for each card
     const animDelay = index * 100;
     
+    const handlePress = () => {
+      setBottomSheetType(type);
+      setBottomSheetValue(value);
+      setBottomSheetVisible(true);
+    };
+    
     return (
-      <Animated.View 
+      <TouchableOpacity 
+        onPress={handlePress}
         style={[
           styles.statCard, 
           { 
             backgroundColor: currentTheme === 'dark' ? '#252525' : colors.card,
-            opacity: fadeAnim,
-            transform: [{ translateY: translateY }],
             shadowColor: gradientColors[0],
             shadowOpacity: 0.15
           }
         ]}
       >
-        <LinearGradient
-          colors={[gradientColors[0], gradientColors[1]]}
-          style={styles.statIconContainer}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
+        <Animated.View 
+          style={[
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: translateY }],
+              alignItems: 'center'
+            }
+          ]}
         >
-          <FontAwesome5 name={icon} size={16} color="white" />
-        </LinearGradient>
-        <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-        <Text style={[styles.statLabel, { color: colors.subtext }]}>{label}</Text>
-      </Animated.View>
+          <LinearGradient
+            colors={[gradientColors[0], gradientColors[1]]}
+            style={styles.statIconContainer}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <FontAwesome5 name={icon} size={16} color="white" />
+          </LinearGradient>
+          <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+          <Text style={[styles.statLabel, { color: colors.subtext }]}>{label}</Text>
+        </Animated.View>
+      </TouchableOpacity>
     );
   };
 
@@ -697,7 +726,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView 
+    <>
+      <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]} 
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -839,7 +869,8 @@ export default function HomeScreen() {
             stats?.total_workouts || 0, 
             "Total Workouts", 
             statColors.totalWorkouts,
-            0
+            0,
+            'totalWorkouts'
           )}
           
           {renderStatCard(
@@ -847,7 +878,8 @@ export default function HomeScreen() {
             stats?.total_duration ? formatDuration(stats.total_duration) : '0m', 
             "Total Time", 
             statColors.totalTime,
-            1
+            1,
+            'totalTime'
           )}
           
           {renderStatCard(
@@ -855,7 +887,8 @@ export default function HomeScreen() {
             stats?.this_week || 0, 
             "This Week", 
             statColors.thisWeek,
-            2
+            2,
+            'thisWeek'
           )}
           
           {renderStatCard(
@@ -863,7 +896,8 @@ export default function HomeScreen() {
             stats?.streak || 0, 
             "Day Streak", 
             statColors.streak,
-            3
+            3,
+            'streak'
           )}
         </View>
       </View>
@@ -1056,8 +1090,16 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+      
+      <ProgressBottomSheet
+        visible={bottomSheetVisible}
+        onClose={() => setBottomSheetVisible(false)}
+        type={bottomSheetType}
+        value={bottomSheetValue}
+      />
+    </>
   );
 }
 
