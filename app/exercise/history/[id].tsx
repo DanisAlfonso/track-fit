@@ -659,6 +659,7 @@ export default function ExerciseHistoryScreen() {
           backgroundColor: colors.card,
           borderRadius: 16,
           padding: 20,
+          overflow: 'hidden',
           elevation: 3,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
@@ -717,7 +718,7 @@ export default function ExerciseHistoryScreen() {
                 }
               })()
             }))}
-            width={width - 80}
+            width={width - 72}
             height={240}
             color={colors.primary}
             thickness={2.5}
@@ -746,7 +747,7 @@ export default function ExerciseHistoryScreen() {
             animationDuration={1200}
             initialSpacing={10}
             endSpacing={10}
-            spacing={Math.max(20, (width - 120) / Math.max(chartData.length - 1, 1))}
+            spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
             maxValue={(() => {
               const maxVal = Math.max(...chartData.map(d => d.totalVolume));
               const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
@@ -775,6 +776,7 @@ export default function ExerciseHistoryScreen() {
           backgroundColor: colors.card,
           borderRadius: 16,
           padding: 20,
+          overflow: 'hidden',
           elevation: 3,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
@@ -833,7 +835,7 @@ export default function ExerciseHistoryScreen() {
                 }
               })()
             }))}
-            width={width - 80}
+            width={width - 72}
             height={240}
             color={colors.primary}
             thickness={2.5}
@@ -863,7 +865,7 @@ export default function ExerciseHistoryScreen() {
             animationDuration={1200}
             initialSpacing={10}
             endSpacing={10}
-            spacing={Math.max(20, (width - 120) / Math.max(chartData.length - 1, 1))}
+            spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
             maxValue={(() => {
               const maxVal = Math.max(...chartData.map(d => d.maxWeight));
               const roundedMax = Math.ceil(maxVal / 5) * 5; // Round to nearest 5
@@ -1375,8 +1377,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   chartContainer: {
-    alignItems: 'center',
     marginTop: 8,
+    width: '100%',
   },
   chartTitle: {
     fontSize: 16,
@@ -1385,13 +1387,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   chart: {
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    overflow: 'hidden',
   },
 
   backButton: {
