@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
 import { useTheme } from '@/context/ThemeContext';
@@ -21,6 +22,7 @@ export default function TabLayout() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -30,6 +32,8 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopColor: colors.border,
+          paddingBottom: Platform.OS === 'android' ? insets.bottom : 0,
+          height: Platform.OS === 'android' ? 50 + insets.bottom : 50,
         },
         headerStyle: {
           backgroundColor: colors.background,

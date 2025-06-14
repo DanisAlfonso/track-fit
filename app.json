@@ -29,7 +29,13 @@
         "android.permission.VIBRATE",
         "android.permission.RECORD_AUDIO"
       ],
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "navigationBar": {
+        "visible": "leanback"
+      },
+      "statusBar": {
+        "translucent": true
+      }
     },
     "web": {
       "bundler": "metro",

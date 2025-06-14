@@ -16,6 +16,7 @@ import * as Notifications from 'expo-notifications';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as SystemUI from 'expo-system-ui';
 import Colors from '@/constants/Colors';
 
 // Keep the splash screen visible while we fetch resources
@@ -174,24 +175,33 @@ function RootLayoutNav() {
   const backgroundColor = currentTheme === 'dark' ? Colors.dark.background : Colors.light.background;
   const cardColor = currentTheme === 'dark' ? Colors.dark.card : Colors.light.card;
 
-  // Configure status bar and navigation bar based on theme
+  // Configure status bar and navigation bar for Edge-to-Edge
   useEffect(() => {
     if (Platform.OS === 'android') {
-      // Configure Android navigation bar (bottom system buttons)
+      // Enable Edge-to-Edge display
+      SystemUI.setBackgroundColorAsync('transparent');
+      
+      // Configure Android navigation bar for Edge-to-Edge
       NavigationBar.setVisibilityAsync('visible');
       NavigationBar.setPositionAsync('absolute');
-      NavigationBar.setBackgroundColorAsync(backgroundColor);
+      NavigationBar.setBackgroundColorAsync('transparent');
       NavigationBar.setButtonStyleAsync(currentTheme === 'dark' ? 'light' : 'dark');
+      
+      // Make navigation bar translucent
+      NavigationBar.setBehaviorAsync('overlay-swipe');
     }
-  }, [currentTheme, backgroundColor]);
+  }, [currentTheme]);
 
   return (
     <NavigationThemeProvider value={navTheme}>
-      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} />
-      <SafeAreaView style={{ 
-        flex: 1, 
-        backgroundColor: backgroundColor,
-      }}>
+      <StatusBar style={currentTheme === 'dark' ? 'light' : 'dark'} translucent={Platform.OS === 'android'} />
+      <SafeAreaView 
+        style={{ 
+          flex: 1, 
+          backgroundColor: backgroundColor,
+        }}
+        edges={Platform.OS === 'android' ? ['top'] : ['top', 'bottom']}
+      >
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
