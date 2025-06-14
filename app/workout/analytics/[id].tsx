@@ -1199,7 +1199,7 @@ export default function WorkoutAnalyticsScreen() {
           </Text>
           
           {exerciseProgress.length > 0 ? (
-            <ScrollView style={styles.exerciseProgressContainer}>
+            <ScrollView style={[styles.exerciseProgressContainer, { maxHeight: Math.min(exerciseProgress.length * 80 + 40, 500) }]}>
               {exerciseProgress.map((exercise, index) => (
                 <View key={index} style={styles.exerciseProgressItem}>
                   <View style={styles.exerciseProgressHeader}>
@@ -1794,7 +1794,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   exerciseProgressContainer: {
-    maxHeight: 300,
+    // Dynamic maxHeight calculated inline based on number of exercises
   },
   exerciseProgressItem: {
     marginBottom: 16,
