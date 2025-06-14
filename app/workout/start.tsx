@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, TextInput, Modal, FlatList, Animated, Dimensions, Platform, TouchableWithoutFeedback, Vibration, AppState, AppStateStatus } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -56,6 +57,7 @@ export default function StartWorkoutScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme]; // Get colors this way
   const [showingMenu, setShowingMenu] = useState<number | null>(null);
+  const insets = useSafeAreaInsets();
   
   // New state for exercise picker sheet
   const [addExerciseSheetVisible, setAddExerciseSheetVisible] = useState(false);
@@ -727,7 +729,8 @@ export default function StartWorkoutScreen() {
           {/* Add Exercise Button Container - Now only contains Finish Workout */}
           <View style={[styles.addExerciseButtonContainer, { 
             backgroundColor: currentTheme === 'dark' ? 'rgba(18, 18, 18, 0.9)' : 'rgba(248, 248, 248, 0.9)',
-            borderTopColor: colors.border
+            borderTopColor: colors.border,
+            paddingBottom: Platform.OS === 'android' ? 16 + insets.bottom : 16
           }]}>
             <TouchableOpacity 
               style={styles.finishButtonFullWidth}
@@ -758,6 +761,7 @@ export default function StartWorkoutScreen() {
             <Animated.View style={[
               styles.floatingRestButtonContainer,
               {
+                bottom: Platform.OS === 'android' ? 100 + insets.bottom : 100,
                 transform: [
                   {
                     translateY: floatingRestAnimation.interpolate({
@@ -1114,7 +1118,6 @@ const styles = StyleSheet.create({
   // Floating Resume Rest Button styles
   floatingRestButtonContainer: {
     position: 'absolute',
-    bottom: 100, // Position above the finish button
     left: 16,
     right: 16,
     alignItems: 'center',

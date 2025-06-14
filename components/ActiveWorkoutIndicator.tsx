@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { useWorkout } from '@/context/WorkoutContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,9 +14,10 @@ export default function ActiveWorkoutIndicator() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
   const colors = Colors[theme];
+  const insets = useSafeAreaInsets();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const [elapsedTime, setElapsedTime] = useState('00:00');
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<number | null>(null);
   
   // For button press animation
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -119,6 +121,7 @@ export default function ActiveWorkoutIndicator() {
       style={[
         styles.container, 
         { 
+          bottom: Platform.OS === 'android' ? 60 + insets.bottom : 60,
           transform: [
             { scale: scaleAnim }
           ]
@@ -201,7 +204,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: (width - CARD_WIDTH) / 2, // Center horizontally
     width: CARD_WIDTH,
-    bottom: 60, // Position above tab bar
     zIndex: 998, // Below modals but above content
   },
   innerContainer: {
@@ -286,4 +288,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
   },
-}); 
+});

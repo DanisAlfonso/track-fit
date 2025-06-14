@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, ActivityIndicator, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, Image, TouchableOpacity, useWindowDimensions, ActivityIndicator, Dimensions, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -68,6 +69,7 @@ export default function ExerciseDetailScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [activeTab, setActiveTab] = useState('instructions'); // 'instructions' or 'muscles'
@@ -367,7 +369,8 @@ export default function ExerciseDetailScreen() {
         <View style={[styles.bottomButtonContainer, { 
           backgroundColor: colors.background,
           borderTopWidth: 1,
-          borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+          borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          paddingBottom: Platform.OS === 'android' ? 16 + insets.bottom : 16
         }]}>
           <TouchableOpacity 
             style={[styles.addToRoutineButton, { backgroundColor: colors.secondary }]}
@@ -593,4 +596,4 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
   },
-}); 
+});
