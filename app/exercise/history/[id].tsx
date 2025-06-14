@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-gifted-charts';
 import { FontAwesome } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
@@ -47,32 +47,7 @@ type SetData = {
   training_type?: 'heavy' | 'moderate' | 'light';
 };
 
-// Define a safe chart rendering component
-interface SafeChartProps {
-  children: React.ReactNode;
-  fallback: React.ReactNode;
-}
-
-const SafeChart = ({ children, fallback }: SafeChartProps) => {
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    // Reset on new render attempt
-    setHasError(false);
-  }, [children]);
-
-  if (hasError) {
-    return fallback;
-  }
-
-  try {
-    return children;
-  } catch (error) {
-    console.error('Error rendering chart:', error);
-    setHasError(true);
-    return fallback;
-  }
-};
+// Chart components using react-native-gifted-charts
 
 export default function ExerciseHistoryScreen() {
   const { id } = useLocalSearchParams();
@@ -674,163 +649,242 @@ export default function ExerciseHistoryScreen() {
       );
     }
     
-    // Create a simple fallback chart display
-    const fallbackChart = (
-      <View style={[styles.fallbackChart, { backgroundColor: colors.card }]}>
-        <FontAwesome name="area-chart" size={32} color={colors.primary} style={{ opacity: 0.5 }} />
-        <Text style={[styles.fallbackText, { color: colors.text }]}>
-          {Platform.OS === 'android' ? 'Chart visualization unavailable' : 'Unable to display chart'}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setViewMode('list')}
-          style={[styles.fallbackButton, { borderColor: colors.primary }]}
-        >
-          <Text style={[styles.fallbackButtonText, { color: colors.primary }]}>View as List</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    // Charts are now rendered using react-native-gifted-charts
     
     return (
       <View style={styles.chartContainer}>
         <Text style={[styles.chartTitle, { color: colors.text }]}>Volume Progression</Text>
         
-        <SafeChart fallback={fallbackChart}>
+        <View style={{
+          backgroundColor: colors.card,
+          borderRadius: 16,
+          padding: 20,
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          marginBottom: chartData.length > 15 ? 24 : 16,
+        }}>
           <LineChart
-            data={{
-              labels: chartData.map((entry, index) => {
-                // Implement intelligent label skipping based on data size
-                if (chartData.length <= 5) {
-                  // Show all labels for small datasets
-                  return entry.date.substring(0, 6);
-                } else if (chartData.length <= 10) {
-                  // Skip every other label for medium datasets
-                  return index % 2 === 0 ? entry.date.substring(0, 6) : '';
-                } else if (chartData.length <= 20) {
-                  // Show every third label for larger datasets
-                  return index % 3 === 0 ? entry.date.substring(0, 6) : '';
-                } else if (chartData.length <= 50) {
-                  // For even larger datasets, show every 5th label
-                  return index % 5 === 0 ? entry.date.substring(0, 3) : '';
-                } else {
-                  // For very large datasets (years of data), show only months or years
-                  return index % 10 === 0 ? entry.date.substring(0, 3) : '';
+            data={chartData.map((entry, index) => ({
+              value: entry.totalVolume,
+              label: (() => {
+                // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
+                try {
+                  const date = new Date(entry.date);
+                  if (isNaN(date.getTime())) {
+                    // Fallback: extract from string if Date parsing fails
+                    const parts = entry.date.split(' ');
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const month = monthNames.indexOf(parts[0]) + 1;
+                    const day = parseInt(parts[1].replace(',', ''));
+                    const year = parts[2].slice(-2);
+                    
+                    // Implement intelligent label skipping based on data size
+                    if (chartData.length <= 5) {
+                      return `${month}/${day}`; // MM/DD format
+                    } else if (chartData.length <= 10) {
+                      return index % 2 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 20) {
+                      return index % 3 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 50) {
+                      return index % 5 === 0 ? `${month}` : ''; // Month only
+                    } else {
+                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                    }
+                  } else {
+                    const month = date.getMonth() + 1; // 1-12
+                    const day = date.getDate();
+                    const year = date.getFullYear().toString().slice(-2); // Last 2 digits
+                    
+                    // Implement intelligent label skipping based on data size
+                    if (chartData.length <= 5) {
+                      return `${month}/${day}`; // MM/DD format
+                    } else if (chartData.length <= 10) {
+                      return index % 2 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 20) {
+                      return index % 3 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 50) {
+                      return index % 5 === 0 ? `${month}` : ''; // Month only
+                    } else {
+                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                    }
+                  }
+                } catch (error) {
+                  // Ultimate fallback: just show index
+                  return index.toString();
                 }
-              }),
-              datasets: [
-                {
-                  data: chartData.map(entry => entry.totalVolume),
-                  color: () => colors.primary,
-                  strokeWidth: 3
-                }
-              ]
+              })()
+            }))}
+            width={width - 80}
+            height={240}
+            color={colors.primary}
+            thickness={2.5}
+            curved
+            dataPointsColor={colors.primary}
+            dataPointsRadius={5}
+            dataPointsWidth={2}
+            rulesColor={colors.border || '#E1E1E1'}
+            rulesType="solid"
+            yAxisColor={colors.border || '#E1E1E1'}
+            xAxisColor={colors.border || '#E1E1E1'}
+            yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
+            xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
+            formatYLabel={(value) => {
+              const num = parseInt(value);
+              if (num >= 1000000) {
+                return `${(num / 1000000).toFixed(1)}M`;
+              } else if (num >= 1000) {
+                return `${(num / 1000).toFixed(1)}k`;
+              }
+              return num.toLocaleString();
             }}
-            width={width - 32}
-            height={220}
-            chartConfig={{
-              backgroundColor: colors.card,
-              backgroundGradientFrom: colors.card,
-              backgroundGradientTo: colors.card,
-              decimalPlaces: 0,
-              color: () => colors.primary,
-              labelColor: () => colors.subtext,
-              style: {
-                borderRadius: 16
-              },
-              propsForDots: {
-                r: '6',
-                strokeWidth: '2',
-                stroke: colors.card
-              },
-              propsForBackgroundLines: {
-                strokeDasharray: '',
-                stroke: colors.border || '#E1E1E1',
-                strokeWidth: 1
-              },
-              formatYLabel: (value) => parseInt(value).toLocaleString(),
-              // Adjust horizontal axis ticks
-              horizontalLabelRotation: chartData.length > 15 ? 45 : 0,
-              formatTopBarValue: (value) => value.toLocaleString()
-            }}
-            bezier
-            style={{
-              borderRadius: 16,
-              paddingRight: 0,
-              paddingLeft: 0,
-              backgroundColor: colors.card,
-              elevation: 2,
-              marginBottom: chartData.length > 15 ? 20 : 0,
-            }}
+            showVerticalLines
+            verticalLinesColor={colors.border || '#E1E1E1'}
+            animateOnDataChange
+            animationDuration={1200}
+            initialSpacing={10}
+            endSpacing={10}
+            spacing={Math.max(20, (width - 120) / Math.max(chartData.length - 1, 1))}
+            maxValue={(() => {
+              const maxVal = Math.max(...chartData.map(d => d.totalVolume));
+              const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+              return Math.ceil(maxVal / orderOfMagnitude) * orderOfMagnitude;
+            })()}
+            noOfSections={5}
+            stepValue={(() => {
+              const maxVal = Math.max(...chartData.map(d => d.totalVolume));
+              const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
+              const normalizedMax = Math.ceil(maxVal / orderOfMagnitude) * orderOfMagnitude;
+              return normalizedMax / 5;
+            })()}
+            hideDataPoints={chartData.length > 20}
+            focusEnabled
+            showTextOnFocus
+            textFontSize={12}
+            textColor={colors.text}
+            unFocusOnPressOut
+            delayBeforeUnFocus={3000}
           />
-        </SafeChart>
+        </View>
         
         <Text style={[styles.chartTitle, { color: colors.text, marginTop: 20 }]}>Max Weight Progression</Text>
         
-        <SafeChart fallback={fallbackChart}>
+        <View style={{
+          backgroundColor: colors.card,
+          borderRadius: 16,
+          padding: 20,
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          marginBottom: chartData.length > 15 ? 24 : 16,
+        }}>
           <LineChart
-            data={{
-              labels: chartData.map((entry, index) => {
-                // Implement intelligent label skipping based on data size
-                if (chartData.length <= 5) {
-                  // Show all labels for small datasets
-                  return entry.date.substring(0, 6);
-                } else if (chartData.length <= 10) {
-                  // Skip every other label for medium datasets
-                  return index % 2 === 0 ? entry.date.substring(0, 6) : '';
-                } else if (chartData.length <= 20) {
-                  // Show every third label for larger datasets
-                  return index % 3 === 0 ? entry.date.substring(0, 6) : '';
-                } else if (chartData.length <= 50) {
-                  // For even larger datasets, show every 5th label
-                  return index % 5 === 0 ? entry.date.substring(0, 3) : '';
-                } else {
-                  // For very large datasets (years of data), show only months or years
-                  return index % 10 === 0 ? entry.date.substring(0, 3) : '';
+            data={chartData.map((entry, index) => ({
+              value: entry.maxWeight,
+              label: (() => {
+                // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
+                try {
+                  const date = new Date(entry.date);
+                  if (isNaN(date.getTime())) {
+                    // Fallback: extract from string if Date parsing fails
+                    const parts = entry.date.split(' ');
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const month = monthNames.indexOf(parts[0]) + 1;
+                    const day = parseInt(parts[1].replace(',', ''));
+                    const year = parts[2].slice(-2);
+                    
+                    // Implement intelligent label skipping based on data size
+                    if (chartData.length <= 5) {
+                      return `${month}/${day}`; // MM/DD format
+                    } else if (chartData.length <= 10) {
+                      return index % 2 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 20) {
+                      return index % 3 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 50) {
+                      return index % 5 === 0 ? `${month}` : ''; // Month only
+                    } else {
+                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                    }
+                  } else {
+                    const month = date.getMonth() + 1; // 1-12
+                    const day = date.getDate();
+                    const year = date.getFullYear().toString().slice(-2); // Last 2 digits
+                    
+                    // Implement intelligent label skipping based on data size
+                    if (chartData.length <= 5) {
+                      return `${month}/${day}`; // MM/DD format
+                    } else if (chartData.length <= 10) {
+                      return index % 2 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 20) {
+                      return index % 3 === 0 ? `${month}/${day}` : '';
+                    } else if (chartData.length <= 50) {
+                      return index % 5 === 0 ? `${month}` : ''; // Month only
+                    } else {
+                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                    }
+                  }
+                } catch (error) {
+                  // Ultimate fallback: just show index
+                  return index.toString();
                 }
-              }),
-              datasets: [
-                {
-                  data: chartData.map(entry => entry.maxWeight),
-                  color: () => colors.primary,
-                  strokeWidth: 3
-                }
-              ]
+              })()
+            }))}
+            width={width - 80}
+            height={240}
+            color={colors.primary}
+            thickness={2.5}
+            curved
+            dataPointsColor={colors.primary}
+            dataPointsRadius={5}
+            dataPointsWidth={2}
+            rulesColor={colors.border || '#E1E1E1'}
+            rulesType="solid"
+            yAxisColor={colors.border || '#E1E1E1'}
+            xAxisColor={colors.border || '#E1E1E1'}
+            yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
+            xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
+            formatYLabel={(value) => {
+              const num = parseFloat(value);
+              if (num >= 1000) {
+                return `${(num / 1000).toFixed(1)}k kg`;
+              } else if (num % 1 === 0) {
+                return `${num} kg`;
+              } else {
+                return `${num.toFixed(1)} kg`;
+              }
             }}
-            width={width - 32}
-            height={220}
-            chartConfig={{
-              backgroundColor: colors.card,
-              backgroundGradientFrom: colors.card,
-              backgroundGradientTo: colors.card,
-              decimalPlaces: 1,
-              color: () => colors.primary,
-              labelColor: () => colors.subtext,
-              style: {
-                borderRadius: 16
-              },
-              propsForDots: {
-                r: '6',
-                strokeWidth: '2',
-                stroke: colors.card
-              },
-              propsForBackgroundLines: {
-                strokeDasharray: '',
-                stroke: colors.border || '#E1E1E1',
-                strokeWidth: 1
-              },
-              // Adjust horizontal axis ticks
-              horizontalLabelRotation: chartData.length > 15 ? 45 : 0
-            }}
-            bezier
-            style={{
-              borderRadius: 16,
-              paddingRight: 0,
-              paddingLeft: 0,
-              backgroundColor: colors.card,
-              elevation: 2,
-              marginBottom: chartData.length > 15 ? 20 : 0,
-            }}
+            showVerticalLines
+            verticalLinesColor={colors.border || '#E1E1E1'}
+            animateOnDataChange
+            animationDuration={1200}
+            initialSpacing={10}
+            endSpacing={10}
+            spacing={Math.max(20, (width - 120) / Math.max(chartData.length - 1, 1))}
+            maxValue={(() => {
+              const maxVal = Math.max(...chartData.map(d => d.maxWeight));
+              const roundedMax = Math.ceil(maxVal / 5) * 5; // Round to nearest 5
+              return Math.max(roundedMax, maxVal + 5);
+            })()}
+            noOfSections={5}
+            stepValue={(() => {
+              const maxVal = Math.max(...chartData.map(d => d.maxWeight));
+              const roundedMax = Math.ceil(maxVal / 5) * 5;
+              const finalMax = Math.max(roundedMax, maxVal + 5);
+              return finalMax / 5;
+            })()}
+            hideDataPoints={chartData.length > 20}
+            focusEnabled
+            showTextOnFocus
+            textFontSize={12}
+            textColor={colors.text}
+            unFocusOnPressOut
+            delayBeforeUnFocus={3000}
           />
-        </SafeChart>
+        </View>
 
         {chartData.length > 15 && (
           <Text style={[styles.chartNote, { color: colors.subtext }]}>
@@ -1339,31 +1393,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  fallbackChart: {
-    width: '100%',
-    height: 220,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  fallbackText: {
-    marginTop: 12,
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  fallbackButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  fallbackButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
+
   backButton: {
     padding: 8,
   },
@@ -1488,4 +1518,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
-}); 
+});

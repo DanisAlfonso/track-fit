@@ -7,7 +7,7 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { StatusBar } from 'expo-status-bar';
 import { formatDate, formatRelativeDate, calculateDuration } from '../utils/dateUtils';
 import { getDatabase } from '../utils/database';
-import { LineChart, BarChart, PieChart, ContributionGraph } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-gifted-charts';
 import { useTheme } from '@/context/ThemeContext';
 
 // Types
@@ -77,6 +77,7 @@ export default function WorkoutAnalyticsScreen() {
     duration: 0,
     sets: 0,
   });
+  const [selectedPieSection, setSelectedPieSection] = useState<number | null>(null);
   
   // Load analytics data
   useEffect(() => {
@@ -689,29 +690,78 @@ export default function WorkoutAnalyticsScreen() {
           {volumeTrends.length > 1 ? (
             <>
               <LineChart
-                data={volumeData}
-                width={windowWidth - 40}
+                data={volumeTrends.slice(-6).map((trend, index) => ({
+                  value: trend.volume,
+                  label: (() => {
+                    const date = new Date(trend.date);
+                    return `${date.getMonth()+1}/${date.getDate()}`;
+                  })()
+                }))}
+                width={windowWidth - 80}
                 height={220}
-                chartConfig={{
-                  backgroundColor: colors.card,
-                  backgroundGradientFrom: colors.card,
-                  backgroundGradientTo: colors.card,
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
-                  labelColor: (opacity = 1) => colors.text,
-                  style: { borderRadius: 16 },
-                  propsForDots: {
-                    r: "6",
-                    strokeWidth: "2",
-                    stroke: colors.primary
+                color={colors.primary}
+                thickness={3}
+                dataPointsColor={colors.primary}
+                dataPointsRadius={6}
+                dataPointsWidth={2}
+                textShiftY={-8}
+                textShiftX={-10}
+                textColor1={colors.text}
+                textFontSize={12}
+                hideRules={true}
+                hideYAxisText={false}
+                yAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                xAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                yAxisTextStyle={{
+                  color: colors.subtext,
+                  fontSize: 11,
+                  fontWeight: '500'
+                }}
+                xAxisLabelTextStyle={{
+                  color: colors.subtext,
+                  fontSize: 11,
+                  fontWeight: '500'
+                }}
+                curved={true}
+                animationDuration={1200}
+                animateOnDataChange={true}
+                onDataChangeAnimationDuration={800}
+                areaChart={false}
+                focusEnabled={true}
+                showTextOnFocus={true}
+                showStripOnFocus={true}
+                stripColor={colors.primary}
+                stripOpacity={0.3}
+                stripWidth={2}
+                unFocusOnPressOut={true}
+                delayBeforeUnFocus={3000}
+                formatYLabel={(value) => {
+                  const numValue = Number(value);
+                  if (numValue >= 1000000) {
+                    return `${(numValue / 1000000).toFixed(1)}M kg`;
+                  } else if (numValue >= 1000) {
+                    return `${(numValue / 1000).toFixed(1)}k kg`;
                   }
+                  return `${numValue} kg`;
                 }}
-                bezier
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16
-                }}
-                formatYLabel={(value) => `${parseInt(value)}kg`}
+                maxValue={(() => {
+                  const maxVal = Math.max(...volumeTrends.slice(-6).map(t => t.volume));
+                  if (maxVal <= 100) return 100;
+                  if (maxVal <= 500) return Math.ceil(maxVal / 100) * 100;
+                  if (maxVal <= 1000) return Math.ceil(maxVal / 250) * 250;
+                  if (maxVal <= 5000) return Math.ceil(maxVal / 500) * 500;
+                  return Math.ceil(maxVal / 1000) * 1000;
+                })()}
+                noOfSections={4}
+                stepValue={(() => {
+                  const maxVal = Math.max(...volumeTrends.slice(-6).map(t => t.volume));
+                  if (maxVal <= 100) return 25;
+                  if (maxVal <= 500) return Math.ceil(maxVal / 400) * 100;
+                  if (maxVal <= 1000) return Math.ceil(maxVal / 1000) * 250;
+                  if (maxVal <= 5000) return Math.ceil(maxVal / 2000) * 500;
+                  return Math.ceil(maxVal / 4000) * 1000;
+                })()}
+
               />
               
               <View style={styles.trendContainer}>
@@ -957,23 +1007,217 @@ export default function WorkoutAnalyticsScreen() {
           
           {muscleGroupVolumes.length > 0 ? (
             <>
-              <PieChart
-                data={pieChartData}
-                width={windowWidth - 40}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.card,
-                  backgroundGradientFrom: colors.card,
-                  backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
-                }}
-                accessor="volume"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute={false}
-                avoidFalseZero={true}
-              />
+              <View style={styles.pieChartContainer}>
+                <PieChart
+                  data={muscleGroupVolumes.slice(0, 8).map((item, index) => {
+                    const modernColors = [
+                      '#6366F1', // Indigo
+                      '#8B5CF6', // Violet  
+                      '#06B6D4', // Cyan
+                      '#10B981', // Emerald
+                      '#F59E0B', // Amber
+                      '#EF4444', // Red
+                      '#EC4899', // Pink
+                      '#84CC16', // Lime
+                    ];
+                    return {
+                      value: item.volume,
+                      color: modernColors[index % modernColors.length],
+                      gradientCenterColor: modernColors[index % modernColors.length] + '40',
+                      focused: false,
+                      strokeColor: currentTheme === 'dark' ? '#1F2937' : '#F9FAFB',
+                      strokeWidth: 3,
+                    };
+                  })}
+                  radius={100}
+                  innerRadius={40}
+                  backgroundColor={currentTheme === 'dark' ? 'transparent' : 'transparent'}
+                  innerCircleColor={currentTheme === 'dark' ? colors.card : colors.card}
+                  centerLabelComponent={() => {
+                    if (selectedPieSection !== null && selectedPieSection < muscleGroupVolumes.length) {
+                      const selectedMuscle = muscleGroupVolumes[selectedPieSection];
+                      const totalVolume = muscleGroupVolumes.reduce((sum, mg) => sum + mg.volume, 0);
+                      const percentage = ((selectedMuscle.volume / totalVolume) * 100).toFixed(1);
+                      return (
+                        <View style={styles.pieChartCenter}>
+                          <Text style={[styles.pieChartCenterTitle, { 
+                            color: currentTheme === 'dark' ? '#FFFFFF' : colors.text,
+                            fontWeight: '600'
+                          }]}>
+                            {selectedMuscle.muscle}
+                          </Text>
+                          <Text style={[styles.pieChartCenterValue, { 
+                            color: colors.primary,
+                            textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 2
+                          }]}>
+                            {percentage}%
+                          </Text>
+                          <Text style={[styles.pieChartCenterUnit, { 
+                            color: currentTheme === 'dark' ? '#D1D5DB' : colors.subtext,
+                            fontWeight: '500'
+                          }]}>
+                            {(selectedMuscle.volume / 1000).toFixed(1)}k kg
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return (
+                      <View style={styles.pieChartCenter}>
+                        <Text style={[styles.pieChartCenterTitle, { 
+                          color: currentTheme === 'dark' ? '#FFFFFF' : colors.text,
+                          fontWeight: '600',
+                          textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2
+                        }]}>Total</Text>
+                        <Text style={[styles.pieChartCenterValue, { 
+                          color: colors.primary,
+                          textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2
+                        }]}>
+                          {(muscleGroupVolumes.reduce((sum, mg) => sum + mg.volume, 0) / 1000).toFixed(1)}k
+                        </Text>
+                        <Text style={[styles.pieChartCenterUnit, { 
+                          color: currentTheme === 'dark' ? '#D1D5DB' : colors.subtext,
+                          fontWeight: '500',
+                          textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2
+                        }]}>kg</Text>
+                      </View>
+                    );
+                  }}
+                  showText={false}
+                  strokeColor={currentTheme === 'dark' ? '#1F2937' : '#F9FAFB'}
+                  strokeWidth={3}
+                  focusOnPress={true}
+                  toggleFocusOnPress={true}
+                  sectionAutoFocus={false}
+                  isAnimated={true}
+                  animationDuration={600}
+                  focusedPieIndex={-1}
+                  onPress={(item: any, index: number) => {
+                    setSelectedPieSection(selectedPieSection === index ? null : index);
+                  }}
+                  pieInnerComponentHeight={140}
+                  pieInnerComponentWidth={140}
+                  extraRadius={12}
+                  shadow={currentTheme === 'dark' ? false : true}
+                  shadowColor={currentTheme === 'dark' ? 'transparent' : '#000000'}
+                />
+                
+                {/* Selection Indicator */}
+                {selectedPieSection !== null && selectedPieSection < muscleGroupVolumes.length && (
+                  <View style={[
+                    styles.selectionIndicator, 
+                    { 
+                      backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                      borderColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'
+                    }
+                  ]}>
+                    <View style={styles.selectionHeader}>
+                      <View style={[
+                        styles.selectionColorDot,
+                        {
+                          backgroundColor: [
+                            '#6366F1', '#8B5CF6', '#06B6D4', '#10B981', 
+                            '#F59E0B', '#EF4444', '#EC4899', '#84CC16'
+                          ][selectedPieSection % 8]
+                        }
+                      ]} />
+                      <Text style={[styles.selectionTitle, { color: colors.text }]}>
+                        {muscleGroupVolumes[selectedPieSection].muscle}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => setSelectedPieSection(null)}
+                        style={styles.selectionCloseButton}
+                      >
+                        <Ionicons name="close" size={18} color={colors.subtext} />
+                      </TouchableOpacity>
+                    </View>
+                    
+                    <View style={styles.selectionStats}>
+                      <View style={styles.selectionStat}>
+                        <Text style={[styles.selectionStatLabel, { color: colors.subtext }]}>Volume</Text>
+                        <Text style={[styles.selectionStatValue, { color: colors.text }]}>
+                          {muscleGroupVolumes[selectedPieSection].volume.toLocaleString()} kg
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.selectionStat}>
+                        <Text style={[styles.selectionStatLabel, { color: colors.subtext }]}>Percentage</Text>
+                        <Text style={[styles.selectionStatValue, { color: colors.primary }]}>
+                          {((muscleGroupVolumes[selectedPieSection].volume / muscleGroupVolumes.reduce((sum, mg) => sum + mg.volume, 0)) * 100).toFixed(1)}%
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.selectionStat}>
+                        <Text style={[styles.selectionStatLabel, { color: colors.subtext }]}>Rank</Text>
+                        <Text style={[styles.selectionStatValue, { color: colors.text }]}>
+                          #{selectedPieSection + 1} of {muscleGroupVolumes.length}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+                
+                {/* Custom Legend */}
+                <View style={styles.pieChartLegend}>
+                  {muscleGroupVolumes.slice(0, 8).map((item, index) => {
+                    const modernColors = [
+                      '#6366F1', '#8B5CF6', '#06B6D4', '#10B981', 
+                      '#F59E0B', '#EF4444', '#EC4899', '#84CC16'
+                    ];
+                    const totalVolume = muscleGroupVolumes.reduce((sum, mg) => sum + mg.volume, 0);
+                    const percentage = ((item.volume / totalVolume) * 100).toFixed(1);
+                    
+                    const isSelected = selectedPieSection === index;
+                    
+                    return (
+                      <TouchableOpacity 
+                        key={index} 
+                        style={[
+                          styles.legendItem,
+                          isSelected && {
+                            backgroundColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                            borderRadius: 8,
+                            paddingVertical: 4,
+                            paddingHorizontal: 8,
+                            marginVertical: 2,
+                            borderWidth: 1,
+                            borderColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'
+                          }
+                        ]}
+                        onPress={() => {
+                          setSelectedPieSection(selectedPieSection === index ? null : index);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          styles.legendDot, 
+                          { backgroundColor: modernColors[index % modernColors.length] }
+                        ]} />
+                        <View style={styles.legendContent}>
+                          <Text style={[styles.legendLabel, { color: colors.text }]} numberOfLines={1}>
+                            {item.muscle}
+                          </Text>
+                          <View style={styles.legendStats}>
+                            <Text style={[styles.legendPercentage, { color: colors.primary }]}>
+                              {percentage}%
+                            </Text>
+                            <Text style={[styles.legendValue, { color: colors.subtext }]}>
+                              {item.volume.toLocaleString()} kg
+                            </Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
               
               <View style={styles.focusContainer}>
                 <Text style={[styles.focusLabel, { color: colors.text }]}>
@@ -1008,9 +1252,27 @@ export default function WorkoutAnalyticsScreen() {
                   const maxVolume = Math.max(...muscleGroupVolumes.map(m => m.volume));
                   const percentage = Math.round((muscle.volume / maxVolume) * 100);
                   const barColor = chartColors[index % chartColors.length];
+                  const isSelected = selectedPieSection === index;
                   
                   return (
-                    <View key={index} style={styles.enhancedBarRow}>
+                    <TouchableOpacity 
+                      key={index} 
+                      style={[
+                        styles.enhancedBarRow,
+                        isSelected && {
+                          backgroundColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                          borderRadius: 8,
+                          paddingVertical: 4,
+                          marginVertical: 2,
+                          borderWidth: 1,
+                          borderColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'
+                        }
+                      ]}
+                      onPress={() => {
+                        setSelectedPieSection(selectedPieSection === index ? null : index);
+                      }}
+                      activeOpacity={0.7}
+                    >
                       <View style={[styles.muscleDot, { backgroundColor: barColor }]} />
                       <View style={styles.muscleNameContainer}>
                         <Text style={[styles.muscleBarLabel, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
@@ -1037,7 +1299,7 @@ export default function WorkoutAnalyticsScreen() {
                       <Text style={[styles.muscleBarValue, { color: colors.text }]}>
                         {muscle.volume.toLocaleString()} kg
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -1228,43 +1490,76 @@ export default function WorkoutAnalyticsScreen() {
                     
                     <View style={styles.chartContainer}>
                       <LineChart
-                        data={volumeData}
-                        width={windowWidth - 80}
+                        data={exercise.data.slice(-5).map((d, idx) => ({
+                          value: d.volume,
+                          label: (() => {
+                            const date = new Date(d.date);
+                            return `${date.getMonth()+1}/${date.getDate()}`;
+                          })()
+                        }))}
+                        width={windowWidth - 100}
                         height={120}
-                        chartConfig={{
-                          backgroundColor: 'transparent',
-                          backgroundGradientFrom: currentTheme === 'dark' ? 'rgba(50, 50, 50, 0.8)' : 'rgba(240, 240, 240, 0.8)',
-                          backgroundGradientTo: currentTheme === 'dark' ? 'rgba(40, 40, 40, 0.8)' : 'rgba(248, 248, 248, 0.8)',
-                          decimalPlaces: 0,
-                          color: (opacity = 1) => `rgba(${colorRgbValues}, ${opacity})`,
-                          labelColor: (opacity = 1) => colors.subtext,
-                          style: { 
-                            borderRadius: 8,
-                            padding: 4
-                          },
-                          propsForDots: {
-                            r: "4",
-                            strokeWidth: "1",
-                            stroke: exerciseColor
-                          },
-                          propsForLabels: {
-                            fontSize: 10
+                        color={exerciseColor}
+                        thickness={2.5}
+                        dataPointsColor={exerciseColor}
+                        dataPointsRadius={4}
+                        dataPointsWidth={1.5}
+                        textShiftY={-6}
+                        textShiftX={-8}
+                        textColor1={colors.subtext}
+                        textFontSize={10}
+                        hideRules={true}
+                        hideYAxisText={false}
+                        yAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}
+                        xAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}
+                        yAxisTextStyle={{
+                          color: colors.subtext,
+                          fontSize: 9,
+                          fontWeight: '400'
+                        }}
+                        xAxisLabelTextStyle={{
+                          color: colors.subtext,
+                          fontSize: 9,
+                          fontWeight: '400'
+                        }}
+                        curved={true}
+                        animationDuration={800}
+                        animateOnDataChange={true}
+                        onDataChangeAnimationDuration={600}
+                        areaChart={false}
+                        focusEnabled={true}
+                        showTextOnFocus={true}
+                        showStripOnFocus={true}
+                        stripColor={exerciseColor}
+                        stripOpacity={0.2}
+                        stripWidth={1.5}
+                        unFocusOnPressOut={true}
+                        delayBeforeUnFocus={2000}
+                        formatYLabel={(value) => {
+                          const numValue = Number(value);
+                          if (numValue >= 1000) {
+                            return `${(numValue / 1000).toFixed(1)}k kg`;
                           }
+                          return `${numValue} kg`;
                         }}
-                        bezier
-                        style={{
-                          borderRadius: 12,
-                          paddingRight: 0,
-                          elevation: 0,
-                          shadowOpacity: 0
-                        }}
-                        withInnerLines={false}
-                        withOuterLines={false}
-                        withVerticalLabels={true}
-                        withHorizontalLabels={true}
-                        fromZero={true}
-                        yAxisLabel=""
-                        yAxisSuffix=" kg"
+                        maxValue={(() => {
+                          const maxVal = Math.max(...exercise.data.slice(-5).map(d => d.volume));
+                          if (maxVal <= 50) return 50;
+                          if (maxVal <= 100) return 100;
+                          if (maxVal <= 250) return Math.ceil(maxVal / 50) * 50;
+                          if (maxVal <= 500) return Math.ceil(maxVal / 100) * 100;
+                          return Math.ceil(maxVal / 250) * 250;
+                        })()}
+                        noOfSections={3}
+                        stepValue={(() => {
+                          const maxVal = Math.max(...exercise.data.slice(-5).map(d => d.volume));
+                          if (maxVal <= 50) return 25;
+                          if (maxVal <= 100) return 50;
+                          if (maxVal <= 250) return Math.ceil(maxVal / 150) * 50;
+                          if (maxVal <= 500) return Math.ceil(maxVal / 300) * 100;
+                          return Math.ceil(maxVal / 750) * 250;
+                        })()}
+
                       />
                     </View>
                   </View>
@@ -1958,4 +2253,124 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(128, 128, 128, 0.2)',
     marginHorizontal: 12,
   },
-}); 
+  // New PieChart styles
+  pieChartContainer: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  pieChartCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: 40,
+    width: 80,
+    height: 80,
+  },
+  pieChartCenterTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  pieChartCenterValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    lineHeight: 28,
+  },
+  pieChartCenterUnit: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: -2,
+  },
+  pieChartLegend: {
+    marginTop: 24,
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  legendContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  legendLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+    marginRight: 8,
+  },
+  legendStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendPercentage: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 8,
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  legendValue: {
+    fontSize: 12,
+    fontWeight: '500',
+    minWidth: 70,
+    textAlign: 'right',
+  },
+  // Selection Indicator styles
+  selectionIndicator: {
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    width: '100%',
+  },
+  selectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  selectionColorDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  selectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+  },
+  selectionCloseButton: {
+    padding: 4,
+    borderRadius: 12,
+  },
+  selectionStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  selectionStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  selectionStatLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  selectionStatValue: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
