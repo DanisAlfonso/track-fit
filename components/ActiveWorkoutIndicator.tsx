@@ -155,16 +155,6 @@ export default function ActiveWorkoutIndicator() {
               </Text>
               
               <View style={styles.timerContainer}>
-                <Animated.View style={[
-                  styles.timerDot,
-                  { 
-                    backgroundColor: colors.primary,
-                    opacity: pulseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1]
-                    })
-                  }
-                ]} />
                 <Text style={[styles.timerText, { color: colors.text }]}>
                   {elapsedTime}
                 </Text>
@@ -252,12 +242,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  timerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
+
   timerText: {
     fontSize: 14,
     fontWeight: '500',
