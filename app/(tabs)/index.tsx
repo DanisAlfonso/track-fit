@@ -53,6 +53,28 @@ type WorkoutStats = {
   streak: number;
 };
 
+interface StrengthProgress {
+    exercise_id: number;
+    exercise_name: string;
+    current_1rm: number;
+    previous_1rm: number;
+    improvement: number;
+    improvement_percentage: number;
+    last_workout_date: number;
+    total_workout_sessions: number;
+    recent_workout_sessions: number;
+    previous_workout_sessions: number;
+  }
+
+type MonthlyStrengthGains = {
+  total_exercises_improved: number;
+  average_improvement: number;
+  best_improvement: {
+    exercise_name: string;
+    improvement: number;
+  } | null;
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -71,6 +93,8 @@ export default function HomeScreen() {
   const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
   const [userName, setUserName] = useState('Fitness Enthusiast');
   const [isRestDayToday, setIsRestDayToday] = useState(false);
+  const [strengthProgress, setStrengthProgress] = useState<StrengthProgress[]>([]);
+  const [monthlyGains, setMonthlyGains] = useState<MonthlyStrengthGains | null>(null);
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -225,10 +249,167 @@ export default function HomeScreen() {
         console.error('Error loading user name:', error);
         // Keep default name if there's an error
       }
+
+      // Load strength progress data
+      await loadStrengthProgress();
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 1RM Calculation Functions
+  const calculate1RM = {
+    // Average of multiple formulas for better accuracy
+    average: (weight: number, reps: number): number => {
+      if (reps === 1) return weight;
+      if (reps > 15) return weight; // Formulas become unreliable at very high reps
+      
+      // Brzycki formula: weight × (36 / (37 - reps))
+      const brzycki = reps >= 37 ? weight : weight * (36 / (37 - reps));
+      
+      // Epley formula: weight × (1 + reps/30)
+      const epley = weight * (1 + reps / 30);
+      
+      // McGlothin formula: weight × (100 / (101.3 - 2.67123 × reps))
+      const mcglothin = weight * (100 / (101.3 - 2.67123 * reps));
+      
+      return (brzycki + epley + mcglothin) / 3;
+    }
+  };
+
+  const loadStrengthProgress = async () => {
+    try {
+      const db = await getDatabase();
+      
+      // Get the date 60 days ago for broader comparison window
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      const sixtyDaysAgoTimestamp = sixtyDaysAgo.getTime();
+      
+      // Get the date 14 days ago for recent progress (last 2 weeks)
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+      const fourteenDaysAgoTimestamp = fourteenDaysAgo.getTime();
+      
+      // Query to get exercise progress data with improved logic
+      const progressQuery = `
+        WITH exercise_workout_counts AS (
+          SELECT 
+            e.id as exercise_id,
+            e.name as exercise_name,
+            COUNT(DISTINCT w.date) as total_workout_sessions,
+            COUNT(DISTINCT CASE WHEN w.date >= ? THEN w.date END) as recent_workout_sessions,
+            COUNT(DISTINCT CASE WHEN w.date < ? THEN w.date END) as previous_workout_sessions
+          FROM exercises e
+          JOIN workout_exercises we ON e.id = we.exercise_id
+          JOIN workouts w ON we.workout_id = w.id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          WHERE w.completed_at IS NOT NULL 
+            AND s.weight > 0 
+            AND s.reps > 0
+            AND s.reps <= 15
+            AND w.date >= ?
+          GROUP BY e.id, e.name
+          HAVING total_workout_sessions >= 2
+            AND recent_workout_sessions >= 1
+            AND previous_workout_sessions >= 1
+        ),
+        exercise_1rm_data AS (
+          SELECT 
+            e.id as exercise_id,
+            e.name as exercise_name,
+            w.date as workout_date,
+            s.weight,
+            s.reps,
+            (s.weight * (1 + s.reps/30)) as estimated_1rm
+          FROM exercises e
+          JOIN workout_exercises we ON e.id = we.exercise_id
+          JOIN workouts w ON we.workout_id = w.id
+          JOIN sets s ON we.id = s.workout_exercise_id
+          JOIN exercise_workout_counts ewc ON e.id = ewc.exercise_id
+          WHERE w.completed_at IS NOT NULL 
+            AND s.weight > 0 
+            AND s.reps > 0
+            AND s.reps <= 15
+            AND w.date >= ?
+        ),
+        recent_best AS (
+          SELECT 
+            exercise_id,
+            exercise_name,
+            MAX(estimated_1rm) as best_recent_1rm,
+            MAX(workout_date) as last_workout_date
+          FROM exercise_1rm_data
+          WHERE workout_date >= ?
+          GROUP BY exercise_id, exercise_name
+        ),
+        previous_best AS (
+          SELECT 
+            exercise_id,
+            exercise_name,
+            MAX(estimated_1rm) as best_previous_1rm
+          FROM exercise_1rm_data
+          WHERE workout_date < ?
+          GROUP BY exercise_id, exercise_name
+        )
+        SELECT 
+          r.exercise_id,
+          r.exercise_name,
+          r.best_recent_1rm as current_1rm,
+          p.best_previous_1rm as previous_1rm,
+          (r.best_recent_1rm - p.best_previous_1rm) as improvement,
+          ((r.best_recent_1rm - p.best_previous_1rm) / p.best_previous_1rm) * 100 as improvement_percentage,
+          r.last_workout_date,
+          ewc.total_workout_sessions,
+          ewc.recent_workout_sessions,
+          ewc.previous_workout_sessions
+        FROM recent_best r
+        INNER JOIN previous_best p ON r.exercise_id = p.exercise_id
+        INNER JOIN exercise_workout_counts ewc ON r.exercise_id = ewc.exercise_id
+        WHERE r.best_recent_1rm > p.best_previous_1rm
+        ORDER BY improvement_percentage DESC
+        LIMIT 3
+      `;
+      
+      const progressResults = await db.getAllAsync<StrengthProgress>(
+        progressQuery,
+        [
+          fourteenDaysAgoTimestamp, // for recent_workout_sessions count
+          fourteenDaysAgoTimestamp, // for previous_workout_sessions count
+          sixtyDaysAgoTimestamp,    // for total data window
+          sixtyDaysAgoTimestamp,    // for exercise_1rm_data
+          fourteenDaysAgoTimestamp, // for recent_best
+          fourteenDaysAgoTimestamp  // for previous_best
+        ]
+      );
+      
+      setStrengthProgress(progressResults);
+      
+      // Calculate monthly gains summary
+      if (progressResults.length > 0) {
+        const totalImprovement = progressResults.reduce((sum, item) => sum + item.improvement, 0);
+        const averageImprovement = totalImprovement / progressResults.length;
+        const bestImprovement = progressResults[0]; // Already sorted by improvement DESC
+        
+        setMonthlyGains({
+          total_exercises_improved: progressResults.length,
+          average_improvement: averageImprovement,
+          best_improvement: {
+            exercise_name: bestImprovement.exercise_name,
+            improvement: bestImprovement.improvement
+          }
+        });
+      } else {
+        setMonthlyGains({
+          total_exercises_improved: 0,
+          average_improvement: 0,
+          best_improvement: null
+        });
+      }
+    } catch (error) {
+      console.error('Error loading strength progress:', error);
     }
   };
 
@@ -687,6 +868,102 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      {/* Strength Progress Summary */}
+      {strengthProgress.length > 0 && (
+        <Animated.View 
+          style={[
+            styles.strengthProgressContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: translateY }]
+            }
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Strength Progress</Text>
+            <TouchableOpacity onPress={() => router.push('/analytics')}>
+              <Text style={[styles.viewAllText, { color: colors.primary }]}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Monthly Summary */}
+          {monthlyGains && (
+            <View style={[styles.monthlyGainsCard, { backgroundColor: colors.card }]}>
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                style={styles.monthlyGainsIconContainer}
+              >
+                <FontAwesome5 name="chart-line" size={16} color="white" />
+              </LinearGradient>
+              <View style={styles.monthlyGainsContent}>
+                <Text style={[styles.monthlyGainsTitle, { color: colors.text }]}>This Month</Text>
+                <Text style={[styles.monthlyGainsText, { color: colors.subtext }]}>
+                  {monthlyGains.total_exercises_improved} exercise{monthlyGains.total_exercises_improved !== 1 ? 's' : ''} improved
+                  {monthlyGains.best_improvement && (
+                    <Text> • Best: {monthlyGains.best_improvement.exercise_name} (+{monthlyGains.best_improvement.improvement.toFixed(1)}kg)</Text>
+                  )}
+                </Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Top 3 Exercises with Recent Improvements */}
+          <View style={styles.strengthProgressList}>
+            {strengthProgress.map((exercise, index) => (
+              <TouchableOpacity 
+                key={exercise.exercise_id}
+                style={[styles.strengthProgressCard, { backgroundColor: colors.card }]}
+                onPress={() => router.push(`/exercise/history/${exercise.exercise_id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.strengthProgressContent}>
+                  <View style={styles.strengthProgressHeader}>
+                    <Text style={[styles.strengthProgressName, { color: colors.text }]}>
+                      {exercise.exercise_name}
+                    </Text>
+                    <View style={[styles.improvementBadge, { backgroundColor: colors.primaryLight }]}>
+                      <FontAwesome5 name="arrow-up" size={10} color={colors.primary} />
+                      <Text style={[styles.improvementText, { color: colors.primary }]}>
+                        +{exercise.improvement.toFixed(1)}kg
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.strengthProgressMeta}>
+                    <View style={styles.strengthProgressMetaItem}>
+                      <FontAwesome5 name="weight" size={12} color={colors.primary} style={styles.metaIcon} />
+                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
+                        1RM: {exercise.current_1rm.toFixed(1)}kg
+                      </Text>
+                    </View>
+                    <View style={styles.strengthProgressMetaItem}>
+                      <FontAwesome5 name="percentage" size={12} color={colors.primary} style={styles.metaIcon} />
+                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
+                        +{exercise.improvement_percentage.toFixed(1)}%
+                      </Text>
+                    </View>
+                    <View style={styles.strengthProgressMetaItem}>
+                      <FontAwesome5 name="dumbbell" size={12} color={colors.primary} style={styles.metaIcon} />
+                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
+                        {exercise.total_workout_sessions} session{exercise.total_workout_sessions !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <Text style={[styles.lastWorkoutDate, { color: colors.subtext }]}>
+                    Last: {formatDate(exercise.last_workout_date)} • Recent: {exercise.recent_workout_sessions}, Previous: {exercise.previous_workout_sessions}
+                  </Text>
+                </View>
+                
+                <View style={styles.arrowContainer}>
+                  <FontAwesome5 name="chevron-right" size={14} color={colors.primary} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Animated.View>
+      )}
+
       {/* Recent Workouts */}
       <View style={styles.recentWorkoutsContainer}>
         <View style={styles.sectionHeader}>
@@ -1066,5 +1343,98 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  strengthProgressContainer: {
+    marginBottom: 24,
+  },
+  monthlyGainsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  monthlyGainsIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  monthlyGainsContent: {
+    flex: 1,
+  },
+  monthlyGainsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  monthlyGainsText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  strengthProgressList: {
+    gap: 12,
+  },
+  strengthProgressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  strengthProgressContent: {
+    flex: 1,
+  },
+  strengthProgressHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  strengthProgressName: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 12,
+  },
+  improvementBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  improvementText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  strengthProgressMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  strengthProgressMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  strengthProgressMetaText: {
+    fontSize: 13,
+  },
+  lastWorkoutDate: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
 });
