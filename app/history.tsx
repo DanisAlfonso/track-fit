@@ -386,21 +386,6 @@ export default function HistoryScreen() {
                     color={colors.primary} 
                   />
                 </TouchableOpacity>
-                
-                <TouchableOpacity
-                  onPress={() => deleteWorkout(item.id)}
-                  disabled={isDeleting}
-                  style={styles.deleteButton}
-                >
-                  <LinearGradient
-                    colors={['#FF6584', '#FF4D67']}
-                    style={styles.deleteIconContainer}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <FontAwesome name="trash" size={14} color="white" />
-                  </LinearGradient>
-                </TouchableOpacity>
               </View>
             )}
           </View>
