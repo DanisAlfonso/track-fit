@@ -102,7 +102,8 @@ export default function StartWorkoutScreen() {
     weight: 0,
     rest_time: 60, // Default 60 seconds rest
     completed: false,
-    notes: ''
+    notes: '',
+    training_type: 'moderate' // Default training type
   });
   const [touchedFields, setTouchedFields] = useState<TouchedFields>({ reps: false, weight: false });
   const [selectedSetIndex, setSelectedSetIndex] = useState<number>(0);

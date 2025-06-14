@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState, useCallback } from 'react';
 import { useColorScheme, Alert, View, Platform, Vibration } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises, initNotificationPreferences } from '@/utils/database';
 import { WorkoutProvider, useWorkout } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
@@ -128,17 +129,19 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-        <ThemeProvider>
-          <ToastProvider>
-            <WorkoutProvider>
-              <RootLayoutNav />
-            </WorkoutProvider>
-          </ToastProvider>
-        </ThemeProvider>
-      </View>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+          <ThemeProvider>
+            <ToastProvider>
+              <WorkoutProvider>
+                <RootLayoutNav />
+              </WorkoutProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </View>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

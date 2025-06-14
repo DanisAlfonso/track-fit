@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions, Alert, Animated } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import Colors from '../../constants/Colors';
 import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -9,6 +10,10 @@ import { formatDate, calculateDuration } from '../../utils/dateUtils';
 import { getDatabase } from '../../utils/database';
 import { LineChart } from 'react-native-chart-kit';
 import { useTheme } from '@/context/ThemeContext';
+import { SetBottomSheet } from '../../components/SetBottomSheet';
+import { Toast } from '../../components/Toast';
+import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { updateCompletedSet, deleteCompletedSet, isWorkoutCompleted, SetUpdateData } from '../../utils/workoutEditUtils';
 
 // Types
 interface Set {
@@ -18,6 +23,7 @@ interface Set {
   weight: number;
   reps: number;
   rest_time: number | null;
+  training_type: string | null;
   notes: string | null;
 }
 
@@ -72,6 +78,109 @@ type SQLTransaction = {
   ) => void;
 };
 
+// SwipeableSetRow component
+interface SwipeableSetRowProps {
+  set: Set;
+  colors: any;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+const SwipeableSetRow: React.FC<SwipeableSetRowProps> = ({ set, colors, onEdit, onDelete }) => {
+  const translateX = new Animated.Value(0);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: false }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX } = event.nativeEvent;
+      
+      if (translationX < -80) {
+        // Reveal actions
+        Animated.spring(translateX, {
+          toValue: -120,
+          useNativeDriver: false,
+        }).start();
+        setIsRevealed(true);
+      } else {
+        // Hide actions
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: false,
+        }).start();
+        setIsRevealed(false);
+      }
+    }
+  };
+
+  const resetPosition = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: false,
+    }).start();
+    setIsRevealed(false);
+  };
+
+  return (
+    <View style={styles.swipeableContainer}>
+      {/* Action buttons (behind the row) */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            resetPosition();
+            onEdit();
+          }}
+        >
+          <Ionicons name="pencil" size={16} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => {
+            resetPosition();
+            onDelete();
+          }}
+        >
+          <Ionicons name="trash" size={16} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Main row content */}
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+      >
+        <Animated.View
+          style={[
+            styles.setRow,
+            {
+              transform: [{ translateX }],
+              backgroundColor: colors.card,
+            },
+          ]}
+        >
+          <Text style={[styles.setText, { color: colors.text, flex: 0.5 }]}>
+            {set.set_number}
+          </Text>
+          <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
+            {set.weight} kg
+          </Text>
+          <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
+            {set.reps}
+          </Text>
+          <Text style={[styles.setText, { color: colors.text, flex: 1.5 }]}>
+            {set.rest_time ? `${set.rest_time}s` : '-'}
+          </Text>
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
+  );
+};
+
 export default function WorkoutDetailScreen() {
   const params = useLocalSearchParams();
   const workoutId = params.id as string;
@@ -97,6 +206,98 @@ export default function WorkoutDetailScreen() {
     timeChange: 0,
     setCount: 0
   });
+  
+  // Edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingSet, setEditingSet] = useState<Set | null>(null);
+  const [isWorkoutFinished, setIsWorkoutFinished] = useState(false);
+  
+  // Toast and confirmation modal state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+  const [confirmationVisible, setConfirmationVisible] = useState(false);
+  const [setToDelete, setSetToDelete] = useState<Set | null>(null);
+
+  // Helper functions for toast and confirmation
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+  };
+
+  const showDeleteConfirmation = (set: Set) => {
+    setSetToDelete(set);
+    setConfirmationVisible(true);
+  };
+
+  const getDeleteConfirmationMessage = (set: Set | null): string => {
+    if (!set) return '';
+    
+    // Find the exercise this set belongs to
+    const exercise = exercisesWithSets.find(ex => 
+      ex.sets.some(s => s.id === set.id)
+    );
+    
+    if (!exercise) return `Are you sure you want to delete Set ${set.set_number}?`;
+    
+    // Check if this is the only set for this exercise
+    const isOnlySet = exercise.sets.length === 1;
+    
+    if (isOnlySet) {
+      return `This is the only set for ${exercise.name}. Deleting it will remove the entire exercise from this workout. Are you sure?`;
+    }
+    
+    return `Are you sure you want to delete Set ${set.set_number}?`;
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!setToDelete) return;
+    
+    try {
+      await deleteCompletedSet(setToDelete.id);
+      // Reload workout data
+      const loadWorkoutDetails = async () => {
+        try {
+          setLoading(true);
+          const db = await getDatabase();
+          
+          // Load workout info
+          const workoutResult = await db.getAllAsync(
+            `SELECT w.*, r.name as routine_name 
+             FROM workouts w
+             LEFT JOIN routines r ON w.routine_id = r.id
+             WHERE w.id = ?`,
+            [workoutId]
+          );
+          
+          if (workoutResult.length > 0) {
+            const workoutData = workoutResult[0] as unknown as Workout;
+            setWorkout(workoutData);
+            setIsWorkoutFinished(workoutData.completed_at !== null);
+            
+            // Reload exercises with sets
+            await loadExercisesWithSets(workoutData.routine_id);
+          }
+        } catch (error) {
+          console.error('Error reloading workout:', error);
+          showToast('Failed to reload workout data.', 'error');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      await loadWorkoutDetails();
+      setConfirmationVisible(false);
+      setSetToDelete(null);
+      showToast('Set deleted successfully.', 'success');
+    } catch (error) {
+      console.error('Error deleting set:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to delete set.', 'error');
+      setConfirmationVisible(false);
+      setSetToDelete(null);
+    }
+  };
 
   // Load workout details
   useEffect(() => {
@@ -123,7 +324,11 @@ export default function WorkoutDetailScreen() {
         }
 
         const workoutData = workoutResult[0] as unknown as Workout;
-        if (isMounted) setWorkout(workoutData);
+        if (isMounted) {
+          setWorkout(workoutData);
+          // Check if workout is completed
+          setIsWorkoutFinished(workoutData.completed_at !== null);
+        }
 
         // Load exercises with sets
         await loadExercisesWithSets(workoutData.routine_id);
@@ -170,7 +375,9 @@ export default function WorkoutDetailScreen() {
           if (!isMounted) return;
           
           const setsResult = await db.getAllAsync(
-            `SELECT * FROM sets WHERE workout_exercise_id = ? ORDER BY set_number`,
+            `SELECT id, workout_exercise_id, set_number, weight, reps, rest_time, 
+                    COALESCE(training_type, 'moderate') as training_type, notes 
+             FROM sets WHERE workout_exercise_id = ? ORDER BY set_number`,
             [exercise.id]
           );
           
@@ -369,6 +576,239 @@ export default function WorkoutDetailScreen() {
       isMounted = false;
     };
   }, [workoutId]); // Remove workout from dependency array
+
+  // Edit and delete functions
+  const handleEditSet = (set: Set) => {
+    if (!isWorkoutFinished) {
+      showToast('Can only edit sets from completed workouts.', 'error');
+      return;
+    }
+    
+    setEditingSet(set);
+    setEditModalVisible(true);
+  };
+
+  const handleDeleteSet = (set: Set) => {
+    if (!isWorkoutFinished) {
+      showToast('Can only delete sets from completed workouts.', 'error');
+      return;
+    }
+
+    showDeleteConfirmation(set);
+  };
+
+  const handleSaveEditedSet = async (setData: any) => {
+    if (!editingSet) return;
+
+    try {
+      const updates: SetUpdateData = {
+        reps: setData.reps,
+        weight: setData.weight,
+        rest_time: setData.rest_time || null,
+        training_type: setData.training_type,
+        notes: setData.notes || null
+      };
+
+      await updateCompletedSet(editingSet.id, updates);
+      
+      // Reload workout data
+      const loadWorkoutDetails = async () => {
+        try {
+          setLoading(true);
+          const db = await getDatabase();
+          
+          // Load workout info
+          const workoutResult = await db.getAllAsync(
+            `SELECT w.*, r.name as routine_name 
+             FROM workouts w
+             LEFT JOIN routines r ON w.routine_id = r.id
+             WHERE w.id = ?`,
+            [workoutId]
+          );
+          
+          if (workoutResult.length > 0) {
+            const workoutData = workoutResult[0] as unknown as Workout;
+            setWorkout(workoutData);
+            setIsWorkoutFinished(workoutData.completed_at !== null);
+            
+            // Reload exercises with sets
+            await loadExercisesWithSets(workoutData.routine_id);
+          }
+        } catch (error) {
+          console.error('Error reloading workout:', error);
+          showToast('Failed to reload workout data.', 'error');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      await loadWorkoutDetails();
+      setEditModalVisible(false);
+      setEditingSet(null);
+      showToast('Set updated successfully.', 'success');
+    } catch (error) {
+      console.error('Error updating set:', error);
+      showToast('Failed to update set.', 'error');
+    }
+  };
+
+  const loadExercisesWithSets = async (routineId: number) => {
+    try {
+      const db = await getDatabase();
+      
+      // Get exercises for this workout
+      const exercisesResult = await db.getAllAsync(
+        `SELECT we.id, we.exercise_id, we.workout_id, we.notes, e.name, e.primary_muscle
+         FROM workout_exercises we
+         JOIN exercises e ON we.exercise_id = e.id
+         WHERE we.workout_id = ?
+         ORDER BY we.id`,
+        [workoutId]
+      );
+
+      if (exercisesResult.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // Initialize exercises with empty sets
+      const exercises = exercisesResult.map((ex: any) => ({
+        ...ex,
+        sets: [],
+        expanded: true,
+        previousData: []
+      })) as ExerciseWithSets[];
+
+      // Load sets for each exercise and calculate volumes
+      let totalSets = 0;
+      let calculatedVolume = 0;
+
+      for (const exercise of exercises) {
+        const setsResult = await db.getAllAsync(
+          `SELECT id, workout_exercise_id, set_number, weight, reps, rest_time, 
+                  COALESCE(training_type, 'moderate') as training_type, notes 
+           FROM sets WHERE workout_exercise_id = ? ORDER BY set_number`,
+          [exercise.id]
+        );
+        
+        const exerciseSets = setsResult as unknown as Set[];
+        exercise.sets = exerciseSets;
+        
+        totalSets += exerciseSets.length;
+        const exerciseVolume = exerciseSets.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+        calculatedVolume += exerciseVolume;
+      }
+      
+      // Filter out exercises with no sets
+      const exercisesWithData = exercises.filter(exercise => exercise.sets.length > 0);
+      setExercisesWithSets(exercisesWithData);
+      setTotalVolume(calculatedVolume);
+
+      // Load previous workouts for comparison
+      await loadPreviousWorkoutsForReload(routineId, exercises, totalSets);
+    } catch (error) {
+      console.error('Error loading exercises and sets:', error);
+      setLoading(false);
+    }
+  };
+
+  // Helper function for loading previous workouts during reload
+  const loadPreviousWorkoutsForReload = async (
+    routineId: number,
+    exercises: ExerciseWithSets[],
+    totalSets: number
+  ) => {
+    try {
+      const db = await getDatabase();
+      
+      // Define types for database results
+      interface WorkoutResult {
+        id: number;
+        date: string;
+        completed_at: string | null;
+        duration: number | null;
+        exercise_id: number;
+        workout_exercise_id: number;
+      }
+      
+      // Get previous workouts
+      const previousWorkoutsResult = await db.getAllAsync<WorkoutResult>(
+        `SELECT w.id, w.date, w.completed_at, w.duration, we.exercise_id, we.id as workout_exercise_id
+         FROM workouts w
+         JOIN workout_exercises we ON w.id = we.workout_id
+         WHERE w.routine_id = ? AND w.id != ? AND w.completed_at IS NOT NULL
+         ORDER BY w.date DESC
+         LIMIT 10`,
+        [routineId, workoutId]
+      );
+
+      if (previousWorkoutsResult.length === 0) {
+        processComparisonDataForReload(exercises, [], totalSets);
+        return;
+      }
+
+      const prevWorkouts: PreviousWorkout[] = [];
+
+      // Load sets for each previous workout exercise
+      for (const row of previousWorkoutsResult) {
+        const setsResult = await db.getAllAsync<Set>(
+          `SELECT * FROM sets WHERE workout_exercise_id = ?`,
+          [row.workout_exercise_id]
+        );
+
+        prevWorkouts.push({
+          id: row.workout_exercise_id,
+          workout_id: row.id,
+          exercise_id: row.exercise_id,
+          sets: setsResult,
+          date: row.date
+        });
+      }
+
+      processComparisonDataForReload(exercises, prevWorkouts, totalSets);
+    } catch (error) {
+      console.error('Error loading previous workouts:', error);
+      processComparisonDataForReload(exercises, [], totalSets);
+    }
+  };
+
+  const processComparisonDataForReload = async (
+    exercises: ExerciseWithSets[],
+    previousWorkoutsData: PreviousWorkout[],
+    totalSets: number
+  ) => {
+    try {
+      setPreviousWorkouts(previousWorkoutsData);
+      
+      // Process data for each exercise
+      const exercisesWithHistory = exercises.map(exercise => {
+        // Get previous data for this exercise
+        const previousData = previousWorkoutsData
+          .filter(pw => pw.exercise_id === exercise.exercise_id)
+          .map(pw => {
+            const volume = pw.sets.reduce((sum, set) => sum + (set.weight * set.reps), 0);
+            const maxWeight = pw.sets.reduce((max, set) => Math.max(max, set.weight), 0);
+            
+            return {
+              date: pw.date,
+              volume,
+              maxWeight
+            };
+          });
+        
+        return {
+          ...exercise,
+          previousData
+        };
+      });
+      
+      setExercisesWithSets(exercisesWithHistory);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error processing comparison data:', error);
+      setLoading(false);
+    }
+  };
 
   // Toggle exercise expansion
   const toggleExerciseExpansion = (exerciseId: number) => {
@@ -665,23 +1105,36 @@ export default function WorkoutDetailScreen() {
                   <Text style={[styles.setText, { color: colors.subtext, flex: 1 }]}>Weight</Text>
                   <Text style={[styles.setText, { color: colors.subtext, flex: 1 }]}>Reps</Text>
                   <Text style={[styles.setText, { color: colors.subtext, flex: 1.5 }]}>Rest Time</Text>
+                  {isWorkoutFinished && (
+                    <Text style={[styles.setText, { color: colors.subtext, flex: 0.8, fontSize: 12 }]}>← Swipe</Text>
+                  )}
                 </View>
                 
                 {exercise.sets.map((currentSet, index) => (
-                  <View key={currentSet.id} style={styles.setRow}>
-                    <Text style={[styles.setText, { color: colors.text, flex: 0.5 }]}>
-                      {currentSet.set_number}
-                    </Text>
-                    <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
-                      {currentSet.weight} kg
-                    </Text>
-                    <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
-                      {currentSet.reps}
-                    </Text>
-                    <Text style={[styles.setText, { color: colors.text, flex: 1.5 }]}>
-                      {currentSet.rest_time ? `${currentSet.rest_time}s` : '-'}
-                    </Text>
-                  </View>
+                  isWorkoutFinished ? (
+                    <SwipeableSetRow
+                      key={currentSet.id}
+                      set={currentSet}
+                      colors={colors}
+                      onEdit={() => handleEditSet(currentSet)}
+                      onDelete={() => handleDeleteSet(currentSet)}
+                    />
+                  ) : (
+                    <View key={currentSet.id} style={styles.setRow}>
+                      <Text style={[styles.setText, { color: colors.text, flex: 0.5 }]}>
+                        {currentSet.set_number}
+                      </Text>
+                      <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
+                        {currentSet.weight} kg
+                      </Text>
+                      <Text style={[styles.setText, { color: colors.text, flex: 1 }]}>
+                        {currentSet.reps}
+                      </Text>
+                      <Text style={[styles.setText, { color: colors.text, flex: 1.5 }]}>
+                        {currentSet.rest_time ? `${currentSet.rest_time}s` : '-'}
+                      </Text>
+                    </View>
+                  )
                 ))}
                 
                 {/* Display set notes for each set that has notes */}
@@ -740,6 +1193,54 @@ export default function WorkoutDetailScreen() {
           </>
         )}
       </ScrollView>
+      
+      {/* Edit Set Modal */}
+      {editingSet && (
+        <SetBottomSheet
+          visible={editModalVisible}
+          onClose={() => {
+            setEditModalVisible(false);
+            setEditingSet(null);
+          }}
+          onSave={handleSaveEditedSet}
+          currentSet={{
+            set_number: editingSet.set_number,
+            reps: editingSet.reps,
+            weight: editingSet.weight,
+            rest_time: editingSet.rest_time || 0,
+            completed: true,
+            training_type: (editingSet.training_type as 'heavy' | 'moderate' | 'light') || 'moderate',
+            notes: editingSet.notes || ''
+          }}
+          exerciseName="Edit Set"
+          weightUnit="kg"
+          showRestTimer={false}
+        />
+      )}
+      
+      {/* Toast Component */}
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setToastVisible(false)}
+      />
+      
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        visible={confirmationVisible}
+        title="Delete Set"
+        message={getDeleteConfirmationMessage(setToDelete)}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        icon="trash-alt"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setConfirmationVisible(false);
+          setSetToDelete(null);
+        }}
+      />
     </View>
   );
 }
@@ -957,4 +1458,39 @@ const styles = StyleSheet.create({
   historyIcon: {
     marginRight: 6,
   },
-}); 
+  setActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editButton: {
+    // backgroundColor set dynamically
+  },
+  deleteButton: {
+    backgroundColor: '#F44336',
+  },
+  swipeableContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  actionsContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 16,
+    width: 120,
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+});
