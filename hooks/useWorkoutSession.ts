@@ -327,7 +327,6 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
       // Register with global workout context
       startGlobalWorkout(newWorkoutId, routineName);
       
-      showToast('Your workout has begun. Track your progress as you go!', 'success');
       return true;
     } catch (error) {
       console.error('Error starting workout:', error);

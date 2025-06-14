@@ -154,9 +154,6 @@ export const FinishWorkoutModal: React.FC<FinishWorkoutModalProps> = ({
         }
       }
       
-      // Show success message without the button
-      showToast('Great job! Your workout has been saved.', 'success', 3000);
-      
       setTimeout(() => {
         router.replace(`/workout/${workoutId}`);
       }, 1000); 
@@ -186,4 +183,4 @@ export const FinishWorkoutModal: React.FC<FinishWorkoutModalProps> = ({
       onCancel={onClose}
     />
   );
-}; 
+};
