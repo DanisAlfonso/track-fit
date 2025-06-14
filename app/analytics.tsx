@@ -569,9 +569,11 @@ export default function WorkoutAnalyticsScreen() {
         </View>
         
         <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Recent Workouts
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Recent Workouts
+            </Text>
+          </View>
           
           {recentWorkouts.length > 0 ? (
             <View style={styles.recentWorkoutsList}>
@@ -2372,5 +2374,24 @@ const styles = StyleSheet.create({
   selectionStatValue: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginRight: 4,
   },
 });

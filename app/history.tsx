@@ -366,6 +366,17 @@ export default function HistoryScreen() {
             {!editMode && (
               <View style={styles.workoutActions}>
                 <TouchableOpacity
+                  onPress={() => router.push(`/workout/analytics/${item.id}`)}
+                  style={styles.expandButton}
+                >
+                  <FontAwesome5 
+                    name="chart-bar" 
+                    size={14} 
+                    color={colors.primary} 
+                  />
+                </TouchableOpacity>
+                
+                <TouchableOpacity
                   onPress={() => toggleExpandWorkout(item.id)}
                   style={styles.expandButton}
                 >
@@ -915,4 +926,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-}); 
+});
