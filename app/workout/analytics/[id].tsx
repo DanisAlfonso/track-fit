@@ -7,7 +7,7 @@ import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { formatDate, calculateDuration } from '../../../utils/dateUtils';
 import { getDatabase } from '../../../utils/database';
-import { LineChart, BarChart, PieChart, ContributionGraph } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-gifted-charts';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -75,6 +75,11 @@ export default function WorkoutAnalyticsScreen() {
   const [totalVolume, setTotalVolume] = useState(0);
   const [previousWorkouts, setPreviousWorkouts] = useState<PreviousWorkout[]>([]);
   const [selectedTab, setSelectedTab] = useState<'volume' | 'muscles' | 'progress' | 'training'>('volume');
+  const [selectedPieSection, setSelectedPieSection] = useState<number | null>(null);
+  const [volumeTimeRange, setVolumeTimeRange] = useState<'7D' | '1M' | '3M' | '6M' | 'All'>('1M');
+  const [showAreaChart, setShowAreaChart] = useState(false);
+  const [volumeGoal, setVolumeGoal] = useState<number | null>(null);
+  const [showMovingAverage, setShowMovingAverage] = useState(false);
   const [volumeHistory, setVolumeHistory] = useState<{date: string; volume: number}[]>([]);
   const [muscleGroups, setMuscleGroups] = useState<Record<string, number>>({});
   const [trainingTypeDistribution, setTrainingTypeDistribution] = useState<Record<string, number>>({
@@ -368,31 +373,66 @@ export default function WorkoutAnalyticsScreen() {
     );
   };
 
+  // Get filtered volume data based on time range
+  const getFilteredVolumeData = () => {
+    const now = new Date();
+    let filteredData = volumeHistory;
+    
+    switch (volumeTimeRange) {
+      case '7D':
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        filteredData = volumeHistory.filter(item => new Date(item.date) >= sevenDaysAgo);
+        break;
+      case '1M':
+        const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        filteredData = volumeHistory.filter(item => new Date(item.date) >= oneMonthAgo);
+        break;
+      case '3M':
+        const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        filteredData = volumeHistory.filter(item => new Date(item.date) >= threeMonthsAgo);
+        break;
+      case '6M':
+        const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+        filteredData = volumeHistory.filter(item => new Date(item.date) >= sixMonthsAgo);
+        break;
+      case 'All':
+      default:
+        filteredData = volumeHistory;
+        break;
+    }
+    
+    return filteredData.slice(-20); // Limit to last 20 workouts for performance
+  };
+  
+  // Calculate moving average
+  const calculateMovingAverage = (data: {date: string; volume: number}[], window: number = 3) => {
+    return data.map((item, index) => {
+      const start = Math.max(0, index - window + 1);
+      const subset = data.slice(start, index + 1);
+      const average = subset.reduce((sum, d) => sum + d.volume, 0) / subset.length;
+      return {
+        ...item,
+        movingAverage: average
+      };
+    });
+  };
+
   // Render volume tab content
   const renderVolumeTab = () => {
-    // Prepare volume chart data
-    const volumeData = {
-      labels: volumeHistory.slice(-6).map(d => {
-        const date = new Date(d.date);
-        return `${date.getMonth()+1}/${date.getDate()}`;
-      }),
-      datasets: [
-        {
-          data: volumeHistory.slice(-6).map(d => d.volume),
-          color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
-          strokeWidth: 2
-        }
-      ],
-      legend: ["Workout Volume"]
-    };
+    const filteredVolumeData = getFilteredVolumeData();
+    const volumeDataWithMA = calculateMovingAverage(filteredVolumeData);
     
     // Calculate volume trend (percentage change from first to last)
     let volumeTrend = 0;
-    if (volumeHistory.length >= 2) {
-      const firstVolume = volumeHistory[0].volume;
-      const lastVolume = volumeHistory[volumeHistory.length - 1].volume;
+    if (filteredVolumeData.length >= 2) {
+      const firstVolume = filteredVolumeData[0].volume;
+      const lastVolume = filteredVolumeData[filteredVolumeData.length - 1].volume;
       volumeTrend = ((lastVolume - firstVolume) / firstVolume) * 100;
     }
+    
+    // Calculate goal achievement percentage
+    const currentVolume = filteredVolumeData[filteredVolumeData.length - 1]?.volume || 0;
+    const goalProgress = volumeGoal ? (currentVolume / volumeGoal) * 100 : 0;
     
     return (
       <View style={styles.tabContent}>
@@ -401,44 +441,359 @@ export default function WorkoutAnalyticsScreen() {
             Workout Volume Progression
           </Text>
           
-          {volumeHistory.length > 1 ? (
-            <>
-              <LineChart
-                data={volumeData}
-                width={windowWidth - 40}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.card,
-                  backgroundGradientFrom: colors.card,
-                  backgroundGradientTo: colors.card,
-                  decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(${currentTheme === 'dark' ? '134, 65, 244' : '134, 65, 244'}, ${opacity})`,
-                  labelColor: (opacity = 1) => colors.text,
-                  style: { borderRadius: 16 },
-                  propsForDots: {
-                    r: "6",
-                    strokeWidth: "2",
-                    stroke: colors.primary
+          {/* Chart Controls */}
+          <View style={styles.chartControls}>
+            <TouchableOpacity
+              style={[
+                styles.chartControlButton,
+                { 
+                  backgroundColor: showAreaChart ? colors.primary : 'transparent',
+                  borderColor: colors.primary
+                }
+              ]}
+              onPress={() => setShowAreaChart(!showAreaChart)}
+            >
+              <Text style={[
+                styles.chartControlText,
+                { color: showAreaChart ? '#FFFFFF' : colors.primary }
+              ]}>
+                Area Chart
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.chartControlButton,
+                { 
+                  backgroundColor: showMovingAverage ? colors.primary : 'transparent',
+                  borderColor: colors.primary
+                }
+              ]}
+              onPress={() => setShowMovingAverage(!showMovingAverage)}
+            >
+              <Text style={[
+                styles.chartControlText,
+                { color: showMovingAverage ? '#FFFFFF' : colors.primary }
+              ]}>
+                Moving Avg
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Time Range Selector */}
+          <View style={styles.timeRangeSelector}>
+            {(['7D', '1M', '3M', '6M', 'All'] as const).map((range) => (
+              <TouchableOpacity
+                key={range}
+                style={[
+                  styles.timeRangeButton,
+                  {
+                    backgroundColor: volumeTimeRange === range ? colors.primary : 'transparent',
+                    borderColor: colors.primary
                   }
-                }}
-                bezier
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16
-                }}
-                formatYLabel={(value) => `${parseInt(value)}kg`}
-              />
-              
-              <View style={styles.trendContainer}>
-                <Text style={[styles.trendLabel, { color: colors.text }]}>
-                  Overall Trend:
-                </Text>
+                ]}
+                onPress={() => setVolumeTimeRange(range)}
+              >
                 <Text style={[
-                  styles.trendValue, 
-                  { color: volumeTrend >= 0 ? '#4CAF50' : '#F44336' }
+                  styles.timeRangeText,
+                  { color: volumeTimeRange === range ? '#FFFFFF' : colors.primary }
                 ]}>
-                  {volumeTrend >= 0 ? '+' : ''}{volumeTrend.toFixed(1)}%
+                  {range}
                 </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          {/* Goal Setting */}
+          <View style={styles.goalContainer}>
+            <Text style={[styles.goalLabel, { color: colors.text }]}>Volume Goal:</Text>
+            <View style={styles.goalControls}>
+              <TouchableOpacity
+                style={[styles.goalButton, { borderColor: colors.primary }]}
+                onPress={() => {
+                  // Cycle through preset goals or clear
+                  const maxVolume = Math.max(...filteredVolumeData.map(d => d.volume));
+                  const presetGoals = [
+                    Math.round(maxVolume * 1.1), // 10% increase
+                    Math.round(maxVolume * 1.25), // 25% increase
+                    Math.round(maxVolume * 1.5), // 50% increase
+                    null // Clear goal
+                  ];
+                  
+                  const currentIndex = volumeGoal ? presetGoals.findIndex(goal => goal === volumeGoal) : -1;
+                  const nextIndex = (currentIndex + 1) % presetGoals.length;
+                  setVolumeGoal(presetGoals[nextIndex]);
+                }}
+              >
+                <Text style={[styles.goalButtonText, { color: colors.primary }]}>
+                  {volumeGoal ? `${(volumeGoal/1000).toFixed(1)}k kg` : 'Set Goal'}
+                </Text>
+              </TouchableOpacity>
+              
+              {volumeGoal && (
+                <TouchableOpacity
+                  style={[styles.goalClearButton, { borderColor: colors.subtext }]}
+                  onPress={() => setVolumeGoal(null)}
+                >
+                  <Text style={[styles.goalClearText, { color: colors.subtext }]}>Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {volumeGoal && (
+              <View style={styles.goalProgressContainer}>
+                <Text style={[styles.goalProgress, { color: goalProgress >= 100 ? '#4CAF50' : colors.subtext }]}>
+                  {goalProgress.toFixed(1)}% achieved
+                </Text>
+                <Text style={[styles.goalHint, { color: colors.subtext }]}>
+                  Tap "Set Goal" to cycle through preset goals
+                </Text>
+              </View>
+            )}
+          </View>
+          
+          {filteredVolumeData.length > 1 ? (
+            <>
+              <View style={styles.chartContainer}>
+                <LineChart
+                  data={volumeDataWithMA.map((trend, index) => ({
+                    value: trend.volume,
+                    label: (() => {
+                      const date = new Date(trend.date);
+                      return `${date.getMonth()+1}/${date.getDate()}`;
+                    })(),
+                    labelTextStyle: {
+                      color: colors.subtext,
+                      fontSize: 10
+                    },
+                    customDataPoint: () => {
+                      const isHighest = trend.volume === Math.max(...filteredVolumeData.map(d => d.volume));
+                      return (
+                        <View style={[
+                          styles.customDataPoint,
+                          { backgroundColor: isHighest ? '#FFD700' : colors.primary }
+                        ]} />
+                      );
+                    }
+                  }))}
+                  data2={showMovingAverage ? volumeDataWithMA.map((trend) => ({
+                    value: trend.movingAverage,
+                    label: ''
+                  })) : undefined}
+                  width={windowWidth - 80}
+                  height={250}
+                  color={colors.primary}
+                  color2={showMovingAverage ? '#FF6B6B' : undefined}
+                  thickness={3}
+                  thickness2={showMovingAverage ? 2 : undefined}
+                  dataPointsColor={colors.primary}
+                  dataPointsColor2={showMovingAverage ? '#FF6B6B' : undefined}
+                  dataPointsRadius={6}
+                  dataPointsRadius2={showMovingAverage ? 4 : undefined}
+                  dataPointsWidth={2}
+                  textShiftY={-8}
+                  textShiftX={-10}
+                  textColor1={colors.text}
+                  textFontSize={12}
+                  hideRules={true}
+                  hideYAxisText={false}
+                  yAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                  xAxisColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                  yAxisTextStyle={{
+                    color: colors.subtext,
+                    fontSize: 11,
+                    fontWeight: '500'
+                  }}
+                  xAxisLabelTextStyle={{
+                    color: colors.subtext,
+                    fontSize: 10,
+                    fontWeight: '500'
+                  }}
+                  curved={true}
+                  animationDuration={1200}
+                  animateOnDataChange={true}
+                  onDataChangeAnimationDuration={800}
+                  areaChart={showAreaChart}
+                  startFillColor={showAreaChart ? colors.primary : undefined}
+                  endFillColor={showAreaChart ? colors.primary + '20' : undefined}
+                  startOpacity={showAreaChart ? 0.8 : undefined}
+                  endOpacity={showAreaChart ? 0.1 : undefined}
+                  focusEnabled={true}
+                  showTextOnFocus={true}
+                  showStripOnFocus={true}
+                  stripColor={colors.primary}
+                  stripOpacity={0.3}
+                  stripWidth={2}
+                  unFocusOnPressOut={true}
+                  delayBeforeUnFocus={3000}
+                  formatYLabel={(value) => {
+                    const numValue = Number(value);
+                    if (numValue >= 1000000) {
+                      return `${(numValue / 1000000).toFixed(1)}M`;
+                    } else if (numValue >= 1000) {
+                      return `${(numValue / 1000).toFixed(1)}k`;
+                    }
+                    return `${numValue}`;
+                  }}
+                  maxValue={(() => {
+                    const dataMax = Math.max(...filteredVolumeData.map(t => t.volume));
+                    const goalMax = volumeGoal || 0;
+                    const maxVal = Math.max(dataMax, goalMax);
+                    if (maxVal <= 100) return 100;
+                    if (maxVal <= 500) return Math.ceil(maxVal / 100) * 100;
+                    if (maxVal <= 1000) return Math.ceil(maxVal / 250) * 250;
+                    if (maxVal <= 5000) return Math.ceil(maxVal / 500) * 500;
+                    return Math.ceil(maxVal / 1000) * 1000;
+                  })()}
+                  noOfSections={5}
+                  stepValue={(() => {
+                    const dataMax = Math.max(...filteredVolumeData.map(t => t.volume));
+                    const goalMax = volumeGoal || 0;
+                    const maxVal = Math.max(dataMax, goalMax);
+                    if (maxVal <= 100) return 20;
+                    if (maxVal <= 500) return Math.ceil(maxVal / 500) * 100;
+                    if (maxVal <= 1000) return Math.ceil(maxVal / 1000) * 200;
+                    if (maxVal <= 5000) return Math.ceil(maxVal / 2500) * 500;
+                    return Math.ceil(maxVal / 5000) * 1000;
+                  })()}
+                  rulesType="solid"
+                  rulesColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+                  showVerticalLines={true}
+                  verticalLinesColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)'}
+                  pointerConfig={{
+                    pointerStripHeight: 200,
+                    pointerStripColor: colors.primary,
+                    pointerStripWidth: 2,
+                    pointerColor: colors.primary,
+                    radius: 8,
+                    pointerLabelWidth: 120,
+                    pointerLabelHeight: 90,
+                    activatePointersOnLongPress: false,
+                    autoAdjustPointerLabelPosition: true,
+                    pointerLabelComponent: (items: any[]) => {
+                      const item = items[0];
+                      
+                      // Find the workout data by matching the volume value
+                      let workout = null;
+                      let displayDate = 'Date unavailable';
+                      
+                      // Try to find the matching data point by volume value
+                      if (item.value !== undefined) {
+                        workout = volumeDataWithMA.find(data => Math.abs(data.volume - item.value) < 0.01);
+                      }
+                      
+                      // If we found a workout, parse its date (timestamp)
+                      if (workout?.date) {
+                        try {
+                          const workoutDate = new Date(workout.date);
+                          if (!isNaN(workoutDate.getTime())) {
+                            displayDate = workoutDate.toLocaleDateString();
+                          } else {
+                            displayDate = String(workout.date);
+                          }
+                        } catch (error) {
+                          displayDate = String(workout.date);
+                        }
+                      }
+                      
+                      return (
+                        <View style={[
+                          styles.pointerLabel,
+                          { backgroundColor: colors.card, borderColor: colors.primary }
+                        ]}>
+                          <Text style={[styles.pointerLabelTitle, { color: colors.text }]}>Workout Volume</Text>
+                          <Text style={[styles.pointerLabelValue, { color: colors.primary }]}>
+                            {(item.value/1000).toFixed(1)}k kg
+                          </Text>
+                          <Text style={[styles.pointerLabelDate, { color: colors.subtext }]}>
+                            {displayDate}
+                          </Text>
+                          {showMovingAverage && items[1] && (
+                            <Text style={[styles.pointerLabelMA, { color: '#FF6B6B' }]}>
+                              Moving Avg: {(items[1].value/1000).toFixed(1)}k kg
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    }
+                  }}
+                />
+                
+                {/* Goal Line Overlay */}
+                {volumeGoal && (
+                  <View style={[
+                    styles.goalLine,
+                    {
+                      bottom: (() => {
+                        const chartHeight = 250;
+                        const maxVal = (() => {
+                          const dataMax = Math.max(...filteredVolumeData.map(t => t.volume));
+                          const goalMax = volumeGoal || 0;
+                          const maxVal = Math.max(dataMax, goalMax);
+                          if (maxVal <= 100) return 100;
+                          if (maxVal <= 500) return Math.ceil(maxVal / 100) * 100;
+                          if (maxVal <= 1000) return Math.ceil(maxVal / 250) * 250;
+                          if (maxVal <= 5000) return Math.ceil(maxVal / 500) * 500;
+                          return Math.ceil(maxVal / 1000) * 1000;
+                        })();
+                        const percentage = volumeGoal / maxVal;
+                        return (chartHeight * percentage) - 30; // Adjust for chart padding
+                      })(),
+                      backgroundColor: '#4CAF50'
+                    }
+                  ]}>
+                    <Text style={styles.goalLineText}>Goal: {(volumeGoal/1000).toFixed(1)}k kg</Text>
+                  </View>
+                )}
+              </View>
+              
+              {/* Enhanced Statistics */}
+              <View style={styles.enhancedStatsContainer}>
+                <View style={styles.statRow}>
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statLabel, { color: colors.subtext }]}>Trend</Text>
+                    <Text style={[
+                      styles.statValue, 
+                      { color: volumeTrend >= 0 ? '#4CAF50' : '#F44336' }
+                    ]}>
+                      {volumeTrend >= 0 ? '+' : ''}{volumeTrend.toFixed(1)}%
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statLabel, { color: colors.subtext }]}>Best</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {(Math.max(...filteredVolumeData.map(d => d.volume))/1000).toFixed(1)}k
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statLabel, { color: colors.subtext }]}>Average</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {(filteredVolumeData.reduce((sum, d) => sum + d.volume, 0) / filteredVolumeData.length / 1000).toFixed(1)}k
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statLabel, { color: colors.subtext }]}>Workouts</Text>
+                    <Text style={[styles.statValue, { color: colors.text }]}>
+                      {filteredVolumeData.length}
+                    </Text>
+                  </View>
+                </View>
+                
+                {showMovingAverage && (
+                  <View style={styles.legendContainer}>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
+                      <Text style={[styles.legendText, { color: colors.text }]}>Volume</Text>
+                    </View>
+                    <View style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: '#FF6B6B' }]} />
+                      <Text style={[styles.legendText, { color: colors.text }]}>3-Workout MA</Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </>
           ) : (
@@ -495,31 +850,22 @@ export default function WorkoutAnalyticsScreen() {
   
   // Render muscles tab content
   const renderMusclesTab = () => {
-    // Convert to chart data
-    const chartColors = [
-      '#FF5733', '#33A8FF', '#33FF57', '#A833FF', '#FF33A8', 
-      '#FFD733', '#33FFEC', '#7BFF33', '#FF338A', '#33AAFF'
+    // Convert muscle groups to array format
+    const muscleGroupArray = Object.entries(muscleGroups).map(([name, volume]) => ({
+      muscle: name,
+      volume
+    })).sort((a, b) => b.volume - a.volume);
+    
+    const modernColors = [
+      '#6366F1', // Indigo
+      '#8B5CF6', // Violet  
+      '#06B6D4', // Cyan
+      '#10B981', // Emerald
+      '#F59E0B', // Amber
+      '#EF4444', // Red
+      '#EC4899', // Pink
+      '#84CC16', // Lime
     ];
-    
-    const pieChartData = Object.entries(muscleGroups).map(([name, volume], index) => {
-      return {
-        name,
-        volume,
-        legendFontColor: colors.text,
-        legendFontSize: 12,
-        color: chartColors[index % chartColors.length]
-      };
-    });
-    
-    // Prepare data for bar chart
-    const barChartData = {
-      labels: Object.keys(muscleGroups).slice(0, 6).map(name => name.substring(0, 5) + '...'),
-      datasets: [
-        {
-          data: Object.values(muscleGroups).slice(0, 6)
-        }
-      ]
-    };
     
     return (
       <View style={styles.tabContent}>
@@ -528,32 +874,171 @@ export default function WorkoutAnalyticsScreen() {
             Volume by Muscle Group
           </Text>
           
-          {Object.keys(muscleGroups).length > 0 ? (
+          {muscleGroupArray.length > 0 ? (
             <>
-              <PieChart
-                data={pieChartData}
-                width={windowWidth - 40}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.card,
-                  backgroundGradientFrom: colors.card,
-                  backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
-                }}
-                accessor="volume"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute={false}
-                avoidFalseZero={true}
-              />
+              <View style={styles.pieChartContainer}>
+                <PieChart
+                  data={muscleGroupArray.slice(0, 8).map((item, index) => ({
+                    value: item.volume,
+                    color: modernColors[index % modernColors.length],
+                    gradientCenterColor: modernColors[index % modernColors.length] + '40',
+                    focused: false,
+                    strokeColor: currentTheme === 'dark' ? '#1F2937' : '#F9FAFB',
+                    strokeWidth: 3,
+                  }))}
+                  radius={100}
+                  innerRadius={40}
+                  backgroundColor={currentTheme === 'dark' ? 'transparent' : 'transparent'}
+                  innerCircleColor={currentTheme === 'dark' ? colors.card : colors.card}
+                  centerLabelComponent={() => {
+                    if (selectedPieSection !== null && selectedPieSection < muscleGroupArray.length) {
+                      const selectedMuscle = muscleGroupArray[selectedPieSection];
+                      const totalVolume = muscleGroupArray.reduce((sum, mg) => sum + mg.volume, 0);
+                      const percentage = ((selectedMuscle.volume / totalVolume) * 100).toFixed(1);
+                      return (
+                        <View style={styles.pieChartCenter}>
+                          <Text style={[
+                            styles.pieChartCenterTitle, 
+                            { 
+                              color: currentTheme === 'dark' ? '#FFFFFF' : colors.text,
+                              fontWeight: '600'
+                            }
+                          ]}>
+                            {selectedMuscle.muscle}
+                          </Text>
+                          <Text style={[
+                            styles.pieChartCenterValue, 
+                            { 
+                              color: colors.primary,
+                              textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                              textShadowOffset: { width: 0, height: 1 },
+                              textShadowRadius: 2
+                            }
+                          ]}>
+                            {percentage}%
+                          </Text>
+                          <Text style={[
+                            styles.pieChartCenterUnit, 
+                            { 
+                              color: currentTheme === 'dark' ? '#D1D5DB' : colors.subtext,
+                              fontWeight: '500'
+                            }
+                          ]}>
+                            {(selectedMuscle.volume / 1000).toFixed(1)}k kg
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return (
+                      <View style={styles.pieChartCenter}>
+                        <Text style={[
+                          styles.pieChartCenterTitle, 
+                          { 
+                            color: currentTheme === 'dark' ? '#FFFFFF' : colors.text,
+                            fontWeight: '600',
+                            textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 2
+                          }
+                        ]}>Total</Text>
+                        <Text style={[
+                          styles.pieChartCenterValue, 
+                          { 
+                            color: colors.primary,
+                            textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 2
+                          }
+                        ]}>
+                          {(muscleGroupArray.reduce((sum, mg) => sum + mg.volume, 0) / 1000).toFixed(1)}k
+                        </Text>
+                        <Text style={[
+                          styles.pieChartCenterUnit, 
+                          { 
+                            color: currentTheme === 'dark' ? '#D1D5DB' : colors.subtext,
+                            fontWeight: '500',
+                            textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 2
+                          }
+                        ]}>kg</Text>
+                      </View>
+                    );
+                  }}
+                  showText={false}
+                  strokeColor={currentTheme === 'dark' ? '#1F2937' : '#F9FAFB'}
+                  strokeWidth={3}
+                  focusOnPress={true}
+                  toggleFocusOnPress={true}
+                  sectionAutoFocus={false}
+                  isAnimated={true}
+                  animationDuration={600}
+                  focusedPieIndex={-1}
+                  onPress={(item: any, index: number) => {
+                    setSelectedPieSection(selectedPieSection === index ? null : index);
+                  }}
+                  pieInnerComponentHeight={140}
+                  pieInnerComponentWidth={140}
+                  extraRadius={12}
+                  shadow={currentTheme === 'dark' ? false : true}
+                  shadowColor={currentTheme === 'dark' ? 'transparent' : '#000000'}
+                />
+                
+                {/* Custom Legend */}
+                <View style={styles.pieChartLegend}>
+                  {muscleGroupArray.slice(0, 8).map((item, index) => {
+                    const totalVolume = muscleGroupArray.reduce((sum, mg) => sum + mg.volume, 0);
+                    const percentage = ((item.volume / totalVolume) * 100).toFixed(1);
+                    const isSelected = selectedPieSection === index;
+                    
+                    return (
+                      <TouchableOpacity 
+                        key={index} 
+                        style={[
+                          styles.legendItem,
+                          isSelected && {
+                            backgroundColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)',
+                            borderRadius: 8,
+                            paddingVertical: 4,
+                            paddingHorizontal: 8,
+                            marginVertical: 2,
+                            borderWidth: 1,
+                            borderColor: currentTheme === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'
+                          }
+                        ]}
+                        onPress={() => {
+                          setSelectedPieSection(selectedPieSection === index ? null : index);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[
+                          styles.legendDot, 
+                          { backgroundColor: modernColors[index % modernColors.length] }
+                        ]} />
+                        <Text style={[
+                          styles.legendText, 
+                          { color: colors.text, flex: 1 }
+                        ]}>
+                          {item.muscle}
+                        </Text>
+                        <Text style={[
+                          styles.legendPercentage, 
+                          { color: colors.subtext }
+                        ]}>
+                          {percentage}%
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
               
               <View style={styles.focusContainer}>
                 <Text style={[styles.focusLabel, { color: colors.text }]}>
                   Primary Focus:
                 </Text>
                 <Text style={[styles.focusValue, { color: colors.primary }]}>
-                  {Object.entries(muscleGroups).sort((a, b) => b[1] - a[1])[0][0]}
+                  {muscleGroupArray[0]?.muscle || 'N/A'}
                 </Text>
               </View>
             </>
@@ -955,21 +1440,74 @@ export default function WorkoutAnalyticsScreen() {
           {totalTrainingVolume > 0 ? (
             <>
               <PieChart
-                data={pieChartData}
-                width={windowWidth - 40}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.card,
-                  backgroundGradientFrom: colors.card,
-                  backgroundGradientTo: colors.card,
-                  color: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(${theme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`
+                data={Object.entries(trainingTypeDistribution)
+                  .filter(([_, volume]) => volume > 0)
+                  .map(([type, volume]) => {
+                    const trainingTypeColors = {
+                      heavy: '#6F74DD',
+                      moderate: '#FFB300',
+                      light: '#4CAF50',
+                      unspecified: '#757575'
+                    };
+                    return {
+                      value: volume,
+                      color: trainingTypeColors[type as keyof typeof trainingTypeColors],
+                      gradientCenterColor: trainingTypeColors[type as keyof typeof trainingTypeColors] + '40',
+                      focused: false,
+                      strokeColor: currentTheme === 'dark' ? '#1F2937' : '#F9FAFB',
+                      strokeWidth: 3,
+                    };
+                  })}
+                radius={100}
+                innerRadius={40}
+                backgroundColor={currentTheme === 'dark' ? 'transparent' : 'transparent'}
+                innerCircleColor={currentTheme === 'dark' ? colors.card : colors.card}
+                centerLabelComponent={() => {
+                  const totalTrainingVolume = Object.values(trainingTypeDistribution).reduce((sum, val) => sum + val, 0);
+                  return (
+                    <View style={styles.pieChartCenter}>
+                      <Text style={[
+                        styles.pieChartCenterTitle, 
+                        { 
+                          color: currentTheme === 'dark' ? '#FFFFFF' : colors.text,
+                          fontWeight: '600'
+                        }
+                      ]}>Training</Text>
+                      <Text style={[
+                        styles.pieChartCenterValue, 
+                        { 
+                          color: colors.primary,
+                          textShadowColor: currentTheme === 'dark' ? 'rgba(0,0,0,0.8)' : 'transparent',
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2
+                        }
+                      ]}>
+                        {(totalTrainingVolume / 1000).toFixed(1)}k
+                      </Text>
+                      <Text style={[
+                        styles.pieChartCenterUnit, 
+                        { 
+                          color: currentTheme === 'dark' ? '#D1D5DB' : colors.subtext,
+                          fontWeight: '500'
+                        }
+                      ]}>kg</Text>
+                    </View>
+                  );
                 }}
-                accessor="volume"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute={false}
-                avoidFalseZero={true}
+                showText={false}
+                strokeColor={currentTheme === 'dark' ? '#1F2937' : '#F9FAFB'}
+                strokeWidth={3}
+                focusOnPress={true}
+                toggleFocusOnPress={true}
+                sectionAutoFocus={false}
+                isAnimated={true}
+                animationDuration={600}
+                focusedPieIndex={-1}
+                pieInnerComponentHeight={140}
+                pieInnerComponentWidth={140}
+                extraRadius={12}
+                shadow={currentTheme === 'dark' ? false : true}
+                shadowColor={currentTheme === 'dark' ? 'transparent' : '#000000'}
               />
               
               <View style={styles.focusContainer}>
@@ -1539,4 +2077,221 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(128, 128, 128, 0.2)',
     marginHorizontal: 12,
   },
-}); 
+  pieChartContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  pieChartCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pieChartCenterTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  pieChartCenterValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  pieChartCenterUnit: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  pieChartLegend: {
+    marginTop: 20,
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  legendText: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  legendPercentage: {
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
+  },
+  
+  // Enhanced Chart Styles
+  chartControls: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  chartControlButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  chartControlText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  timeRangeSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  timeRangeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  timeRangeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  goalContainer: {
+    marginBottom: 16,
+  },
+  goalLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  goalControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  goalButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  goalButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  goalClearButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  goalClearText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  goalProgressContainer: {
+    gap: 4,
+  },
+  goalProgress: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  goalHint: {
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+  chartContainer: {
+    position: 'relative',
+  },
+  customDataPoint: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  goalLine: {
+    position: 'absolute',
+    left: 40,
+    right: 0,
+    height: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 8,
+  },
+  goalLineText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  pointerLabel: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pointerLabelTitle: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  pointerLabelValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  pointerLabelDate: {
+    fontSize: 10,
+    marginBottom: 2,
+  },
+  pointerLabelMA: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  enhancedStatsContainer: {
+    marginTop: 16,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 8,
+  },
+});
