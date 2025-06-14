@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -492,6 +491,40 @@ export default function ExerciseHistoryScreen() {
     }
   };
   
+  // 1RM Calculation Functions
+  const calculate1RM = {
+    // Brzycki formula: weight × (36 / (37 - reps))
+    brzycki: (weight: number, reps: number): number => {
+      if (reps === 1) return weight;
+      if (reps >= 37) return weight; // Formula breaks down at high reps
+      return weight * (36 / (37 - reps));
+    },
+    
+    // Epley formula: weight × (1 + reps/30)
+    epley: (weight: number, reps: number): number => {
+      if (reps === 1) return weight;
+      return weight * (1 + reps / 30);
+    },
+    
+    // McGlothin formula: weight × (100 / (101.3 - 2.67123 × reps))
+    mcglothin: (weight: number, reps: number): number => {
+      if (reps === 1) return weight;
+      return weight * (100 / (101.3 - 2.67123 * reps));
+    },
+    
+    // Average of multiple formulas for better accuracy
+    average: (weight: number, reps: number): number => {
+      if (reps === 1) return weight;
+      if (reps > 15) return weight; // Formulas become unreliable at very high reps
+      
+      const brzycki = calculate1RM.brzycki(weight, reps);
+      const epley = calculate1RM.epley(weight, reps);
+      const mcglothin = calculate1RM.mcglothin(weight, reps);
+      
+      return (brzycki + epley + mcglothin) / 3;
+    }
+  };
+  
   const renderChartData = () => {
     if (historyData.length === 0) {
       return renderNoDataState();
@@ -649,10 +682,99 @@ export default function ExerciseHistoryScreen() {
       );
     }
     
+    // Calculate progress statistics
+    const currentMaxWeight = Math.max(...chartData.map(entry => entry.maxWeight));
+    const currentTotalVolume = chartData.reduce((sum, entry) => sum + entry.totalVolume, 0);
+    const totalSessions = chartData.length;
+    const avgVolume = currentTotalVolume / totalSessions;
+    
+    // Calculate best 1RM estimate from all sets
+    let bestEstimated1RM = 0;
+    chartData.forEach(entry => {
+      entry.sets.forEach(set => {
+        if (set.weight > 0 && set.reps > 0 && set.reps <= 15) {
+          const estimated1RM = calculate1RM.average(set.weight, set.reps);
+          if (estimated1RM > bestEstimated1RM) {
+            bestEstimated1RM = estimated1RM;
+          }
+        }
+      });
+    });
+    
+    // Calculate progress trends
+    let weightTrend = 0;
+    let volumeTrend = 0;
+    if (chartData.length >= 2) {
+      const firstEntry = chartData[0];
+      const lastEntry = chartData[chartData.length - 1];
+      
+      weightTrend = ((lastEntry.maxWeight - firstEntry.maxWeight) / firstEntry.maxWeight) * 100;
+      volumeTrend = ((lastEntry.totalVolume - firstEntry.totalVolume) / firstEntry.totalVolume) * 100;
+    }
+    
     // Charts are now rendered using react-native-gifted-charts
     
     return (
       <View style={styles.chartContainer}>
+        {/* Progress Statistics Card */}
+        <View style={[styles.statsCard, { backgroundColor: colors.card, marginBottom: 20 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 16 }]}>
+            Strength & Performance
+          </Text>
+          
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <Text style={[styles.statLabel, { color: colors.subtext }]}>MAX</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {currentMaxWeight} kg
+              </Text>
+              <Text 
+                style={[
+                  styles.statTrend, 
+                  { color: weightTrend >= 0 ? '#4CAF50' : '#F44336' }
+                ]}
+              >
+                {weightTrend >= 0 ? '+' : ''}{weightTrend.toFixed(1)}%
+              </Text>
+            </View>
+            
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <Text style={[styles.statLabel, { color: colors.subtext }]}>1RM</Text>
+              <Text style={[styles.statValue, { color: '#FF6B35' }]}>
+                {bestEstimated1RM.toFixed(1)} kg
+              </Text>
+              <Text style={[styles.statSubtext, { color: colors.subtext }]}>Estimated</Text>
+            </View>
+            
+            <View style={[styles.statCard, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.03)' }]}>
+              <Text style={[styles.statLabel, { color: colors.subtext }]}>TREND</Text>
+              <Text 
+                style={[
+                  styles.statValue, 
+                  { color: volumeTrend >= 0 ? '#4CAF50' : '#F44336' }
+                ]}
+              >
+                {volumeTrend >= 0 ? '+' : ''}{volumeTrend.toFixed(1)}%
+              </Text>
+              <Text style={[styles.statSubtext, { color: colors.subtext }]}>Volume</Text>
+            </View>
+          </View>
+          
+          <View style={[styles.additionalStats, { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }]}>
+            <View style={styles.additionalStatItem}>
+              <Text style={[styles.additionalStatLabel, { color: colors.subtext }]}>Total Sessions</Text>
+              <Text style={[styles.additionalStatValue, { color: colors.text }]}>{totalSessions}</Text>
+            </View>
+            <View style={styles.additionalStatItem}>
+              <Text style={[styles.additionalStatLabel, { color: colors.subtext }]}>Avg Volume</Text>
+              <Text style={[styles.additionalStatValue, { color: colors.text }]}>{avgVolume.toFixed(0)} kg</Text>
+            </View>
+            <View style={styles.additionalStatItem}>
+              <Text style={[styles.additionalStatLabel, { color: colors.subtext }]}>Total Volume</Text>
+              <Text style={[styles.additionalStatValue, { color: colors.text }]}>{currentTotalVolume.toLocaleString()} kg</Text>
+            </View>
+          </View>
+        </View>
         <Text style={[styles.chartTitle, { color: colors.text }]}>Volume Progression</Text>
         
         <View style={{
@@ -668,56 +790,83 @@ export default function ExerciseHistoryScreen() {
           marginBottom: chartData.length > 15 ? 24 : 16,
         }}>
           <LineChart
-            data={chartData.map((entry, index) => ({
-              value: entry.totalVolume,
-              label: (() => {
-                // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
-                try {
-                  const date = new Date(entry.date);
-                  if (isNaN(date.getTime())) {
-                    // Fallback: extract from string if Date parsing fails
-                    const parts = entry.date.split(' ');
-                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    const month = monthNames.indexOf(parts[0]) + 1;
-                    const day = parseInt(parts[1].replace(',', ''));
-                    const year = parts[2].slice(-2);
-                    
-                    // Implement intelligent label skipping based on data size
-                    if (chartData.length <= 5) {
-                      return `${month}/${day}`; // MM/DD format
-                    } else if (chartData.length <= 10) {
-                      return index % 2 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 20) {
-                      return index % 3 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 50) {
-                      return index % 5 === 0 ? `${month}` : ''; // Month only
+            data={(() => {
+              // Calculate all volumes first
+              const volumes = chartData.map(entry => entry.totalVolume);
+              
+              // Calculate the baseline (minimum value with padding)
+              const minVal = Math.min(...volumes);
+              const maxVal = Math.max(...volumes);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, Math.max(maxVal * 0.05, 50)); // 15% of range or 5% of max or minimum 50kg
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 100) * 100);
+              
+              return chartData.map((entry, index) => {
+                const volume = entry.totalVolume;
+                const isLastPoint = index === chartData.length - 1;
+                const isSecondLastPoint = index === chartData.length - 2;
+                
+                return {
+                  value: volume - chartMin, // Shift the value relative to the minimum
+                  dataPointText: `${volume.toLocaleString()} kg`, // Show the actual value in tooltip
+                  textShiftY: -10,
+                  textShiftX: isLastPoint ? -25 : (isSecondLastPoint ? -10 : 0),
+                  textColor: colors.primary,
+                  textFontSize: 12,
+                  showStrip: true,
+                  stripHeight: 200,
+                  stripColor: `${colors.primary}20`,
+                  stripOpacity: 0.2,
+                label: (() => {
+                  // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
+                  try {
+                    const date = new Date(entry.date);
+                    if (isNaN(date.getTime())) {
+                      // Fallback: extract from string if Date parsing fails
+                      const parts = entry.date.split(' ');
+                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const month = monthNames.indexOf(parts[0]) + 1;
+                      const day = parseInt(parts[1].replace(',', ''));
+                      const year = parts[2].slice(-2);
+                      
+                      // Implement intelligent label skipping based on data size
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`; // MM/DD format
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : ''; // Month only
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      }
                     } else {
-                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      const month = date.getMonth() + 1; // 1-12
+                      const day = date.getDate();
+                      const year = date.getFullYear().toString().slice(-2); // Last 2 digits
+                      
+                      // Implement intelligent label skipping based on data size
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`; // MM/DD format
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : ''; // Month only
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      }
                     }
-                  } else {
-                    const month = date.getMonth() + 1; // 1-12
-                    const day = date.getDate();
-                    const year = date.getFullYear().toString().slice(-2); // Last 2 digits
-                    
-                    // Implement intelligent label skipping based on data size
-                    if (chartData.length <= 5) {
-                      return `${month}/${day}`; // MM/DD format
-                    } else if (chartData.length <= 10) {
-                      return index % 2 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 20) {
-                      return index % 3 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 50) {
-                      return index % 5 === 0 ? `${month}` : ''; // Month only
-                    } else {
-                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
-                    }
+                  } catch (error) {
+                    // Ultimate fallback: just show index
+                    return index.toString();
                   }
-                } catch (error) {
-                  // Ultimate fallback: just show index
-                  return index.toString();
-                }
-              })()
-            }))}
+                })()
+              };
+            });
+          })()}
             width={width - 72}
             height={240}
             color={colors.primary}
@@ -733,32 +882,49 @@ export default function ExerciseHistoryScreen() {
             yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
             xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
             formatYLabel={(value) => {
-              const num = parseInt(value);
-              if (num >= 1000000) {
-                return `${(num / 1000000).toFixed(1)}M`;
-              } else if (num >= 1000) {
-                return `${(num / 1000).toFixed(1)}k`;
+              // Calculate the baseline to convert shifted values back to actual values
+              const volumes = chartData.map(entry => entry.totalVolume);
+              const minVal = Math.min(...volumes);
+              const maxVal = Math.max(...volumes);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, Math.max(maxVal * 0.05, 50));
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 100) * 100);
+              
+              const actualValue = parseInt(value) + chartMin;
+              if (actualValue >= 1000000) {
+                return `${(actualValue / 1000000).toFixed(1)}M`;
+              } else if (actualValue >= 1000) {
+                return `${(actualValue / 1000).toFixed(1)}k`;
               }
-              return num.toLocaleString();
+              return actualValue.toLocaleString();
             }}
             showVerticalLines
             verticalLinesColor={colors.border || '#E1E1E1'}
             animateOnDataChange
             animationDuration={1200}
             initialSpacing={10}
-            endSpacing={10}
+            endSpacing={30}
             spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
             maxValue={(() => {
-              const maxVal = Math.max(...chartData.map(d => d.totalVolume));
-              const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
-              return Math.ceil(maxVal / orderOfMagnitude) * orderOfMagnitude;
+              const volumes = chartData.map(entry => entry.totalVolume);
+              const minVal = Math.min(...volumes);
+              const maxVal = Math.max(...volumes);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, Math.max(maxVal * 0.05, 50));
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 100) * 100);
+              const chartMax = Math.ceil((maxVal + padding) / 100) * 100;
+              return chartMax - chartMin; // Return the shifted maximum value
             })()}
             noOfSections={5}
             stepValue={(() => {
-              const maxVal = Math.max(...chartData.map(d => d.totalVolume));
-              const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
-              const normalizedMax = Math.ceil(maxVal / orderOfMagnitude) * orderOfMagnitude;
-              return normalizedMax / 5;
+              const volumes = chartData.map(entry => entry.totalVolume);
+              const minVal = Math.min(...volumes);
+              const maxVal = Math.max(...volumes);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, Math.max(maxVal * 0.05, 50));
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 100) * 100);
+              const chartMax = Math.ceil((maxVal + padding) / 100) * 100;
+              return (chartMax - chartMin) / 5; // Return the shifted step value
             })()}
             hideDataPoints={chartData.length > 20}
             focusEnabled
@@ -785,56 +951,83 @@ export default function ExerciseHistoryScreen() {
           marginBottom: chartData.length > 15 ? 24 : 16,
         }}>
           <LineChart
-            data={chartData.map((entry, index) => ({
-              value: entry.maxWeight,
-              label: (() => {
-                // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
-                try {
-                  const date = new Date(entry.date);
-                  if (isNaN(date.getTime())) {
-                    // Fallback: extract from string if Date parsing fails
-                    const parts = entry.date.split(' ');
-                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    const month = monthNames.indexOf(parts[0]) + 1;
-                    const day = parseInt(parts[1].replace(',', ''));
-                    const year = parts[2].slice(-2);
-                    
-                    // Implement intelligent label skipping based on data size
-                    if (chartData.length <= 5) {
-                      return `${month}/${day}`; // MM/DD format
-                    } else if (chartData.length <= 10) {
-                      return index % 2 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 20) {
-                      return index % 3 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 50) {
-                      return index % 5 === 0 ? `${month}` : ''; // Month only
+            data={(() => {
+              // Calculate all max weights first
+              const maxWeights = chartData.map(entry => entry.maxWeight);
+              
+              // Calculate the baseline (minimum value with padding)
+              const minVal = Math.min(...maxWeights);
+              const maxVal = Math.max(...maxWeights);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5); // 15% of range or minimum 5kg
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              
+              return chartData.map((entry, index) => {
+                const maxWeight = entry.maxWeight;
+                const isLastPoint = index === chartData.length - 1;
+                const isSecondLastPoint = index === chartData.length - 2;
+                
+                return {
+                  value: maxWeight - chartMin, // Shift the value relative to the minimum
+                  dataPointText: `${maxWeight} kg`, // Show the actual value in tooltip
+                  textShiftY: -10,
+                  textShiftX: isLastPoint ? -25 : (isSecondLastPoint ? -10 : 0),
+                  textColor: '#E74C3C',
+                  textFontSize: 12,
+                  showStrip: true,
+                  stripHeight: 200,
+                  stripColor: '#E74C3C20',
+                  stripOpacity: 0.2,
+                label: (() => {
+                  // Parse date from 'MMM d, yyyy' format (e.g., 'Dec 20, 2024')
+                  try {
+                    const date = new Date(entry.date);
+                    if (isNaN(date.getTime())) {
+                      // Fallback: extract from string if Date parsing fails
+                      const parts = entry.date.split(' ');
+                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const month = monthNames.indexOf(parts[0]) + 1;
+                      const day = parseInt(parts[1].replace(',', ''));
+                      const year = parts[2].slice(-2);
+                      
+                      // Implement intelligent label skipping based on data size
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`; // MM/DD format
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : ''; // Month only
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      }
                     } else {
-                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      const month = date.getMonth() + 1; // 1-12
+                      const day = date.getDate();
+                      const year = date.getFullYear().toString().slice(-2); // Last 2 digits
+                      
+                      // Implement intelligent label skipping based on data size
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`; // MM/DD format
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : ''; // Month only
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
+                      }
                     }
-                  } else {
-                    const month = date.getMonth() + 1; // 1-12
-                    const day = date.getDate();
-                    const year = date.getFullYear().toString().slice(-2); // Last 2 digits
-                    
-                    // Implement intelligent label skipping based on data size
-                    if (chartData.length <= 5) {
-                      return `${month}/${day}`; // MM/DD format
-                    } else if (chartData.length <= 10) {
-                      return index % 2 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 20) {
-                      return index % 3 === 0 ? `${month}/${day}` : '';
-                    } else if (chartData.length <= 50) {
-                      return index % 5 === 0 ? `${month}` : ''; // Month only
-                    } else {
-                      return index % 10 === 0 ? `${month}/${year}` : ''; // MM/YY
-                    }
+                  } catch (error) {
+                    // Ultimate fallback: just show index
+                    return index.toString();
                   }
-                } catch (error) {
-                  // Ultimate fallback: just show index
-                  return index.toString();
-                }
-              })()
-            }))}
+                })()
+              };
+            });
+          })()}
             width={width - 72}
             height={240}
             color={colors.primary}
@@ -850,14 +1043,523 @@ export default function ExerciseHistoryScreen() {
             yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
             xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
             formatYLabel={(value) => {
-              const num = parseFloat(value);
-              if (num >= 1000) {
-                return `${(num / 1000).toFixed(1)}k kg`;
-              } else if (num % 1 === 0) {
-                return `${num} kg`;
+              // Calculate the baseline to convert shifted values back to actual values
+              const maxWeights = chartData.map(entry => entry.maxWeight);
+              const minVal = Math.min(...maxWeights);
+              const maxVal = Math.max(...maxWeights);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              
+              const actualValue = parseFloat(value) + chartMin;
+              if (actualValue >= 1000) {
+                return `${(actualValue / 1000).toFixed(1)}k kg`;
+              } else if (actualValue % 1 === 0) {
+                return `${actualValue} kg`;
               } else {
-                return `${num.toFixed(1)} kg`;
+                return `${actualValue.toFixed(1)} kg`;
               }
+            }}
+            showVerticalLines
+            verticalLinesColor={colors.border || '#E1E1E1'}
+            animateOnDataChange
+            animationDuration={1200}
+            initialSpacing={10}
+            endSpacing={30}
+            spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
+            maxValue={(() => {
+              const maxWeights = chartData.map(entry => entry.maxWeight);
+              const minVal = Math.min(...maxWeights);
+              const maxVal = Math.max(...maxWeights);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              const chartMax = Math.ceil((maxVal + padding) / 5) * 5;
+              return chartMax - chartMin; // Return the shifted maximum value
+            })()}
+            noOfSections={5}
+            stepValue={(() => {
+              const maxWeights = chartData.map(entry => entry.maxWeight);
+              const minVal = Math.min(...maxWeights);
+              const maxVal = Math.max(...maxWeights);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              const chartMax = Math.ceil((maxVal + padding) / 5) * 5;
+              return (chartMax - chartMin) / 5; // Return the shifted step value
+            })()}
+            hideDataPoints={chartData.length > 20}
+            focusEnabled
+            showTextOnFocus
+            textFontSize={12}
+            textColor={colors.text}
+            unFocusOnPressOut
+            delayBeforeUnFocus={3000}
+          />
+        </View>
+
+        {/* Estimated 1RM Progression Chart */}
+        <Text style={[styles.chartTitle, { color: colors.text, marginTop: 20 }]}>Estimated 1RM Progression</Text>
+        
+        <View style={{
+          backgroundColor: colors.card,
+          borderRadius: 16,
+          padding: 20,
+          overflow: 'hidden',
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          marginBottom: chartData.length > 15 ? 24 : 16,
+        }}>
+          <LineChart
+            data={(() => {
+              // Calculate all estimated 1RMs first
+              const estimated1RMs = chartData.map(entry => {
+                const maxSet = entry.sets.reduce((max, set) => {
+                  const estimated1RM = set.weight * (1 + set.reps / 30);
+                  const maxEstimated1RM = max.weight * (1 + max.reps / 30);
+                  return estimated1RM > maxEstimated1RM ? set : max;
+                }, entry.sets[0]);
+                return Math.round(maxSet.weight * (1 + maxSet.reps / 30) * 10) / 10;
+              });
+              
+              // Calculate the baseline (minimum value with padding)
+              const minVal = Math.min(...estimated1RMs);
+              const maxVal = Math.max(...estimated1RMs);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              
+              return chartData.map((entry, index) => {
+                const maxSet = entry.sets.reduce((max, set) => {
+                  const estimated1RM = set.weight * (1 + set.reps / 30);
+                  const maxEstimated1RM = max.weight * (1 + max.reps / 30);
+                  return estimated1RM > maxEstimated1RM ? set : max;
+                }, entry.sets[0]);
+                const estimated1RM = Math.round(maxSet.weight * (1 + maxSet.reps / 30) * 10) / 10;
+                const isLastPoint = index === chartData.length - 1;
+                const isSecondLastPoint = index === chartData.length - 2;
+                
+                return {
+                  value: estimated1RM - chartMin, // Shift the value relative to the minimum
+                  dataPointText: `${estimated1RM} kg`, // Show the actual value in tooltip
+                  textShiftY: -10,
+                  textShiftX: isLastPoint ? -25 : (isSecondLastPoint ? -10 : 0),
+                  textColor: '#FF6B35',
+                  textFontSize: 12,
+                  showStrip: true,
+                  stripHeight: 200,
+                  stripColor: '#FF6B3520',
+                  stripOpacity: 0.2,
+                  label: (() => {
+                    try {
+                      const date = new Date(entry.date);
+                      if (isNaN(date.getTime())) {
+                        const parts = entry.date.split(' ');
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const month = monthNames.indexOf(parts[0]) + 1;
+                        const day = parseInt(parts[1].replace(',', ''));
+                        const year = parts[2].slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : '';
+                      }
+                    } else {
+                      const month = date.getMonth() + 1;
+                      const day = date.getDate();
+                      const year = date.getFullYear().toString().slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : '';
+                      }
+                    }
+                  } catch (error) {
+                    return index.toString();
+                  }
+                })()
+              };
+            });
+          })()}
+            width={width - 72}
+            height={240}
+            color="#FF6B35"
+            thickness={2.5}
+            curved
+            dataPointsColor="#FF6B35"
+            dataPointsRadius={5}
+            dataPointsWidth={2}
+            rulesColor={colors.border || '#E1E1E1'}
+            rulesType="solid"
+            yAxisColor={colors.border || '#E1E1E1'}
+            xAxisColor={colors.border || '#E1E1E1'}
+            yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
+            xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
+            formatYLabel={(value) => {
+              // Calculate the baseline to convert shifted values back to actual values
+              const estimated1RMs = chartData.map(entry => {
+                const maxSet = entry.sets.reduce((max, set) => {
+                  const estimated1RM = set.weight * (1 + set.reps / 30);
+                  const maxEstimated1RM = max.weight * (1 + max.reps / 30);
+                  return estimated1RM > maxEstimated1RM ? set : max;
+                }, entry.sets[0]);
+                return Math.round(maxSet.weight * (1 + maxSet.reps / 30) * 10) / 10;
+              });
+              const minVal = Math.min(...estimated1RMs);
+              const maxVal = Math.max(...estimated1RMs);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              
+              const actualValue = parseFloat(value) + chartMin;
+              if (actualValue >= 1000) {
+                return `${(actualValue / 1000).toFixed(1)}k kg`;
+              } else if (actualValue % 1 === 0) {
+                return `${actualValue} kg`;
+              } else {
+                return `${actualValue.toFixed(1)} kg`;
+              }
+            }}
+            showVerticalLines
+            verticalLinesColor={colors.border || '#E1E1E1'}
+            animateOnDataChange
+            animationDuration={1200}
+            initialSpacing={10}
+            endSpacing={30}
+            spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
+            maxValue={(() => {
+              const estimated1RMs = chartData.map(entry => {
+                const maxSet = entry.sets.reduce((max, set) => {
+                  const estimated1RM = set.weight * (1 + set.reps / 30);
+                  const maxEstimated1RM = max.weight * (1 + max.reps / 30);
+                  return estimated1RM > maxEstimated1RM ? set : max;
+                }, entry.sets[0]);
+                return Math.round(maxSet.weight * (1 + maxSet.reps / 30) * 10) / 10;
+              });
+              const minVal = Math.min(...estimated1RMs);
+              const maxVal = Math.max(...estimated1RMs);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              const chartMax = Math.ceil((maxVal + padding) / 5) * 5;
+              return chartMax - chartMin; // Return the shifted maximum value
+            })()}
+            noOfSections={5}
+            stepValue={(() => {
+              const estimated1RMs = chartData.map(entry => {
+                const maxSet = entry.sets.reduce((max, set) => {
+                  const estimated1RM = set.weight * (1 + set.reps / 30);
+                  const maxEstimated1RM = max.weight * (1 + max.reps / 30);
+                  return estimated1RM > maxEstimated1RM ? set : max;
+                }, entry.sets[0]);
+                return Math.round(maxSet.weight * (1 + maxSet.reps / 30) * 10) / 10;
+              });
+              const minVal = Math.min(...estimated1RMs);
+              const maxVal = Math.max(...estimated1RMs);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.15, 5);
+              const chartMin = Math.max(0, Math.floor((minVal - padding) / 5) * 5);
+              const chartMax = Math.ceil((maxVal + padding) / 5) * 5;
+              return (chartMax - chartMin) / 5; // Return the shifted step value
+            })()}
+            hideDataPoints={chartData.length > 20}
+            focusEnabled
+            showTextOnFocus
+            textFontSize={12}
+            textColor={colors.text}
+            unFocusOnPressOut
+            delayBeforeUnFocus={3000}
+          />
+        </View>
+
+        {/* Average Reps Per Set Chart */}
+        <Text style={[styles.chartTitle, { color: colors.text, marginTop: 20 }]}>Average Reps Per Set</Text>
+        
+        <View style={{
+          backgroundColor: colors.card,
+          borderRadius: 16,
+          padding: 20,
+          overflow: 'hidden',
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          marginBottom: chartData.length > 15 ? 24 : 16,
+        }}>
+          <LineChart
+            data={(() => {
+              // Calculate all average reps first
+              const avgRepsValues = chartData.map(entry => 
+                Math.round((entry.sets.reduce((sum, set) => sum + set.reps, 0) / entry.sets.length) * 10) / 10
+              );
+              
+              // Calculate the baseline (minimum value with padding)
+              const minVal = Math.min(...avgRepsValues);
+              const maxVal = Math.max(...avgRepsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1); // 20% of range or minimum 1 rep
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              
+              return chartData.map((entry, index) => {
+                const avgReps = Math.round((entry.sets.reduce((sum, set) => sum + set.reps, 0) / entry.sets.length) * 10) / 10;
+                const isLastPoint = index === chartData.length - 1;
+                const isSecondLastPoint = index === chartData.length - 2;
+                
+                return {
+                  value: avgReps - chartMin, // Shift the value relative to the minimum
+                  dataPointText: `${avgReps} reps`, // Show the actual value in tooltip
+                  textShiftY: -10,
+                  textShiftX: isLastPoint ? -25 : (isSecondLastPoint ? -10 : 0),
+                  textColor: '#4ECDC4',
+                textFontSize: 12,
+                showStrip: true,
+                stripHeight: 200,
+                stripColor: '#4ECDC420',
+                stripOpacity: 0.2,
+                label: (() => {
+                  try {
+                    const date = new Date(entry.date);
+                    if (isNaN(date.getTime())) {
+                      const parts = entry.date.split(' ');
+                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const month = monthNames.indexOf(parts[0]) + 1;
+                      const day = parseInt(parts[1].replace(',', ''));
+                      const year = parts[2].slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : '';
+                      }
+                    } else {
+                      const month = date.getMonth() + 1;
+                      const day = date.getDate();
+                      const year = date.getFullYear().toString().slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                         return index % 10 === 0 ? `${month}/${year}` : '';
+                       }
+                     }
+                   } catch (error) {
+                     return index.toString();
+                   }
+                 })()
+               };
+             });
+           })()}
+            width={width - 72}
+            height={240}
+            color="#4ECDC4"
+            thickness={2.5}
+            curved
+            dataPointsColor="#4ECDC4"
+            dataPointsRadius={5}
+            dataPointsWidth={2}
+            rulesColor={colors.border || '#E1E1E1'}
+            rulesType="solid"
+            yAxisColor={colors.border || '#E1E1E1'}
+            xAxisColor={colors.border || '#E1E1E1'}
+            yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
+            xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
+            formatYLabel={(value) => {
+              // Calculate the baseline to convert shifted values back to actual values
+              const avgRepsValues = chartData.map(entry => 
+                Math.round((entry.sets.reduce((sum, set) => sum + set.reps, 0) / entry.sets.length) * 10) / 10
+              );
+              const minVal = Math.min(...avgRepsValues);
+              const maxVal = Math.max(...avgRepsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              
+              const actualValue = parseFloat(value) + chartMin;
+              return actualValue % 1 === 0 ? `${actualValue}` : `${actualValue.toFixed(1)}`;
+            }}
+            showVerticalLines
+            verticalLinesColor={colors.border || '#E1E1E1'}
+            animateOnDataChange
+            animationDuration={1200}
+            initialSpacing={10}
+            endSpacing={30}
+            spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
+            maxValue={(() => {
+              const avgRepsValues = chartData.map(entry => 
+                Math.round((entry.sets.reduce((sum, set) => sum + set.reps, 0) / entry.sets.length) * 10) / 10
+              );
+              const minVal = Math.min(...avgRepsValues);
+              const maxVal = Math.max(...avgRepsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              const chartMax = Math.ceil(maxVal + padding);
+              return chartMax - chartMin; // Return the shifted maximum value
+            })()}
+            noOfSections={5}
+            stepValue={(() => {
+              const avgRepsValues = chartData.map(entry => 
+                Math.round((entry.sets.reduce((sum, set) => sum + set.reps, 0) / entry.sets.length) * 10) / 10
+              );
+              const minVal = Math.min(...avgRepsValues);
+              const maxVal = Math.max(...avgRepsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              const chartMax = Math.ceil(maxVal + padding);
+              return Math.max(1, (chartMax - chartMin) / 5); // Return the shifted step value
+            })()}
+            hideDataPoints={chartData.length > 20}
+            focusEnabled
+            showTextOnFocus
+            textFontSize={12}
+            textColor={colors.text}
+            unFocusOnPressOut
+            delayBeforeUnFocus={3000}
+          />
+        </View>
+
+        {/* Sets Per Workout Chart */}
+        <Text style={[styles.chartTitle, { color: colors.text, marginTop: 20 }]}>Sets Per Workout</Text>
+        
+        <View style={{
+          backgroundColor: colors.card,
+          borderRadius: 16,
+          padding: 20,
+          overflow: 'hidden',
+          elevation: 3,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          marginBottom: chartData.length > 15 ? 24 : 16,
+        }}>
+          <LineChart
+            data={(() => {
+              // Calculate the baseline for dynamic Y-axis scaling
+              const setsValues = chartData.map(entry => entry.sets.length);
+              const minVal = Math.min(...setsValues);
+              const maxVal = Math.max(...setsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              
+              return chartData.map((entry, index) => {
+                const setsCount = entry.sets.length;
+                const isLastPoint = index === chartData.length - 1;
+                const isSecondLastPoint = index === chartData.length - 2;
+                
+                return {
+                  value: setsCount - chartMin, // Shift the value by subtracting the baseline
+                  dataPointText: `${setsCount} sets`, // Keep the actual value for the tooltip
+                textShiftY: -10,
+                textShiftX: isLastPoint ? -25 : (isSecondLastPoint ? -10 : 0),
+                textColor: '#9B59B6',
+                textFontSize: 12,
+                showStrip: true,
+                stripHeight: 200,
+                stripColor: '#9B59B620',
+                stripOpacity: 0.2,
+                label: (() => {
+                  try {
+                    const date = new Date(entry.date);
+                    if (isNaN(date.getTime())) {
+                      const parts = entry.date.split(' ');
+                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const month = monthNames.indexOf(parts[0]) + 1;
+                      const day = parseInt(parts[1].replace(',', ''));
+                      const year = parts[2].slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : '';
+                      }
+                    } else {
+                      const month = date.getMonth() + 1;
+                      const day = date.getDate();
+                      const year = date.getFullYear().toString().slice(-2);
+                      
+                      if (chartData.length <= 5) {
+                        return `${month}/${day}`;
+                      } else if (chartData.length <= 10) {
+                        return index % 2 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 20) {
+                        return index % 3 === 0 ? `${month}/${day}` : '';
+                      } else if (chartData.length <= 50) {
+                        return index % 5 === 0 ? `${month}` : '';
+                      } else {
+                        return index % 10 === 0 ? `${month}/${year}` : '';
+                      }
+                    }
+                  } catch (error) {
+                     return index.toString();
+                   }
+                 })()
+               };
+             });
+           })()}
+            width={width - 72}
+            height={240}
+            color="#9B59B6"
+            thickness={2.5}
+            curved
+            dataPointsColor="#9B59B6"
+            dataPointsRadius={5}
+            dataPointsWidth={2}
+            rulesColor={colors.border || '#E1E1E1'}
+            rulesType="solid"
+            yAxisColor={colors.border || '#E1E1E1'}
+            xAxisColor={colors.border || '#E1E1E1'}
+            yAxisTextStyle={{ color: colors.subtext, fontSize: 11, fontWeight: '500' }}
+            xAxisLabelTextStyle={{ color: colors.subtext, fontSize: 10, fontWeight: '500' }}
+            formatYLabel={(value) => {
+              // Calculate the baseline to convert shifted values back to actual values
+              const setsValues = chartData.map(entry => entry.sets.length);
+              const minVal = Math.min(...setsValues);
+              const maxVal = Math.max(...setsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              
+              const actualValue = parseInt(value) + chartMin;
+              return `${actualValue}`;
             }}
             showVerticalLines
             verticalLinesColor={colors.border || '#E1E1E1'}
@@ -867,16 +1569,25 @@ export default function ExerciseHistoryScreen() {
             endSpacing={10}
             spacing={Math.max(20, (width - 72) / Math.max(chartData.length - 1, 1))}
             maxValue={(() => {
-              const maxVal = Math.max(...chartData.map(d => d.maxWeight));
-              const roundedMax = Math.ceil(maxVal / 5) * 5; // Round to nearest 5
-              return Math.max(roundedMax, maxVal + 5);
+              const setsValues = chartData.map(entry => entry.sets.length);
+              const minVal = Math.min(...setsValues);
+              const maxVal = Math.max(...setsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              const chartMax = Math.ceil(maxVal + padding);
+              return chartMax - chartMin; // Return the shifted maximum value
             })()}
             noOfSections={5}
             stepValue={(() => {
-              const maxVal = Math.max(...chartData.map(d => d.maxWeight));
-              const roundedMax = Math.ceil(maxVal / 5) * 5;
-              const finalMax = Math.max(roundedMax, maxVal + 5);
-              return finalMax / 5;
+              const setsValues = chartData.map(entry => entry.sets.length);
+              const minVal = Math.min(...setsValues);
+              const maxVal = Math.max(...setsValues);
+              const range = maxVal - minVal;
+              const padding = Math.max(range * 0.2, 1);
+              const chartMin = Math.max(0, Math.floor(minVal - padding));
+              const chartMax = Math.ceil(maxVal + padding);
+              return Math.max(1, (chartMax - chartMin) / 5); // Return the shifted step value
             })()}
             hideDataPoints={chartData.length > 20}
             focusEnabled
@@ -1395,6 +2106,55 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
     overflow: 'hidden',
+  },
+  statsCard: {
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginHorizontal: 4,
+  },
+  statTrend: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  statSubtext: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  additionalStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  additionalStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  additionalStatLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  additionalStatValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   backButton: {
