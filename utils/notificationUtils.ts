@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { getDatabase } from './database';
 
 export interface RestNotificationData extends Record<string, unknown> {
   type: 'rest-complete';
@@ -7,24 +8,80 @@ export interface RestNotificationData extends Record<string, unknown> {
 }
 
 /**
+ * Check if a specific notification type is enabled
+ */
+export const isNotificationEnabled = async (key: string): Promise<boolean> => {
+  try {
+    const db = await getDatabase();
+    
+    // Check if all notifications are enabled first
+    const allNotificationsResult = await db.getFirstAsync<{enabled: number}>(
+      'SELECT enabled FROM notification_preferences WHERE key = ?',
+      ['all_notifications']
+    );
+    
+    if (!allNotificationsResult || allNotificationsResult.enabled === 0) {
+      return false;
+    }
+    
+    // Get the category for this notification key
+    const categoryResult = await db.getFirstAsync<{category: string}>(
+      'SELECT category FROM notification_preferences WHERE key = ?',
+      [key]
+    );
+    
+    // Check if the category is enabled (e.g., 'timer' for 'timer_complete')
+    if (categoryResult && categoryResult.category !== 'system') {
+      const categoryEnabled = await db.getFirstAsync<{enabled: number}>(
+        'SELECT enabled FROM notification_preferences WHERE key = ?',
+        [categoryResult.category]
+      );
+      
+      if (!categoryEnabled || categoryEnabled.enabled === 0) {
+        return false;
+      }
+    }
+    
+    // Check the specific notification setting
+    const specificResult = await db.getFirstAsync<{enabled: number}>(
+      'SELECT enabled FROM notification_preferences WHERE key = ?',
+      [key]
+    );
+    
+    return specificResult ? specificResult.enabled === 1 : true; // Default to enabled if not found
+  } catch (error) {
+    console.error('Failed to check notification preference:', error);
+    return true; // Default to enabled on error
+  }
+};
+
+/**
  * Schedule a notification for when rest time is complete
  */
 export const scheduleRestCompleteNotification = async (
-  restTimeSeconds: number,
   exerciseName: string,
-  setNumber: number
-): Promise<string> => {
-  const notificationId = `rest-timer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+  setNumber: number,
+  restTimeSeconds: number
+): Promise<string | null> => {
   try {
+    // Check if timer notifications are enabled
+    const timerEnabled = await isNotificationEnabled('timer_complete');
+    if (!timerEnabled) {
+      console.log('Timer notifications are disabled, skipping notification');
+      return null;
+    }
+    
+    const notificationId = `rest-timer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Schedule the notification
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Rest Time Complete! 💪',
-        body: `Time for your next set${exerciseName ? ` of ${exerciseName}` : ''}!`,
+        title: 'Rest Timer Complete! 💪',
+        body: `Time to continue with ${exerciseName} - Set ${setNumber + 1}`,
         data: {
           type: 'rest-complete',
-          exerciseName: exerciseName || 'Unknown Exercise',
-          setNumber: setNumber
+          exerciseName,
+          setNumber,
         } as RestNotificationData,
         sound: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
@@ -39,7 +96,7 @@ export const scheduleRestCompleteNotification = async (
     return notificationId;
   } catch (error) {
     console.error('Failed to schedule rest notification:', error);
-    throw error;
+    return null;
   }
 };
 

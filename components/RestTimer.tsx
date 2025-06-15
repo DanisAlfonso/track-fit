@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View, Dimensions, Vibration, Platform, TouchableWithoutFeedback } from 'react-native';
+import { isNotificationEnabled } from '@/utils/notificationUtils';
 import { FontAwesome5 } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/Colors';
@@ -161,7 +162,14 @@ export const RestTimer: React.FC<RestTimerProps> = ({
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       const vibrationThresholds = [10, 5, 3, 2, 1];
       if (vibrationThresholds.includes(secondsRemaining)) {
-        Vibration.vibrate(100);
+        // Check if vibration is enabled before vibrating
+        isNotificationEnabled('timer_vibration').then(enabled => {
+          if (enabled) {
+            Vibration.vibrate(100);
+          }
+        }).catch(error => {
+          console.error('Error checking vibration setting:', error);
+        });
       }
     }
 
@@ -183,11 +191,18 @@ export const RestTimer: React.FC<RestTimerProps> = ({
     
     // Vibrate the device
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      try {
-        Vibration.vibrate([100, 200, 100, 200, 100]);
-      } catch (error) {
-        console.log('Vibration may not work in Expo Go');
-      }
+      // Check if vibration is enabled before vibrating
+      isNotificationEnabled('timer_vibration').then(enabled => {
+        if (enabled) {
+          try {
+            Vibration.vibrate([100, 200, 100, 200, 100]);
+          } catch (error) {
+            console.log('Vibration may not work in Expo Go');
+          }
+        }
+      }).catch(error => {
+        console.error('Error checking vibration setting:', error);
+      });
     }
     
     // Visual notification with flash animation
@@ -481,4 +496,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
-}); 
+});

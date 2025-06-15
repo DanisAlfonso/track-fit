@@ -7,6 +7,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useColorScheme, Alert, View, Platform, Vibration } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDatabase, insertDefaultExercises, migrateDatabase, syncExercises, initNotificationPreferences } from '@/utils/database';
+import { isNotificationEnabled } from '@/utils/notificationUtils';
 import { WorkoutProvider, useWorkout } from '@/context/WorkoutContext';
 import ActiveWorkoutIndicator from '@/components/ActiveWorkoutIndicator';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -112,7 +113,14 @@ export default function RootLayout() {
       
       // Handle timer vibrations
       if (data?.type === 'timer-complete' || data?.type === 'rest-complete') {
-        Vibration.vibrate([100, 200, 100, 200, 100]);
+        // Check if vibration is enabled before vibrating
+        isNotificationEnabled('timer_vibration').then(enabled => {
+          if (enabled) {
+            Vibration.vibrate([100, 200, 100, 200, 100]);
+          }
+        }).catch(error => {
+          console.error('Error checking vibration setting:', error);
+        });
       }
     });
     

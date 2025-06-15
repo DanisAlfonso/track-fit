@@ -70,60 +70,6 @@ export default function NotificationSettingsScreen() {
           category: 'timer'
         }
       ]
-    },
-    {
-      key: 'workout',
-      title: 'Workout Reminders',
-      description: 'Scheduled workout reminders',
-      icon: 'dumbbell',
-      enabled: true,
-      category: 'workout',
-      expanded: false,
-      children: [
-        {
-          key: 'workout_scheduled',
-          title: 'Scheduled Workouts',
-          description: 'Remind you of planned workout sessions',
-          icon: 'calendar-check',
-          enabled: true,
-          category: 'workout'
-        },
-        {
-          key: 'workout_missed',
-          title: 'Missed Workouts',
-          description: 'Alert when you miss a scheduled workout',
-          icon: 'calendar-times',
-          enabled: true,
-          category: 'workout'
-        }
-      ]
-    },
-    {
-      key: 'progress',
-      title: 'Progress Updates',
-      description: 'Get notified about your fitness progress',
-      icon: 'chart-line',
-      enabled: true,
-      category: 'progress',
-      expanded: false,
-      children: [
-        {
-          key: 'progress_milestone',
-          title: 'Milestone Achievements',
-          description: 'Celebrate when you hit weight and rep goals',
-          icon: 'trophy',
-          enabled: true,
-          category: 'progress'
-        },
-        {
-          key: 'progress_weekly',
-          title: 'Weekly Summary',
-          description: 'Weekly recap of your training progress',
-          icon: 'calendar-week',
-          enabled: true,
-          category: 'progress'
-        }
-      ]
     }
   ]);
   
@@ -276,7 +222,12 @@ export default function NotificationSettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   
-  const renderSetting = (setting: NotificationSetting, isChild = false) => {
+  const renderSetting = (setting: NotificationSetting, isChild = false, parentSetting?: NotificationSetting) => {
+    // For child settings, check if parent category is enabled
+    const isParentEnabled = isChild && parentSetting ? parentSetting.enabled : true;
+    const isEffectivelyEnabled = setting.enabled && allNotificationsEnabled && isParentEnabled;
+    const isInteractive = allNotificationsEnabled && isParentEnabled;
+    
     return (
       <View key={setting.key}>
         <TouchableOpacity
@@ -291,12 +242,12 @@ export default function NotificationSettingsScreen() {
           <View style={styles.settingMain}>
             <View style={[
               styles.settingIcon, 
-              { backgroundColor: setting.enabled ? colors.primary + '20' : colors.border + '50' }
+              { backgroundColor: isEffectivelyEnabled ? colors.primary + '20' : colors.border + '50' }
             ]}>
               <FontAwesome5 
                 name={setting.icon} 
                 size={isChild ? 14 : 16} 
-                color={setting.enabled ? colors.primary : colors.subtext} 
+                color={isEffectivelyEnabled ? colors.primary : colors.subtext} 
               />
             </View>
             
@@ -304,7 +255,7 @@ export default function NotificationSettingsScreen() {
               <Text style={[
                 styles.settingTitle, 
                 { 
-                  color: allNotificationsEnabled ? colors.text : colors.subtext,
+                  color: isInteractive ? colors.text : colors.subtext,
                   fontSize: isChild ? 15 : 16
                 }
               ]}>
@@ -313,7 +264,7 @@ export default function NotificationSettingsScreen() {
               <Text style={[
                 styles.settingDescription, 
                 { 
-                  color: allNotificationsEnabled ? colors.subtext : colors.subtext + '80',
+                  color: isInteractive ? colors.subtext : colors.subtext + '80',
                   fontSize: isChild ? 13 : 14
                 }
               ]}>
@@ -338,17 +289,17 @@ export default function NotificationSettingsScreen() {
             ) : null}
             
             <Switch
-              value={setting.enabled && allNotificationsEnabled}
+              value={isEffectivelyEnabled}
               onValueChange={(value) => toggleSetting(setting.key, value)}
               trackColor={{ 
                 false: colors.border, 
                 true: colors.primary + (Platform.OS === 'ios' ? '' : '90')
               }}
               thumbColor={Platform.OS === 'ios' ? 
-                (setting.enabled && allNotificationsEnabled ? 'white' : 'white') : 
-                (setting.enabled && allNotificationsEnabled ? colors.primary : colors.card)}
-              disabled={!allNotificationsEnabled && setting.key !== 'all_notifications'}
-              style={{ opacity: allNotificationsEnabled || setting.key === 'all_notifications' ? 1 : 0.6 }}
+                (isEffectivelyEnabled ? 'white' : 'white') : 
+                (isEffectivelyEnabled ? colors.primary : colors.card)}
+              disabled={!isInteractive && setting.key !== 'all_notifications'}
+              style={{ opacity: isInteractive || setting.key === 'all_notifications' ? 1 : 0.6 }}
             />
           </View>
         </TouchableOpacity>
@@ -356,7 +307,7 @@ export default function NotificationSettingsScreen() {
         {/* Render children if expanded */}
         {setting.children && setting.expanded ? (
           <View style={[styles.childrenContainer, { backgroundColor: isDark ? colors.card + '80' : colors.background + '80' }]}>
-            {setting.children.map(child => renderSetting(child, true))}
+            {setting.children.map(child => renderSetting(child, true, setting))}
           </View>
         ) : null}
       </View>
@@ -609,4 +560,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   }
-}); 
+});

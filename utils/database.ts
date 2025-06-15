@@ -459,34 +459,6 @@ export const initNotificationPreferences = async (): Promise<void> => {
           'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
           ['timer_vibration', 1, 'timer']
         );
-        
-        // Workout notifications
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['workout', 1, 'workout']
-        );
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['workout_scheduled', 1, 'workout']
-        );
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['workout_missed', 1, 'workout']
-        );
-        
-        // Progress notifications
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['progress', 1, 'progress']
-        );
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['progress_milestone', 1, 'progress']
-        );
-        await database.runAsync(
-          'INSERT INTO notification_preferences (key, enabled, category) VALUES (?, ?, ?)',
-          ['progress_weekly', 1, 'progress']
-        );
       });
       
       console.log('Default notification preferences inserted successfully');

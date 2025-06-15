@@ -273,9 +273,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
      if (shouldShowTimer && updatedSet.rest_time > 0) {
        try {
          const notificationId = await scheduleRestCompleteNotification(
-           updatedSet.rest_time,
            exerciseName || 'Unknown Exercise',
-           updatedSet.set_number + 1
+           updatedSet.set_number + 1,
+           updatedSet.rest_time
          );
           
           // Store the notification ID for potential cancellation
