@@ -975,11 +975,7 @@ export default function ProfileScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen 
         options={{
-          title: "Profile",
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.text,
+          headerShown: false,
         }}
       />
       

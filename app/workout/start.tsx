@@ -9,7 +9,7 @@ import Colors from '@/constants/Colors';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { useWorkoutDatabase } from '@/hooks/useWorkoutDatabase';
 import { useWorkout } from '@/context/WorkoutContext';
-import { getWeightUnitPreference, kgToLb, lbToKg, WeightUnit } from '@/app/(tabs)/profile';
+import { getWeightUnitPreference, kgToLb, lbToKg, WeightUnit } from '@/app/profile';
 import { format } from 'date-fns';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/context/ThemeContext';

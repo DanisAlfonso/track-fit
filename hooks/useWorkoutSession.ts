@@ -3,7 +3,7 @@ import { Alert, AppState, AppStateStatus } from 'react-native';
 import { useWorkoutDatabase } from './useWorkoutDatabase';
 import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
-import { WeightUnit, getWeightUnitPreference, kgToLb, lbToKg } from '@/app/(tabs)/profile';
+import { WeightUnit, getWeightUnitPreference, kgToLb, lbToKg } from '@/app/profile';
 import { getDatabase } from '@/utils/database';
 
 // Types

@@ -30,7 +30,7 @@ import {
   lbToKg,
   cmToInches,
   inchesToCm
-} from './(tabs)/profile';
+} from './profile';
 
 // Define types for measurements
 type MeasurementType = 'weight' | 'height' | 'chest' | 'waist' | 'hips' | 'biceps' | 'thighs' | 'calves' | 'custom';
@@ -1599,4 +1599,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-}); 
+});

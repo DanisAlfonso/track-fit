@@ -729,6 +729,7 @@ export default function HomeScreen() {
     <>
       <ScrollView 
       style={[styles.container, { backgroundColor: colors.background }]} 
+      contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
@@ -742,8 +743,24 @@ export default function HomeScreen() {
       }
     >
       <View style={styles.header}>
-        <Text style={[styles.welcomeMessage, { color: colors.text }]}>{getGreeting()}</Text>
-        <Text style={[styles.welcomeSubtitle, { color: colors.subtext }]}>{getWelcomeSubtitle()}</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.greetingSection}>
+            <Text style={[styles.welcomeMessage, { color: colors.text }]}>{getGreeting()}</Text>
+            <Text style={[styles.welcomeSubtitle, { color: colors.subtext }]}>{getWelcomeSubtitle()}</Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.profileButton, { backgroundColor: colors.card }]}
+            onPress={() => router.push('/profile')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.profileIconContainer}
+            >
+              <FontAwesome name="user" size={16} color="white" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Quick Actions */}
@@ -1108,11 +1125,42 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  scrollContent: {
+    paddingBottom: 100, // Extra padding to ensure content is visible above tab bar
+  },
   header: {
     marginTop: 16,
     marginBottom: 24,
     alignItems: 'flex-start',
     paddingHorizontal: 4,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  greetingSection: {
+    flex: 1,
+    marginRight: 16,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  profileIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   welcomeMessage: {
     fontSize: 28,

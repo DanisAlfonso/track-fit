@@ -799,7 +799,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   routinesList: {
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   routineCard: {
     borderRadius: 16,

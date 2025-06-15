@@ -1,8 +1,8 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useColorScheme, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { FontAwesome } from '@expo/vector-icons';
 
 import Colors from '@/constants/Colors';
 import { useTheme } from '@/context/ThemeContext';
@@ -85,14 +85,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="calendar" size={26} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          headerShown: false,
-          tabBarIcon: ({ color }: { color: string }) => <FontAwesome name="user" size={26} color={color} />,
-        }}
-      />
+
     </Tabs>
   );
 }

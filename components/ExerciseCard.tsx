@@ -5,9 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Progress from 'react-native-progress';
 import Colors from '@/constants/Colors';
-import { WeightUnit } from '@/app/(tabs)/profile';
+import { WeightUnit } from '@/app/profile';
 import { useTheme } from '@/context/ThemeContext';
-import { kgToLb } from '@/app/(tabs)/profile';
+import { kgToLb } from '@/app/profile';
 
 // Define necessary types
 type Set = {
@@ -642,4 +642,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-}); 
+});
