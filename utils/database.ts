@@ -70,6 +70,24 @@ export const migrateDatabase = async (): Promise<void> => {
       console.log('Dismissed rest timer column added successfully');
     }
 
+    // Check if background_color column exists in routines table
+    const routinesTableInfo = await database.getAllAsync(
+      "PRAGMA table_info(routines)"
+    );
+    
+    const hasBackgroundColorColumn = routinesTableInfo.some((column: any) => 
+      column.name === 'background_color'
+    );
+    
+    // Add background_color column if it doesn't exist
+    if (!hasBackgroundColorColumn) {
+      console.log('Adding background_color column to routines table...');
+      await database.execAsync(
+        'ALTER TABLE routines ADD COLUMN background_color TEXT;'
+      );
+      console.log('Background color column added successfully');
+    }
+
     // Check if weekly_schedule table needs to be modified for multiple routines per day
     try {
       // Try to insert two routines for the same day to see if it fails

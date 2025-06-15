@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { StyleSheet, FlatList, View, Text, TouchableOpacity, ActivityIndicator, Platform, Alert, ActionSheetIOS, Modal, Pressable, Animated, Dimensions, TouchableWithoutFeedback, Easing } from 'react-native';
 import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
-import { useCallback } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/context/ThemeContext';
 import * as FileSystem from 'expo-file-system';
@@ -13,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import { BlurView } from 'expo-blur';
 import { useToast } from '@/context/ToastContext';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { BackgroundSelectionBottomSheet } from '@/components/BackgroundSelectionBottomSheet';
 import { useWorkout } from '@/context/WorkoutContext';
 
 type Routine = {
@@ -24,6 +24,7 @@ type Routine = {
   scheduledDays?: string; // Comma-separated list of scheduled days
   expanded?: boolean; // Track if the routine card is expanded
   exercises?: RoutineExercise[]; // Store exercises for the routine
+  background_color?: string; // Custom background color/gradient
 };
 
 type RoutineExercise = {
@@ -36,6 +37,22 @@ type RoutineExercise = {
   category: string;
 };
 
+// Beautiful background options for routine cards
+const BACKGROUND_OPTIONS = [
+  { id: 'default', name: 'Default', type: 'solid' as const, colors: undefined },
+  { id: 'ocean', name: 'Ocean Breeze', type: 'gradient' as const, colors: ['#667eea', '#764ba2'] },
+  { id: 'sunset', name: 'Sunset Glow', type: 'gradient' as const, colors: ['#ff9a9e', '#fecfef'] },
+  { id: 'forest', name: 'Forest Mist', type: 'gradient' as const, colors: ['#56ab2f', '#a8e6cf'] },
+  { id: 'purple', name: 'Purple Dream', type: 'gradient' as const, colors: ['#667eea', '#764ba2'] },
+  { id: 'fire', name: 'Fire Ember', type: 'gradient' as const, colors: ['#ff6b6b', '#ffa726'] },
+  { id: 'ice', name: 'Ice Crystal', type: 'gradient' as const, colors: ['#74b9ff', '#0984e3'] },
+  { id: 'gold', name: 'Golden Hour', type: 'gradient' as const, colors: ['#f7971e', '#ffd200'] },
+  { id: 'rose', name: 'Rose Garden', type: 'gradient' as const, colors: ['#ff758c', '#ff7eb3'] },
+  { id: 'mint', name: 'Fresh Mint', type: 'gradient' as const, colors: ['#00b894', '#00cec9'] },
+  { id: 'cosmic', name: 'Cosmic Dust', type: 'gradient' as const, colors: ['#667eea', '#764ba2'] },
+  { id: 'aurora', name: 'Aurora Lights', type: 'gradient' as const, colors: ['#a8edea', '#fed6e3'] },
+];
+
 // Custom context menu component with blur effect
 interface ContextMenuProps {
   visible: boolean;
@@ -45,6 +62,7 @@ interface ContextMenuProps {
   onEdit: (id: number) => void;
   onShare: (id: number) => void;
   onDelete: (id: number) => void;
+  onChangeBackground: (id: number) => void;
   colors: any;
   theme: string;
 }
@@ -57,6 +75,7 @@ const ContextMenu = ({
   onEdit, 
   onShare, 
   onDelete,
+  onChangeBackground,
   colors,
   theme
 }: ContextMenuProps) => {
@@ -195,6 +214,7 @@ const ContextMenu = ({
                 <View style={styles.menuContent}>
                   {menuItem('eye', 'View Details', () => onViewDetails(routine.id), colors.primary)}
                   {menuItem('edit', 'Edit Routine', () => onEdit(routine.id), colors.primary)}
+                  {menuItem('palette', 'Change Background', () => onChangeBackground(routine.id), colors.primary)}
                   {menuItem('share-alt', 'Share Routine', () => onShare(routine.id), colors.primary)}
                   {menuItem('trash-alt', 'Delete Routine', () => onDelete(routine.id), colors.error, true)}
                 </View>
@@ -228,6 +248,8 @@ export default function RoutinesScreen() {
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
   const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
   const [routineToDelete, setRoutineToDelete] = useState<Routine | null>(null);
+  const [backgroundModalVisible, setBackgroundModalVisible] = useState(false);
+  const [selectedRoutineForBackground, setSelectedRoutineForBackground] = useState<Routine | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -239,29 +261,24 @@ export default function RoutinesScreen() {
     setLoading(true);
     try {
       const db = await getDatabase();
-      const results = await db.getAllAsync<Routine>(`
+      // Get routines with exercise count and scheduled days
+      const routinesResult = await db.getAllAsync(`
         SELECT 
-          r.id, 
-          r.name, 
-          r.description, 
-          r.created_at, 
-          (SELECT COUNT(*) FROM routine_exercises WHERE routine_id = r.id) as exerciseCount,
-          (
-            SELECT GROUP_CONCAT(CASE ws.day_of_week 
-              WHEN 0 THEN 'Sun'
-              WHEN 1 THEN 'Mon'
-              WHEN 2 THEN 'Tue'
-              WHEN 3 THEN 'Wed'
-              WHEN 4 THEN 'Thu'
-              WHEN 5 THEN 'Fri'
-              WHEN 6 THEN 'Sat'
-            END, ', ')
-            FROM weekly_schedule ws
-            WHERE ws.routine_id = r.id
-          ) as scheduledDays
+          r.id,
+          r.name,
+          r.description,
+          r.created_at,
+          r.background_color,
+          COUNT(re.exercise_id) as exerciseCount,
+          GROUP_CONCAT(DISTINCT ws.day_of_week) as scheduledDays
         FROM routines r
+        LEFT JOIN routine_exercises re ON r.id = re.routine_id
+        LEFT JOIN weekly_schedule ws ON r.id = ws.routine_id
+        GROUP BY r.id, r.name, r.description, r.created_at, r.background_color
         ORDER BY r.created_at DESC
-      `);
+      `) as Routine[];
+      
+      const results = routinesResult;
       
       // Initialize expanded property for all routines
       const routinesWithExpanded = results.map(routine => ({
@@ -448,6 +465,39 @@ export default function RoutinesScreen() {
     }, 10);
   };
 
+  const handleChangeBackground = (routineId: number) => {
+    const routine = routines.find(r => r.id === routineId);
+    if (routine) {
+      setSelectedRoutineForBackground(routine);
+      setBackgroundModalVisible(true);
+      setContextMenuVisible(false);
+    }
+  };
+
+  const updateRoutineBackground = async (routineId: number, backgroundId: string) => {
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'UPDATE routines SET background_color = ? WHERE id = ?',
+        [backgroundId, routineId]
+      );
+      
+      // Update local state
+      setRoutines(prev => prev.map(routine => 
+        routine.id === routineId 
+          ? { ...routine, background_color: backgroundId }
+          : routine
+      ));
+      
+      setBackgroundModalVisible(false);
+      setSelectedRoutineForBackground(null);
+      showToast('Background updated successfully', 'success');
+    } catch (error) {
+      console.error('Error updating routine background:', error);
+      showToast('Failed to update background', 'error');
+    }
+  };
+
   const renderRoutineItem = ({ item }: { item: Routine }) => {
     const isActive = activeRoutineId === item.id;
     const hasExercises = item.exerciseCount && item.exerciseCount > 0;
@@ -474,23 +524,64 @@ export default function RoutinesScreen() {
       
       return muscleColors[muscle] || '#4CAF50';
     };
-    
-    return (
-      <View style={[
-        styles.routineCard, 
-        { 
+
+    const getBackgroundStyle = (routine: Routine) => {
+      if (!routine.background_color || routine.background_color === 'default') {
+        return {
           backgroundColor: colors.card,
-          opacity: isActive ? 0.7 : 1 
+        };
+      }
+
+      const backgroundOption = BACKGROUND_OPTIONS.find(bg => bg.id === routine.background_color);
+      if (backgroundOption && backgroundOption.type === 'gradient' && backgroundOption.colors) {
+        return {
+          background: 'transparent',
+        };
+      }
+
+      return {
+        backgroundColor: colors.card,
+      };
+    };
+    
+    const backgroundOption = BACKGROUND_OPTIONS.find(bg => bg.id === item.background_color);
+    const hasCustomBackground = backgroundOption && backgroundOption.type === 'gradient' && backgroundOption.colors;
+
+    const CardWrapper = hasCustomBackground ? LinearGradient : View;
+    const cardProps: any = hasCustomBackground 
+      ? {
+          colors: backgroundOption.colors as [string, string, ...string[]],
+          start: { x: 0, y: 0 },
+          end: { x: 1, y: 1 },
+          style: [
+            styles.routineCard,
+            {
+              borderColor: colors.border,
+              opacity: isActive ? 0.7 : 1
+            }
+          ]
         }
-      ]}>
-        <TouchableOpacity 
-          style={styles.routineHeader}
-          onPress={() => toggleRoutineExpanded(item.id)}
-          onLongPress={() => handleLongPress(item)}
-          delayLongPress={500}
-          activeOpacity={0.7}
-          disabled={isDeleting || isSharing}
-        >
+      : {
+          style: [
+            styles.routineCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: isActive ? 0.7 : 1
+            }
+          ]
+        };
+
+    return (
+      <TouchableOpacity
+        onPress={() => toggleRoutineExpanded(item.id)}
+        onLongPress={() => handleLongPress(item)}
+        delayLongPress={500}
+        activeOpacity={0.7}
+        disabled={isDeleting || isSharing}
+      >
+        <CardWrapper {...cardProps}>
+          <View style={styles.routineHeader}>
           <View style={styles.routineIconContainer}>
             <LinearGradient
               colors={[colors.primary, colors.secondary]}
@@ -552,10 +643,10 @@ export default function RoutinesScreen() {
               color={colors.subtext} 
             />
           </View>
-        </TouchableOpacity>
-        
-        {/* Expandable exercises list */}
-        {item.expanded && item.exercises && item.exercises.length > 0 && (
+          </View>
+          
+          {/* Expandable exercises list */}
+          {item.expanded && item.exercises && item.exercises.length > 0 && (
           <View style={styles.exercisesContainer}>
             {item.exercises.map((exercise, index) => (
               <View 
@@ -604,7 +695,8 @@ export default function RoutinesScreen() {
             </View>
           </View>
         )}
-      </View>
+        </CardWrapper>
+      </TouchableOpacity>
     );
   };
 
@@ -704,8 +796,22 @@ export default function RoutinesScreen() {
         onEdit={editRoutine}
         onShare={shareRoutine}
         onDelete={deleteRoutine}
+        onChangeBackground={handleChangeBackground}
         colors={colors}
         theme={currentTheme}
+      />
+      
+      {/* Background selection bottom sheet */}
+      <BackgroundSelectionBottomSheet
+        visible={backgroundModalVisible}
+        onClose={() => setBackgroundModalVisible(false)}
+        onSelectBackground={(backgroundId) => {
+          if (selectedRoutineForBackground) {
+            updateRoutineBackground(selectedRoutineForBackground.id, backgroundId);
+          }
+        }}
+        backgroundOptions={BACKGROUND_OPTIONS}
+        selectedBackgroundId={selectedRoutineForBackground?.background_color}
       />
       
       {/* Delete confirmation modal */}
@@ -810,6 +916,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     overflow: 'hidden',
+    borderWidth: 1,
   },
   routineHeader: {
     flexDirection: 'row',
@@ -1008,9 +1115,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   menuOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1073,4 +1180,5 @@ const styles = StyleSheet.create({
   destructiveItem: {
     backgroundColor: 'rgba(255,59,48,0.1)',
   },
+
 });
