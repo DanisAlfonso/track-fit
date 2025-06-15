@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import Colors from '@/constants/Colors';
 import { useWorkout } from '@/context/WorkoutContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,6 +22,13 @@ export default function ActiveWorkoutIndicator() {
   
   // For button press animation
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  
+  // For drag functionality
+  const { height: screenHeight } = Dimensions.get('window');
+  const defaultBottom = Platform.OS === 'android' ? 60 + insets.bottom : 60;
+  const [dragPosition, setDragPosition] = useState(defaultBottom);
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastOffset = useRef(0);
   
   // Calculate formatted time (hours and minutes) from total workout time
   const formatHoursMinutes = (totalTime: string) => {
@@ -92,6 +100,28 @@ export default function ActiveWorkoutIndicator() {
   // This means it only appears when minimized
   if (!activeWorkout.id || activeWorkout.isActive) return null;
 
+  // Handle drag gesture
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationY: translateY } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.oldState === State.ACTIVE) {
+      const { translationY } = event.nativeEvent;
+      const newBottom = Math.max(
+        20, // Minimum distance from bottom
+        Math.min(
+          screenHeight - 120, // Maximum distance from bottom (leave space for component)
+          dragPosition - translationY
+        )
+      );
+      
+      setDragPosition(newBottom);
+      translateY.setValue(0);
+    }
+  };
+
   // Direct navigation to workout/start with the correct ID
   const navigateToWorkout = () => {
     if (activeWorkout.id) {
@@ -117,17 +147,22 @@ export default function ActiveWorkoutIndicator() {
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.container, 
-        { 
-          bottom: Platform.OS === 'android' ? 60 + insets.bottom : 60,
-          transform: [
-            { scale: scaleAnim }
-          ]
-        }
-      ]}
+    <PanGestureHandler
+      onGestureEvent={onGestureEvent}
+      onHandlerStateChange={onHandlerStateChange}
     >
+      <Animated.View
+        style={[
+          styles.container, 
+          { 
+            bottom: dragPosition,
+            transform: [
+              { scale: scaleAnim },
+              { translateY: translateY }
+            ]
+          }
+        ]}
+      >
       <View style={styles.innerContainer}>
         {Platform.OS === 'ios' && (
           <BlurView
@@ -183,6 +218,7 @@ export default function ActiveWorkoutIndicator() {
         </TouchableOpacity>
       </View>
     </Animated.View>
+    </PanGestureHandler>
   );
 }
 
