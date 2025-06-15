@@ -2,6 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useColorScheme, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 
 import Colors from '@/constants/Colors';
 import { useTheme } from '@/context/ThemeContext';
@@ -30,11 +31,30 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.subtext,
         tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopColor: 'transparent',
           paddingBottom: Platform.OS === 'android' ? insets.bottom : 0,
           height: Platform.OS === 'android' ? 50 + insets.bottom : 50,
+          elevation: 0,
+          shadowOpacity: 0,
         },
+        tabBarBackground: () => (
+           <BlurView
+             intensity={100}
+             tint={currentTheme === 'dark' ? 'dark' : 'light'}
+             style={{
+               position: 'absolute',
+               top: 0,
+               left: 0,
+               bottom: 0,
+               right: 0,
+               backgroundColor: currentTheme === 'dark' 
+                 ? 'rgba(18, 18, 18, 0.9)' 
+                 : 'rgba(248, 248, 248, 0.9)',
+             }}
+           />
+         ),
         headerStyle: {
           backgroundColor: colors.background,
         },
