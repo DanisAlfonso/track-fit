@@ -223,7 +223,7 @@ export default function RoutinesScreen() {
   const [isSharing, setIsSharing] = useState(false);
   const [activeRoutineId, setActiveRoutineId] = useState<number | null>(null);
   
-  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
   const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
@@ -543,7 +543,7 @@ export default function RoutinesScreen() {
                 onPress={() => startRoutineWorkout(item.id)}
                 disabled={isDeleting || isSharing}
               >
-                <FontAwesome5 name="play" size={16} color="white" />
+                <Text style={styles.startButtonText}>Start</Text>
               </TouchableOpacity>
             )}
             <Ionicons 
@@ -599,8 +599,7 @@ export default function RoutinesScreen() {
                 style={[styles.startWorkoutButtonLarge, { backgroundColor: colors.primary }]}
                 onPress={() => startRoutineWorkout(item.id)}
               >
-                <FontAwesome5 name="play-circle" size={16} color="white" style={styles.startButtonIcon} />
-                <Text style={styles.startWorkoutText}>Start Workout</Text>
+                <Text style={styles.startWorkoutText}>Start Training</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -864,9 +863,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   startWorkoutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -883,6 +882,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     fontSize: 16,
+  },
+  startButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   startButtonIcon: {
     marginRight: 8,
@@ -1069,4 +1073,4 @@ const styles = StyleSheet.create({
   destructiveItem: {
     backgroundColor: 'rgba(255,59,48,0.1)',
   },
-}); 
+});
