@@ -443,74 +443,120 @@ export default function ExercisesScreen() {
   const ListHeaderComponent = useMemo(() => (
     <>
       <View style={styles.headerContainer}>
-        <View style={styles.searchFilterRow}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.text }]}>Exercises</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => router.push('/exercise/create')}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.addButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <FontAwesome name="plus" size={14} color="white" />
+              <Text style={styles.addButtonText}>New Exercise</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+        
+        <View style={styles.searchSection}>
           <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-            <FontAwesome name="search" size={15} color={colors.subtext} style={styles.searchIcon} />
+            <FontAwesome name="search" size={16} color={colors.subtext} style={styles.searchIcon} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
               placeholder="Search exercises..."
               placeholderTextColor={colors.subtext}
               value={searchQuery}
               onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery('')}>
-                <FontAwesome name="times-circle" size={15} color={colors.subtext} style={styles.clearIcon} />
+              <Pressable onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                <FontAwesome name="times-circle" size={16} color={colors.subtext} />
               </Pressable>
             )}
           </View>
-          
-          <TouchableOpacity
-            style={[
-              styles.favoriteFilterButton,
-              showFavoritesOnly
-                ? { backgroundColor: colors.primary }
-                : { backgroundColor: colors.card }
-            ]}
-            onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
-            activeOpacity={0.7}
-          >
-            <FontAwesome 
-              name="heart" 
-              size={14} 
-              color={showFavoritesOnly ? 'white' : colors.primary} 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.muscleFilterButton,
-              { backgroundColor: colors.card }
-            ]}
-            onPress={() => setShowFilterModal(true)}
-            activeOpacity={0.7}
-          >
-            <FontAwesome 
-              name="filter" 
-              size={14} 
-              color={colors.primary} 
-              style={styles.filterIcon} 
-            />
-            <Text
-              style={[
-                styles.filterText,
-                { color: colors.text }
-              ]}
-            >
-              {selectedFilter || 'All'}
-            </Text>
-            <FontAwesome 
-              name="chevron-down" 
-              size={12} 
-              color={colors.subtext} 
-              style={styles.filterChevron} 
-            />
-          </TouchableOpacity>
         </View>
         
-        <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
-          {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'} found
-        </Text>
+        <View style={styles.filtersSection}>
+          <View style={styles.filtersRow}>
+            <TouchableOpacity
+              style={[
+                styles.favoriteFilterButton,
+                showFavoritesOnly
+                  ? [{ backgroundColor: colors.primary }, styles.activeFilter]
+                  : { backgroundColor: colors.card }
+              ]}
+              onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+              activeOpacity={0.7}
+            >
+              <FontAwesome 
+                name={showFavoritesOnly ? "heart" : "heart-o"} 
+                size={15} 
+                color={showFavoritesOnly ? 'white' : colors.primary} 
+              />
+              <Text style={[
+                styles.filterButtonText,
+                { color: showFavoritesOnly ? 'white' : colors.text }
+              ]}>
+                Favorites
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.muscleFilterButton,
+                { backgroundColor: colors.card },
+                selectedFilter && selectedFilter !== 'All' && [{ backgroundColor: colors.primary }, styles.activeFilter]
+              ]}
+              onPress={() => setShowFilterModal(true)}
+              activeOpacity={0.7}
+            >
+              <FontAwesome 
+                name="filter" 
+                size={14} 
+                color={selectedFilter && selectedFilter !== 'All' ? 'white' : colors.primary} 
+                style={styles.filterIcon} 
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  { color: selectedFilter && selectedFilter !== 'All' ? 'white' : colors.text }
+                ]}
+              >
+                {selectedFilter || 'All Muscles'}
+              </Text>
+              <FontAwesome 
+                name="chevron-down" 
+                size={11} 
+                color={selectedFilter && selectedFilter !== 'All' ? 'white' : colors.subtext} 
+                style={styles.filterChevron} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.resultsRow}>
+            <Text style={[styles.resultsCountText, { color: colors.subtext }]}>
+              {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'}
+            </Text>
+            {(searchQuery || showFavoritesOnly || (selectedFilter && selectedFilter !== 'All')) && (
+              <TouchableOpacity 
+                onPress={() => {
+                  setSearchQuery('');
+                  setShowFavoritesOnly(false);
+                  setSelectedFilter('All');
+                }}
+                style={styles.clearFiltersButton}
+              >
+                <Text style={[styles.clearFiltersText, { color: colors.primary }]}>Clear all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </View>
     </>
   ), [
@@ -551,13 +597,7 @@ export default function ExercisesScreen() {
         )}
       />
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => router.push('/exercise/create')}
-        activeOpacity={0.8}
-      >
-        <FontAwesome name="plus" size={24} color="white" />
-      </TouchableOpacity>
+
 
       {/* Muscle group filter action sheet */}
       <ActionSheet
@@ -585,82 +625,114 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerContainer: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 4,
+    paddingBottom: 8,
     backgroundColor: 'transparent',
   },
-  searchFilterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
+  searchSection: {
+    marginBottom: 16,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginRight: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    flex: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchIcon: {
-    marginRight: 6,
+    marginRight: 10,
   },
-  clearIcon: {
-    padding: 2,
+  clearButton: {
+    padding: 4,
+    marginLeft: 4,
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '500',
   },
-  favoriteFilterButton: {
-    justifyContent: 'center',
+  filtersSection: {
+    marginBottom: 12,
+  },
+  filtersRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 8,
+    marginBottom: 12,
+    gap: 12,
+  },
+  favoriteFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    minWidth: 90,
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   muscleFilterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+    flex: 1,
+  },
+  activeFilter: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   filterIcon: {
-    marginRight: 4,
+    marginRight: 6,
   },
   filterChevron: {
-    marginLeft: 4,
+    marginLeft: 6,
   },
   filterText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  resultsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
   resultsCountText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 8,
-    marginLeft: 4,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  clearFiltersButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  clearFiltersText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   contentContainer: {
     flex: 1,
@@ -790,20 +862,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.8,
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  addButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
     elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  addButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   favoriteButton: {
     padding: 5,
