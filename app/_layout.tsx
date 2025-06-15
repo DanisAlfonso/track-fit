@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 import Colors from '@/constants/Colors';
+import { registerBackgroundNotificationTask } from '@/utils/backgroundNotificationTask';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -100,17 +101,36 @@ export default function RootLayout() {
     
     requestPermissions();
     
+    // Register background notification task
+    registerBackgroundNotificationTask().catch(error => {
+      console.error('Failed to register background notification task:', error);
+    });
+    
     // Listen for notifications to trigger vibrations
     const subscription = Notifications.addNotificationReceivedListener(notification => {
       const data = notification.request.content.data;
       
       // Handle timer vibrations
-      if (data?.type === 'timer-complete') {
+      if (data?.type === 'timer-complete' || data?.type === 'rest-complete') {
         Vibration.vibrate([100, 200, 100, 200, 100]);
       }
     });
     
-    return () => subscription.remove();
+    // Listen for notification interactions (when user taps notification)
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      
+      // Handle rest complete notification tap
+      if (data?.type === 'rest-complete') {
+        // You can add navigation logic here if needed
+        console.log('User tapped rest complete notification for:', data.exerciseName);
+      }
+    });
+    
+    return () => {
+       subscription.remove();
+       responseSubscription.remove();
+     };
   }, []);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree

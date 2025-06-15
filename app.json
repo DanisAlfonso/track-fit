@@ -14,7 +14,8 @@
         "NSCameraUsageDescription": "TrackFit needs camera access to let you take profile pictures",
         "NSPhotoLibraryUsageDescription": "TrackFit needs access to your photo library to let you select profile pictures"
       },
-      "bundleIdentifier": "com.augustusalfonso.TrackFit"
+      "bundleIdentifier": "com.augustusalfonso.TrackFit",
+      "backgroundModes": ["background-processing", "background-fetch"]
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +28,9 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.VIBRATE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.WAKE_LOCK",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "softwareKeyboardLayoutMode": "pan",
       "navigationBar": {
@@ -44,24 +47,11 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/icons/splash-icon-light.png",
-          "backgroundColor": "#ffffff",
-          "dark": {
-            "image": "./assets/icons/splash-icon-dark.png",
-            "backgroundColor": "#000000"
-          },
-          "resizeMode": "contain",
-          "imageWidth": 250
-        }
-      ],
+      "expo-splash-screen",
       [
         "expo-image-picker",
         {
-          "photosPermission": "TrackFit needs access to your photos to let you select profile pictures",
-          "cameraPermission": "TrackFit needs camera access to let you take profile pictures"
+          "photosPermission": "The app accesses your photos to let you add images to your workout logs."
         }
       ],
       [
@@ -71,7 +61,8 @@
           "color": "#ffffff"
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-task-manager"
     ],
     "experiments": {
       "typedRoutes": true

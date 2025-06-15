@@ -23,6 +23,7 @@ import Colors from '@/constants/Colors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
+import { scheduleRestCompleteNotification, cancelNotification } from '../utils/notificationUtils';
 import { getDatabase } from '@/utils/database';
 import { RestTimer } from './RestTimer';
 
@@ -97,6 +98,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [shouldBlockClose, setShouldBlockClose] = useState(false);
   const [currentRemainingTime, setCurrentRemainingTime] = useState(0);
+  const [scheduledNotificationId, setScheduledNotificationId] = useState<string | null>(null);
   const savedRef = useRef(false);
   
   // Animation values
@@ -119,6 +121,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       setShowBottomSheet(true);
       setIsTimerActive(false);
       setShouldBlockClose(false);
+      setScheduledNotificationId(null);
       savedRef.current = false;
     });
   }, [currentSet, visible]);
@@ -161,6 +164,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       setIsTimerActive(false);
       setShowBottomSheet(true);
       setShouldBlockClose(false);
+      setScheduledNotificationId(null);
       savedRef.current = false;
       
       // Hide animation
@@ -180,10 +184,21 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   }, [visible]);
   
   // Create a wrapper around onClose to block closing during timer
-  const handleClose = () => {
+  const handleClose = async () => {
     if (shouldBlockClose) {
       return;
     }
+    
+    // Cancel any pending notification when closing
+    if (scheduledNotificationId) {
+      try {
+        await cancelNotification(scheduledNotificationId);
+        setScheduledNotificationId(null);
+      } catch (error) {
+        console.error('Failed to cancel notification on close:', error);
+      }
+    }
+    
     onClose();
   };
   
@@ -229,7 +244,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   };
   
   // Handle save button press
-  const handleSave = () => {
+  const handleSave = async () => {
     // Mark fields as touched for validation
     setTouchedFields({ reps: true, weight: true });
     
@@ -254,6 +269,22 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     // Determine if the timer should be shown
     const shouldShowTimer = updatedSet.rest_time > 0;
     
+    // Schedule background notification if rest time is set
+     if (shouldShowTimer && updatedSet.rest_time > 0) {
+       try {
+         const notificationId = await scheduleRestCompleteNotification(
+           updatedSet.rest_time,
+           exerciseName || 'Unknown Exercise',
+           updatedSet.set_number + 1
+         );
+          
+          // Store the notification ID for potential cancellation
+          setScheduledNotificationId(notificationId);
+       } catch (error) {
+         console.error('Failed to schedule notification:', error);
+       }
+     }
+    
     // Start rest timer if rest time is set
     if (shouldShowTimer) {
       setIsTimerActive(true);
@@ -266,7 +297,17 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   };
   
   // Handle timer completion
-  const handleTimerComplete = () => {
+  const handleTimerComplete = async () => {
+    // Cancel the scheduled notification since timer completed in-app
+    if (scheduledNotificationId) {
+      try {
+        await cancelNotification(scheduledNotificationId);
+        setScheduledNotificationId(null);
+      } catch (error) {
+        console.error('Failed to cancel notification:', error);
+      }
+    }
+    
     setIsTimerActive(false);
     setShowBottomSheet(true);
     setShouldBlockClose(false);
@@ -274,9 +315,19 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   };
   
   // Handle timer skip
-  const handleTimerSkip = () => {
+  const handleTimerSkip = async () => {
     // When skipping rest, we don't want to create a dismissed timer state
     // The user intentionally wants to skip the rest period completely
+    
+    // Cancel the scheduled notification since user skipped
+    if (scheduledNotificationId) {
+      try {
+        await cancelNotification(scheduledNotificationId);
+        setScheduledNotificationId(null);
+      } catch (error) {
+        console.error('Failed to cancel notification:', error);
+      }
+    }
     
     setIsTimerActive(false);
     setShowBottomSheet(true);
@@ -288,6 +339,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
   const handleTimerDismiss = () => {
     // When dismissing by tapping outside, we want to create a dismissed timer state
     // so the user can resume the timer later
+    // Note: We don't cancel the notification here since user might want background notification
     
     if (exerciseName && onRestTimerDismissed) {
       onRestTimerDismissed(exerciseName, currentRemainingTime);
@@ -911,4 +963,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     height: 48,
   },
-}); 
+});
