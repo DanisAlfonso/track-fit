@@ -566,6 +566,52 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     saveDismissedRestTimer,
     loadDismissedRestTimer,
     
+    // Method to remove an exercise from the current workout
+    removeExerciseFromWorkout: async (exerciseIndex: number) => {
+      if (!workoutId || !workoutStarted) {
+        showToast('No active workout to remove exercise from', 'error');
+        return false;
+      }
+      
+      if (exercises.length <= 1) {
+        showToast('Cannot remove the last exercise from workout', 'error');
+        return false;
+      }
+      
+      try {
+        const exerciseToRemove = exercises[exerciseIndex];
+        if (!exerciseToRemove) {
+          showToast('Exercise not found', 'error');
+          return false;
+        }
+        
+        const db = await getDatabase();
+        
+        // Remove all sets for this exercise from the database
+        await db.runAsync(
+          'DELETE FROM sets WHERE workout_exercise_id IN (SELECT id FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?)',
+          [workoutId, exerciseToRemove.exercise_id]
+        );
+        
+        // Remove the workout exercise entry
+        await db.runAsync(
+          'DELETE FROM workout_exercises WHERE workout_id = ? AND exercise_id = ?',
+          [workoutId, exerciseToRemove.exercise_id]
+        );
+        
+        // Update the exercises state by removing the exercise
+        const updatedExercises = exercises.filter((_, index) => index !== exerciseIndex);
+        setExercises(updatedExercises);
+        
+        showToast(`${exerciseToRemove.name} removed from workout`, 'success');
+        return true;
+      } catch (error) {
+        console.error('Error removing exercise from workout:', error);
+        showToast('Failed to remove exercise from workout', 'error');
+        return false;
+      }
+    },
+    
     // New method to add a new exercise to the current workout
     addExerciseToWorkout: async (exerciseId: number, exerciseName: string, primaryMuscle: string, category: string) => {
       if (!workoutId || !workoutStarted) {

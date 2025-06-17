@@ -89,7 +89,8 @@ export default function StartWorkoutScreen() {
     setWorkoutDuration,
     saveDismissedRestTimer,
     loadDismissedRestTimer,
-    addExerciseToWorkout
+    addExerciseToWorkout,
+    removeExerciseFromWorkout
   } = useWorkoutSession(routineId, existingWorkoutId);
   
   // Get workout context functions
@@ -444,12 +445,13 @@ export default function StartWorkoutScreen() {
         onUpdateNotes={updateExerciseNotes}
         onAddSet={addSet}
         onRemoveSet={removeSet}
+        onRemoveExercise={removeExerciseFromWorkout}
         weightUnit={weightUnit}
         showingMenu={showingMenu}
         onToggleMenu={setShowingMenu}
       />
     );
-  }, [workoutStarted, weightUnit, showingMenu, setShowingMenu, openSetModal, updateExerciseNotes, addSet, removeSet]);
+  }, [workoutStarted, weightUnit, showingMenu, setShowingMenu, openSetModal, updateExerciseNotes, addSet, removeSet, removeExerciseFromWorkout]);
 
   // Modify minimizeWorkoutAndNavigate to save data before minimizing
   const minimizeWorkoutAndNavigate = async () => {

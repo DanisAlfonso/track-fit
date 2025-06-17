@@ -45,6 +45,7 @@ interface ExerciseCardProps {
   onUpdateNotes: (exerciseIndex: number, notes: string) => void;
   onAddSet: (exerciseIndex: number) => void;
   onRemoveSet: (exerciseIndex: number) => void;
+  onRemoveExercise: (exerciseIndex: number) => void;
   weightUnit: WeightUnit;
   showingMenu: number | null;
   onToggleMenu: (index: number | null) => void;
@@ -59,6 +60,7 @@ export const ExerciseCard = ({
   onUpdateNotes,
   onAddSet,
   onRemoveSet,
+  onRemoveExercise,
   weightUnit,
   showingMenu,
   onToggleMenu
@@ -310,7 +312,7 @@ export const ExerciseCard = ({
               }]}>
                 <TouchableOpacity 
                   style={[styles.menuOption, {
-                    borderBottomColor: item.sets_data.length > 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent'
+                    borderBottomColor: item.sets_data.length > 1 ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.08)'
                   }]}
                   onPress={() => {
                     onToggleMenu(null);
@@ -324,7 +326,7 @@ export const ExerciseCard = ({
                 {item.sets_data.length > 1 && (
                   <TouchableOpacity 
                     style={[styles.menuOption, {
-                      borderBottomColor: 'transparent' // Last item has no border
+                      borderBottomColor: 'rgba(255, 255, 255, 0.08)'
                     }]}
                     onPress={() => {
                       onToggleMenu(null);
@@ -335,6 +337,19 @@ export const ExerciseCard = ({
                     <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
                   </TouchableOpacity>
                 )}
+                
+                <TouchableOpacity 
+                  style={[styles.menuOption, {
+                    borderBottomColor: 'transparent' // Last item has no border
+                  }]}
+                  onPress={() => {
+                    onToggleMenu(null);
+                    onRemoveExercise(exerciseIndex);
+                  }}
+                >
+                  <FontAwesome5 name="trash" size={14} color={colors.error} style={styles.menuIcon} />
+                  <Text style={[styles.menuText, { color: colors.text }]}>Remove Exercise</Text>
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -633,7 +648,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 35,
     right: 0,
-    width: 160,
+    width: 180,
     borderRadius: 12,
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.1)',
