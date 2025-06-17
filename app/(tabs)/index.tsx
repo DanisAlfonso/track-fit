@@ -754,26 +754,25 @@ export default function HomeScreen() {
             <Text style={[styles.welcomeSubtitle, { color: colors.subtext }]}>{getWelcomeSubtitle()}</Text>
           </View>
           <TouchableOpacity 
-            style={[styles.profileButton, { backgroundColor: colors.card }]}
             onPress={() => router.push('/profile')}
             activeOpacity={0.7}
           >
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.profileIconContainer}
-            >
-              {profilePictureUri ? (
-                <Image 
-                  source={{ uri: profilePictureUri }} 
-                  style={styles.profileImage} 
-                  resizeMode="cover"
-                />
-              ) : (
+            {profilePictureUri ? (
+              <Image 
+                source={{ uri: profilePictureUri }} 
+                style={styles.profileImage} 
+                resizeMode="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.profileIconContainer}
+              >
                 <Text style={styles.profileInitial}>
                   {userName.charAt(0).toUpperCase()}
                 </Text>
-              )}
-            </LinearGradient>
+              </LinearGradient>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1158,10 +1157,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+
+  profileIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -1170,20 +1170,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  profileIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   profileImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   profileInitial: {
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: 'bold',
     color: 'white',
   },
