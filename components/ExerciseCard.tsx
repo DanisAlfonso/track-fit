@@ -298,9 +298,13 @@ export const ExerciseCard = ({
           </TouchableOpacity>
           
           {showingMenu === exerciseIndex && (
-            <View style={[styles.menuPopup, { backgroundColor: colors.card }]}>
+            <View style={[styles.menuPopup, { 
+              backgroundColor: colors.card + 'F8', // Very subtle transparency
+            }]}>
               <TouchableOpacity 
-                style={styles.menuOption}
+                style={[styles.menuOption, {
+                  borderBottomColor: item.sets_data.length > 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent'
+                }]}
                 onPress={() => {
                   onToggleMenu(null);
                   onAddSet(exerciseIndex);
@@ -312,7 +316,9 @@ export const ExerciseCard = ({
               
               {item.sets_data.length > 1 && (
                 <TouchableOpacity 
-                  style={styles.menuOption}
+                  style={[styles.menuOption, {
+                    borderBottomColor: 'transparent' // Last item has no border
+                  }]}
                   onPress={() => {
                     onToggleMenu(null);
                     onRemoveSet(exerciseIndex);
@@ -322,24 +328,6 @@ export const ExerciseCard = ({
                   <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
                 </TouchableOpacity>
               )}
-
-              <TouchableOpacity 
-                style={styles.menuOption}
-                onPress={() => {
-                  onToggleMenu(null);
-                  toggleCollapsed();
-                }}
-              >
-                <FontAwesome5 
-                  name={isCollapsed ? "chevron-down" : "chevron-up"} 
-                  size={14} 
-                  color={colors.primary} 
-                  style={styles.menuIcon} 
-                />
-                <Text style={[styles.menuText, { color: colors.text }]}>
-                  {isCollapsed ? "Expand" : "Collapse"}
-                </Text>
-              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -621,25 +609,34 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 35,
     right: 0,
-    width: 150,
-    borderRadius: 8,
+    width: 160,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
     zIndex: 100,
+    overflow: 'hidden',
+    backdropFilter: 'blur(30px)',
   },
   menuOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   menuIcon: {
-    marginRight: 10,
+    marginRight: 12,
+    width: 16,
   },
   menuText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
