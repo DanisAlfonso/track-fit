@@ -379,6 +379,19 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     return updatedSet.rest_time;
   };
 
+  // Update routine exercise sets count in the database
+  const updateRoutineExerciseSets = async (routineExerciseId: number, newSetsCount: number) => {
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'UPDATE routine_exercises SET sets = ? WHERE id = ?',
+        [newSetsCount, routineExerciseId]
+      );
+    } catch (error) {
+      console.error('Failed to update routine exercise sets count:', error);
+    }
+  };
+
   // Add a new set to an exercise
   const addSet = async (exerciseIndex: number) => {
     const updatedExercises = [...exercises];
@@ -423,6 +436,9 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     
     setExercises(updatedExercises);
     
+    // Update the routine_exercises table with the new sets count
+    await updateRoutineExerciseSets(exercise.routine_exercise_id, exercise.sets);
+    
     // Save progress to database after adding a set
     saveWorkoutProgress().catch(error => {
       console.error('Failed to save after adding set:', error);
@@ -459,6 +475,11 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
     exercise.completedSets = exercise.sets_data.filter(s => s.completed).length;
     
     setExercises(updatedExercises);
+    
+    // Update the routine_exercises table with the new sets count
+    updateRoutineExerciseSets(exercise.routine_exercise_id, exercise.sets).catch(error => {
+      console.error('Failed to update routine exercise sets count:', error);
+    });
     
     // Save progress to database after removing a set
     saveWorkoutProgress().catch(error => {
