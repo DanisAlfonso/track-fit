@@ -395,7 +395,6 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
           styles.sheetContainer,
           { 
             transform: [{ translateY: sheetTranslateY }],
-            paddingBottom: insets.bottom,
           }
         ]}
       >
@@ -409,7 +408,9 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
             styles.sheet,
             {
               backgroundColor: isDark ? 'rgba(30,30,35,0.98)' : 'rgba(255,255,255,0.98)',
-              borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+              borderWidth: 1,
+              borderBottomWidth: 0,
             }
           ]}
         >
@@ -434,7 +435,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
             </TouchableOpacity>
           </View>
           
-          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContentContainer}>
             {/* Previous performance card */}
             {renderPreviousPerformance()}
             
@@ -670,6 +671,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
               {
                 backgroundColor: hasErrors() ? colors.border : colors.primary,
                 opacity: hasErrors() ? 0.7 : 1,
+                marginBottom: Math.max(insets.bottom, 20),
               }
             ]}
             onPress={handleSave}
@@ -689,6 +691,7 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
       transparent
       animationType="none"
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={handleClose}
     >
       <View style={styles.container}>
@@ -737,6 +740,7 @@ const styles = StyleSheet.create({
   },
   sheetContainer: {
     width: '100%',
+    flex: 1,
   },
   pullIndicatorContainer: {
     alignItems: 'center',
@@ -748,6 +752,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   sheet: {
+    flex: 1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
@@ -781,7 +786,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    maxHeight: height * 0.7,
+    flex: 1,
+  },
+  scrollContentContainer: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   content: {
     padding: 20,
