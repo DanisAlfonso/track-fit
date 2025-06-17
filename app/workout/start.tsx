@@ -9,7 +9,7 @@ import Colors from '@/constants/Colors';
 import { ConfirmationModal } from '@/components/ConfirmationModal';
 import { useWorkoutDatabase } from '@/hooks/useWorkoutDatabase';
 import { useWorkout } from '@/context/WorkoutContext';
-import { getWeightUnitPreference, kgToLb, lbToKg, WeightUnit } from '@/app/profile';
+import { getWeightUnitPreference, getRestTimePreference, kgToLb, lbToKg, WeightUnit } from '@/app/profile';
 import { format } from 'date-fns';
 import { useToast } from '@/context/ToastContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -206,7 +206,7 @@ export default function StartWorkoutScreen() {
     };
   }, [workoutId, workoutStarted]);
 
-  const openSetModal = (exerciseIndex: number, setIndex: number) => {
+  const openSetModal = async (exerciseIndex: number, setIndex: number) => {
     // Save current exercise and set
     setSelectedExercise(exerciseIndex);
     setSelectedSetIndex(setIndex);
@@ -236,8 +236,16 @@ export default function StartWorkoutScreen() {
       setShowBottomSheetTimer(true);
     }
     
+    // Get the preferred rest time
+    const preferredRestTime = await getRestTimePreference();
+    
     // Pre-populate with previous performance data if available and current set is empty
     let updatedSetData = { ...setData };
+    
+    // Use preferred rest time if the current rest_time is the default 60 seconds
+    if (setData.rest_time === 60) {
+      updatedSetData.rest_time = preferredRestTime;
+    }
     
     if (!setData.completed && setData.reps === 0 && setData.weight === 0) {
       // Check if we have previous workout data for this exercise
@@ -247,7 +255,7 @@ export default function StartWorkoutScreen() {
           // Use the corresponding set from previous workout
           const prevSetData = prevSets[setIndex];
           updatedSetData = {
-            ...setData,
+            ...updatedSetData,
             reps: prevSetData.reps,
             weight: prevSetData.weight
           };
@@ -255,7 +263,7 @@ export default function StartWorkoutScreen() {
           // If no corresponding set, use the last available set from previous workout
           const lastPrevSet = prevSets[prevSets.length - 1];
           updatedSetData = {
-            ...setData,
+            ...updatedSetData,
             reps: lastPrevSet.reps,
             weight: lastPrevSet.weight
           };

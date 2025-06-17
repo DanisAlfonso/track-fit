@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { getDatabase } from '@/utils/database';
 import { useToast } from '@/context/ToastContext';
+import { getRestTimePreference } from '@/app/profile';
 
 // Type definitions
 export type Exercise = {
@@ -381,6 +382,9 @@ export function useWorkoutDatabase() {
         });
       }
       
+      // Get the preferred rest time
+      const preferredRestTime = await getRestTimePreference();
+      
       // Create workout exercises list using ALL routine exercises as the base
       const workoutExercises: WorkoutExercise[] = routineExercises.map(re => {
         // Check if we have saved data for this exercise
@@ -413,7 +417,7 @@ export function useWorkoutDatabase() {
                 set_number: i,
                 reps: 0,
                 weight: 0,
-                rest_time: 60,
+                rest_time: preferredRestTime,
                 completed: false,
                 notes: ''
               });
@@ -426,7 +430,7 @@ export function useWorkoutDatabase() {
               set_number: i,
               reps: 0,
               weight: 0,
-              rest_time: 60,
+              rest_time: preferredRestTime,
               completed: false,
               notes: ''
             });
@@ -516,6 +520,9 @@ export function useWorkoutDatabase() {
       // Load previous workout data
       const previousWorkoutData = await loadPreviousWorkoutData(routineId, exerciseResults);
       
+      // Get the preferred rest time
+      const preferredRestTime = await getRestTimePreference();
+      
       // Transform exercise data
       const workoutExercises: WorkoutExercise[] = exerciseResults.map(exercise => {
         const sets_data: Set[] = [];
@@ -526,7 +533,7 @@ export function useWorkoutDatabase() {
             set_number: i,
             reps: 0,
             weight: 0,
-            rest_time: 60,
+            rest_time: preferredRestTime,
             completed: false,
             notes: ''
           });
@@ -701,4 +708,4 @@ export function useWorkoutDatabase() {
     loadDismissedRestTimer,
     workoutStartTime: workoutStartTime
   };
-} 
+}

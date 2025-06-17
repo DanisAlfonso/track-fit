@@ -26,6 +26,7 @@ import * as Notifications from 'expo-notifications';
 import { scheduleRestCompleteNotification, cancelNotification } from '../utils/notificationUtils';
 import { getDatabase } from '@/utils/database';
 import { RestTimer } from './RestTimer';
+import { setRestTimePreference } from '@/app/profile';
 
 const { height, width } = Dimensions.get('window');
 
@@ -230,6 +231,10 @@ export const SetBottomSheet: React.FC<SetBottomSheetProps> = ({
     } else if (field === 'rest_time') {
       const restTime = typeof value === 'string' ? parseInt(value) || 0 : value;
       setSetData(prev => ({...prev, rest_time: restTime as number}));
+      // Save the rest time preference for future use
+      setRestTimePreference(restTime as number).catch(error => {
+        console.error('Failed to save rest time preference:', error);
+      });
     } else if (field === 'training_type') {
       setSetData(prev => ({...prev, training_type: value as 'heavy' | 'moderate' | 'light'}));
     } else if (field === 'notes') {

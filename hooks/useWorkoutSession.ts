@@ -3,7 +3,7 @@ import { Alert, AppState, AppStateStatus } from 'react-native';
 import { useWorkoutDatabase } from './useWorkoutDatabase';
 import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
-import { WeightUnit, getWeightUnitPreference, kgToLb, lbToKg } from '@/app/profile';
+import { WeightUnit, getWeightUnitPreference, getRestTimePreference, kgToLb, lbToKg } from '@/app/profile';
 import { getDatabase } from '@/utils/database';
 
 // Types
@@ -380,7 +380,7 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
   };
 
   // Add a new set to an exercise
-  const addSet = (exerciseIndex: number) => {
+  const addSet = async (exerciseIndex: number) => {
     const updatedExercises = [...exercises];
     const exercise = updatedExercises[exerciseIndex];
     
@@ -405,12 +405,15 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
       }
     }
     
+    // Get the preferred rest time
+    const defaultRestTime = await getRestTimePreference();
+    
     // Add a new set to the exercise with defaults from previous workout if available
     exercise.sets_data.push({
       set_number: nextSetNumber,
       reps: defaultReps,
       weight: defaultWeight,
-      rest_time: 60, // Default 60 seconds rest
+      rest_time: defaultRestTime,
       completed: false,
       notes: ''
     });
@@ -600,13 +603,16 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
           notes: ''
         };
         
+        // Get the preferred rest time
+        const defaultRestTime = await getRestTimePreference();
+        
         // Create 3 default sets
         for (let i = 1; i <= 3; i++) {
           newExercise.sets_data.push({
             set_number: i,
             reps: 0,
             weight: 0,
-            rest_time: 60, // Default 60 seconds rest
+            rest_time: defaultRestTime,
             completed: false,
             notes: ''
           });

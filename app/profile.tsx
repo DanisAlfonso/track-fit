@@ -19,6 +19,7 @@ import { ConfirmationModal } from '@/components/ConfirmationModal';
 
 export const WEIGHT_UNIT_STORAGE_KEY = 'weight_unit_preference';
 export const LENGTH_UNIT_STORAGE_KEY = 'length_unit_preference';
+export const REST_TIME_STORAGE_KEY = 'rest_time_preference';
 export type WeightUnit = 'kg' | 'lb';
 export type LengthUnit = 'cm' | 'in';
 const USER_NAME_KEY = 'user_name';
@@ -61,6 +62,24 @@ export const setLengthUnitPreference = async (value: LengthUnit): Promise<void> 
     await AsyncStorage.setItem(LENGTH_UNIT_STORAGE_KEY, value);
   } catch (error) {
     console.error('Error saving length unit preference:', error);
+  }
+};
+
+export const getRestTimePreference = async (): Promise<number> => {
+  try {
+    const storedValue = await AsyncStorage.getItem(REST_TIME_STORAGE_KEY);
+    return storedValue ? parseInt(storedValue, 10) : 60; // Default to 60 seconds if no preference is set
+  } catch (error) {
+    console.error('Error fetching rest time preference:', error);
+    return 60; // Default to 60 seconds on error
+  }
+};
+
+export const setRestTimePreference = async (value: number): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(REST_TIME_STORAGE_KEY, value.toString());
+  } catch (error) {
+    console.error('Error saving rest time preference:', error);
   }
 };
 
