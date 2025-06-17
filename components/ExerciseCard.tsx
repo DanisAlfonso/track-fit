@@ -298,37 +298,45 @@ export const ExerciseCard = ({
           </TouchableOpacity>
           
           {showingMenu === exerciseIndex && (
-            <View style={[styles.menuPopup, { 
-              backgroundColor: colors.card + 'F8', // Very subtle transparency
-            }]}>
+            <>
+              {/* Background overlay to close menu when tapped */}
               <TouchableOpacity 
-                style={[styles.menuOption, {
-                  borderBottomColor: item.sets_data.length > 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent'
-                }]}
-                onPress={() => {
-                  onToggleMenu(null);
-                  onAddSet(exerciseIndex);
-                }}
-              >
-                <FontAwesome5 name="plus" size={14} color={colors.success} style={styles.menuIcon} />
-                <Text style={[styles.menuText, { color: colors.text }]}>Add Set</Text>
-              </TouchableOpacity>
-              
-              {item.sets_data.length > 1 && (
+                style={styles.menuOverlay}
+                onPress={() => onToggleMenu(null)}
+                activeOpacity={1}
+              />
+              <View style={[styles.menuPopup, { 
+                backgroundColor: colors.card + 'F8', // Very subtle transparency
+              }]}>
                 <TouchableOpacity 
                   style={[styles.menuOption, {
-                    borderBottomColor: 'transparent' // Last item has no border
+                    borderBottomColor: item.sets_data.length > 1 ? 'rgba(255, 255, 255, 0.08)' : 'transparent'
                   }]}
                   onPress={() => {
                     onToggleMenu(null);
-                    onRemoveSet(exerciseIndex);
+                    onAddSet(exerciseIndex);
                   }}
                 >
-                  <FontAwesome5 name="minus" size={14} color={colors.error} style={styles.menuIcon} />
-                  <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
+                  <FontAwesome5 name="plus" size={14} color={colors.success} style={styles.menuIcon} />
+                  <Text style={[styles.menuText, { color: colors.text }]}>Add Set</Text>
                 </TouchableOpacity>
-              )}
-            </View>
+                
+                {item.sets_data.length > 1 && (
+                  <TouchableOpacity 
+                    style={[styles.menuOption, {
+                      borderBottomColor: 'transparent' // Last item has no border
+                    }]}
+                    onPress={() => {
+                      onToggleMenu(null);
+                      onRemoveSet(exerciseIndex);
+                    }}
+                  >
+                    <FontAwesome5 name="minus" size={14} color={colors.error} style={styles.menuIcon} />
+                    <Text style={[styles.menuText, { color: colors.text }]}>Remove Set</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
           )}
         </View>
       )}
@@ -604,6 +612,15 @@ const styles = StyleSheet.create({
   cardMenuButton: {
     padding: 8,
     backgroundColor: 'transparent',
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    backgroundColor: 'transparent',
+    zIndex: 50,
   },
   menuPopup: {
     position: 'absolute',
