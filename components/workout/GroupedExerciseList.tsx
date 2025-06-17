@@ -1,5 +1,6 @@
-import React, { RefObject, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { RefObject, useRef, useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
 import { WorkoutExercise } from '@/hooks/useWorkoutSession';
 import Colors from '@/constants/Colors';
 
@@ -24,6 +25,22 @@ export const GroupedExerciseList: React.FC<GroupedExerciseListProps> = ({
   colors,
   scrollViewRef,
 }) => {
+  // State to track which groups are collapsed
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Function to toggle group collapse state
+  const toggleGroupCollapse = (groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupKey)) {
+        newSet.delete(groupKey);
+      } else {
+        newSet.add(groupKey);
+      }
+      return newSet;
+    });
+  };
+
   // Create the groups based on groupingType
   const groups = React.useMemo(() => {
     const groupedItems: Record<string, WorkoutExercise[]> = {};
@@ -61,31 +78,45 @@ export const GroupedExerciseList: React.FC<GroupedExerciseListProps> = ({
             undefined
           }
         >
-          <View style={[
-            styles.groupHeader, 
-            { backgroundColor: colors.card },
-            groupingType === 'muscle' && getMuscleColor ? {
-              borderLeftColor: getMuscleColor(groupKey),
-              borderLeftWidth: 4
-            } : {}
-          ]}>
-            {groupingType === 'muscle' && getMuscleColor && (
-              <View 
-                style={[
-                  styles.muscleColorIndicator, 
-                  { backgroundColor: getMuscleColor(groupKey) }
-                ]} 
+          <TouchableOpacity 
+            style={[
+              styles.groupHeader, 
+              { backgroundColor: colors.card },
+              groupingType === 'muscle' && getMuscleColor ? {
+                borderLeftColor: getMuscleColor(groupKey),
+                borderLeftWidth: 4
+              } : {}
+            ]}
+            onPress={() => toggleGroupCollapse(groupKey)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.groupHeaderContent}>
+              <View style={styles.groupHeaderText}>
+                {groupingType === 'muscle' && getMuscleColor && (
+                  <View 
+                    style={[
+                      styles.muscleColorIndicator, 
+                      { backgroundColor: getMuscleColor(groupKey) }
+                    ]} 
+                  />
+                )}
+                <Text style={[styles.groupTitle, { color: colors.text }]}>
+                  {groupKey}
+                </Text>
+                <Text style={[styles.groupCount, { color: colors.subtext }]}>
+                  {groupExercises.length} exercise{groupExercises.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <FontAwesome 
+                name={collapsedGroups.has(groupKey) ? 'chevron-right' : 'chevron-down'}
+                size={14}
+                color={colors.text}
+                style={styles.chevronIcon}
               />
-            )}
-            <Text style={[styles.groupTitle, { color: colors.text }]}>
-              {groupKey}
-            </Text>
-            <Text style={[styles.groupCount, { color: colors.subtext }]}>
-              {groupExercises.length} exercise{groupExercises.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
+            </View>
+          </TouchableOpacity>
           
-          {groupExercises.map((exercise, index) => (
+          {!collapsedGroups.has(groupKey) && groupExercises.map((exercise, index) => (
             <View key={`${exercise.routine_exercise_id}`}>
               {renderExerciseItem({ 
                 item: exercise, 
@@ -114,11 +145,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   groupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: 10,
     borderRadius: 8,
     marginBottom: 8,
+  },
+  groupHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  groupHeaderText: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   muscleColorIndicator: {
     width: 10,
@@ -133,8 +172,12 @@ const styles = StyleSheet.create({
   },
   groupCount: {
     fontSize: 12,
+    marginLeft: 8,
+  },
+  chevronIcon: {
+    marginLeft: 8,
   },
   bottomPadding: {
     height: 50,
   },
-}); 
+});
