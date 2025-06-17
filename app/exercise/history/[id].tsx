@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -8,26 +8,27 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Platform,
-  Animated
+  Animated,
+  Alert
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import Colors from '@/constants/Colors';
 import { getDatabase } from '@/utils/database';
 import { format } from 'date-fns';
 import { useTheme } from '@/context/ThemeContext';
+import { SetBottomSheet } from '@/components/SetBottomSheet';
+import { Toast } from '@/components/Toast';
+import { ConfirmationModal } from '@/components/ConfirmationModal';
+import { updateCompletedSet, deleteCompletedSet, SetUpdateData } from '@/utils/workoutEditUtils';
 
 type ExerciseHistoryEntry = {
   date: string;
   workout_name: string;
-  sets: {
-    set_number: number;
-    reps: number;
-    weight: number;
-    training_type?: 'heavy' | 'moderate' | 'light';
-  }[];
+  sets: SetData[];
   totalVolume: number;
   maxWeight: number;
 };
@@ -40,10 +41,163 @@ type WorkoutExercise = {
 };
 
 type SetData = {
+  id: number;
   set_number: number;
   reps: number;
   weight: number;
   training_type?: 'heavy' | 'moderate' | 'light';
+  workout_exercise_id: number;
+  rest_time?: number | null;
+  notes?: string | null;
+};
+
+interface SwipeableSetRowProps {
+  set: SetData;
+  colors: any;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+const SwipeableSetRow: React.FC<SwipeableSetRowProps> = ({ set, colors, onEdit, onDelete }) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: false }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX } = event.nativeEvent;
+      
+      if (translationX < -80) {
+        // Reveal actions
+        Animated.spring(translateX, {
+          toValue: -120,
+          useNativeDriver: false,
+          tension: 100,
+          friction: 8,
+        }).start();
+        setIsRevealed(true);
+      } else {
+        // Hide actions
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: false,
+          tension: 100,
+          friction: 8,
+        }).start();
+        setIsRevealed(false);
+      }
+    }
+  };
+
+  const resetPosition = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: false,
+      tension: 100,
+      friction: 8,
+    }).start();
+    setIsRevealed(false);
+  };
+
+  return (
+    <View style={styles.swipeableContainer}>
+      {/* Action buttons layer - positioned behind */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.editButton, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            resetPosition();
+            onEdit();
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="pencil" size={18} color="white" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={() => {
+            resetPosition();
+            onDelete();
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="trash" size={18} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Main row content layer - slides over actions */}
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+        activeOffsetX={[-10, 10]}
+      >
+        <Animated.View
+          style={[
+            styles.swipeableSetRow,
+            {
+              transform: [{ translateX }],
+              backgroundColor: colors.cardBackground || colors.background,
+              shadowColor: colors.text,
+              shadowOffset: {
+                width: -2,
+                height: 0,
+              },
+              shadowOpacity: isRevealed ? 0.1 : 0,
+              shadowRadius: 4,
+              elevation: isRevealed ? 3 : 0,
+            },
+          ]}
+        >
+          <View style={styles.setRowContent}>
+            <Text style={[styles.setNumber, { color: colors.text }]}>
+              Set {set.set_number}
+            </Text>
+            <View style={styles.setStats}>
+              <Text style={[styles.setStatText, { color: colors.text }]}>
+                {set.reps} reps
+              </Text>
+              <Text style={[styles.setStatText, { color: colors.text }]}>
+                {set.weight} kg
+              </Text>
+            </View>
+            {set.training_type && (
+              <View 
+                style={[
+                  styles.trainingTypeBadge, 
+                  { 
+                    backgroundColor: 
+                      set.training_type === 'heavy' ? '#6F74DD20' :
+                      set.training_type === 'moderate' ? '#FFB30020' :
+                      set.training_type === 'light' ? '#4CAF5020' : 
+                      'transparent' 
+                  }
+                ]}
+              >
+                <Text 
+                  style={[
+                    styles.trainingTypeBadgeText, 
+                    { 
+                      color: 
+                        set.training_type === 'heavy' ? '#6F74DD' :
+                        set.training_type === 'moderate' ? '#FFB300' :
+                        set.training_type === 'light' ? '#4CAF50' : 
+                        colors.text 
+                    }
+                  ]}
+                >
+                  {set.training_type.charAt(0).toUpperCase() + set.training_type.slice(1)}
+                </Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
+  );
 };
 
 // Chart components using react-native-gifted-charts
@@ -63,6 +217,15 @@ export default function ExerciseHistoryScreen() {
   const [selectedTrainingType, setSelectedTrainingType] = useState<'all' | 'heavy' | 'moderate' | 'light'>('all');
   
   const [toggleAnimation] = useState(new Animated.Value(viewMode === 'list' ? 0 : 1));
+  
+  // States for edit/delete functionality
+  const [editingSet, setEditingSet] = useState<SetData | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [setToDelete, setSetToDelete] = useState<SetData | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
   
   // Add animation states at the component level
   const [emptyStateAnim] = useState({
@@ -160,7 +323,7 @@ export default function ExerciseHistoryScreen() {
       for (const workoutExercise of workoutExercises) {
         // Get sets for this workout exercise
         const sets = await db.getAllAsync<SetData>(
-          `SELECT set_number, reps, weight, training_type
+          `SELECT id, workout_exercise_id, set_number, reps, weight, training_type, rest_time, notes
            FROM sets
            WHERE workout_exercise_id = ?
            ORDER BY set_number`,
@@ -187,6 +350,58 @@ export default function ExerciseHistoryScreen() {
       console.error('Error loading exercise history:', error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Handle set editing
+  const handleEditSet = (set: SetData) => {
+    setEditingSet(set);
+    setShowEditModal(true);
+  };
+
+  const handleSaveSet = async (updates: SetUpdateData) => {
+    if (!editingSet) return;
+
+    try {
+      await updateCompletedSet(editingSet.id, updates);
+      setToastMessage('Set updated successfully');
+      setToastType('success');
+      setShowToast(true);
+      setShowEditModal(false);
+      setEditingSet(null);
+      // Reload data to reflect changes
+      await loadExerciseHistory();
+    } catch (error) {
+      console.error('Error updating set:', error);
+      setToastMessage('Failed to update set');
+      setToastType('error');
+      setShowToast(true);
+    }
+  };
+
+  // Handle set deletion
+  const handleDeleteSet = (set: SetData) => {
+    setSetToDelete(set);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteSet = async () => {
+    if (!setToDelete) return;
+
+    try {
+      await deleteCompletedSet(setToDelete.id);
+      setToastMessage('Set deleted successfully');
+      setToastType('success');
+      setShowToast(true);
+      setShowDeleteModal(false);
+      setSetToDelete(null);
+      // Reload data to reflect changes
+      await loadExerciseHistory();
+    } catch (error) {
+      console.error('Error deleting set:', error);
+      setToastMessage('Failed to delete set');
+      setToastType('error');
+      setShowToast(true);
     }
   };
   
@@ -1707,49 +1922,13 @@ export default function ExerciseHistoryScreen() {
         <View style={styles.setsContainer}>
           <Text style={[styles.setsTitle, { color: colors.text }]}>Sets</Text>
           {entry.sets.map((set, setIndex) => (
-            <View 
-              key={setIndex} 
-              style={[styles.setItem, { backgroundColor: colors.background }]}
-            >
-              <Text style={[styles.setText, { color: colors.text }]}>
-                Set {set.set_number}
-              </Text>
-              <Text style={[styles.setText, { color: colors.text }]}>
-                {set.reps} reps
-              </Text>
-              <Text style={[styles.setText, { color: colors.text }]}>
-                {set.weight} kg
-              </Text>
-              {set.training_type && (
-                <View 
-                  style={[
-                    styles.trainingTypeBadge, 
-                    { 
-                      backgroundColor: 
-                        set.training_type === 'heavy' ? '#6F74DD20' :
-                        set.training_type === 'moderate' ? '#FFB30020' :
-                        set.training_type === 'light' ? '#4CAF5020' : 
-                        'transparent' 
-                    }
-                  ]}
-                >
-                  <Text 
-                    style={[
-                      styles.trainingTypeBadgeText, 
-                      { 
-                        color: 
-                          set.training_type === 'heavy' ? '#6F74DD' :
-                          set.training_type === 'moderate' ? '#FFB300' :
-                          set.training_type === 'light' ? '#4CAF50' : 
-                          colors.text 
-                      }
-                    ]}
-                  >
-                    {set.training_type.charAt(0).toUpperCase() + set.training_type.slice(1)}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <SwipeableSetRow
+              key={setIndex}
+              set={set}
+              colors={colors}
+              onEdit={() => handleEditSet(set)}
+              onDelete={() => handleDeleteSet(set)}
+            />
           ))}
         </View>
       </View>
@@ -1962,6 +2141,59 @@ export default function ExerciseHistoryScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {viewMode === 'list' ? renderListData() : renderChartData()}
       </ScrollView>
+      
+      {/* Edit Set Modal */}
+      {editingSet && (
+        <SetBottomSheet
+          visible={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingSet(null);
+          }}
+          onSave={(setData) => {
+            handleSaveSet({
+              reps: setData.reps,
+              weight: setData.weight,
+              rest_time: setData.rest_time,
+              training_type: setData.training_type,
+              notes: setData.notes,
+            });
+          }}
+          currentSet={{
+            set_number: editingSet.set_number,
+            reps: editingSet.reps,
+            weight: editingSet.weight,
+            rest_time: editingSet.rest_time || 0,
+            completed: true,
+            training_type: editingSet.training_type,
+            notes: editingSet.notes || '',
+          }}
+          weightUnit="kg"
+        />
+      )}
+      
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        visible={showDeleteModal}
+        title="Delete Set"
+        message={`Are you sure you want to delete Set ${setToDelete?.set_number}?`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmStyle="destructive"
+        onConfirm={confirmDeleteSet}
+        onCancel={() => {
+          setShowDeleteModal(false);
+          setSetToDelete(null);
+        }}
+      />
+      
+      {/* Toast */}
+      <Toast
+        visible={showToast}
+        message={toastMessage}
+        type={toastType}
+        onHide={() => setShowToast(false)}
+      />
     </View>
   );
 }
@@ -2241,6 +2473,74 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
+  },
+  // Swipeable styles
+  swipeableContainer: {
+    position: 'relative',
+    marginBottom: 8,
+    overflow: 'hidden',
+    borderRadius: 12,
+  },
+  actionsContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 16,
+    paddingLeft: 16,
+    width: 140,
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  editButton: {
+    // backgroundColor set dynamically
+  },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+  },
+  swipeableSetRow: {
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    minHeight: 60,
+  },
+  setRowContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  setNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    minWidth: 60,
+  },
+  setStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+    gap: 24,
+  },
+  setStatText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   trainingTypeButtons: {
     flexDirection: 'row',
