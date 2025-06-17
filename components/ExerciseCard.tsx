@@ -382,7 +382,7 @@ export const ExerciseCard = ({
             <Progress.Circle
               size={36}
               progress={progress / 100}
-              color={progress === 100 ? colors.success : borderColor}
+              color={progress === 100 ? colors.success : (muscleColor || colors.primary)}
               unfilledColor={colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
               borderWidth={0}
               thickness={3}
@@ -390,7 +390,7 @@ export const ExerciseCard = ({
               showsText={false}
             />
             <Text style={[styles.progressText, { 
-              color: progress === 100 ? colors.success : borderColor,
+              color: progress === 100 ? colors.success : (muscleColor || colors.primary),
               fontSize: 10,
               position: 'absolute'
             }]}>
@@ -457,6 +457,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    borderRightColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -466,6 +472,7 @@ const styles = StyleSheet.create({
   exerciseHeader: {
     marginBottom: 20,
     borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     paddingBottom: 16,
   },
   exerciseTitleArea: {
