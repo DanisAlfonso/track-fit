@@ -296,79 +296,52 @@ export default function WorkoutAnalyticsScreen() {
   
   // Render tab selector
   const renderTabSelector = () => {
+    const tabs = [
+      { key: 'volume', label: 'Volume', icon: 'bar-chart-outline' },
+      { key: 'muscles', label: 'Muscles', icon: 'body-outline' },
+      { key: 'progress', label: 'Progress', icon: 'trending-up-outline' },
+      { key: 'training', label: 'Training', icon: 'fitness-outline' }
+    ];
+
     return (
       <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            selectedTab === 'volume' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('volume')}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabScrollContainer}
+          style={styles.tabScrollView}
         >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: selectedTab === 'volume' ? '#fff' : colors.text }
-          ]}>
-            Volume
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            selectedTab === 'muscles' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('muscles')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: selectedTab === 'muscles' ? '#fff' : colors.text }
-          ]}>
-            Muscles
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            selectedTab === 'progress' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('progress')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: selectedTab === 'progress' ? '#fff' : colors.text }
-          ]}>
-            Progress
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[
-            styles.tabButton, 
-            selectedTab === 'training' && {
-              backgroundColor: colors.primary, 
-              borderColor: colors.primary
-            }
-          ]} 
-          onPress={() => setSelectedTab('training')}
-        >
-          <Text style={[
-            styles.tabButtonText, 
-            { color: selectedTab === 'training' ? '#fff' : colors.text }
-          ]}>
-            Training
-          </Text>
-        </TouchableOpacity>
+          {tabs.map((tab, index) => (
+            <TouchableOpacity 
+              key={tab.key}
+              style={[
+                styles.tabButton, 
+                { borderColor: colors.border },
+                selectedTab === tab.key && {
+                  backgroundColor: colors.primary, 
+                  borderColor: colors.primary
+                },
+                index === 0 && styles.firstTabButton,
+                index === tabs.length - 1 && styles.lastTabButton
+              ]} 
+              onPress={() => setSelectedTab(tab.key as any)}
+            >
+              <Ionicons 
+                name={tab.icon as any} 
+                size={18} 
+                color={selectedTab === tab.key ? '#fff' : colors.primary} 
+                style={styles.tabIcon}
+              />
+              <Text style={[
+                styles.tabButtonText, 
+                { color: colors.text },
+                selectedTab === tab.key && {color: '#fff'}
+              ]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -1676,6 +1649,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
@@ -1702,17 +1676,34 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   tabContainer: {
-    flexDirection: 'row',
     marginBottom: 16,
-    borderRadius: 8,
-    overflow: 'hidden',
+  },
+  tabScrollView: {
+    flexGrow: 0,
+  },
+  tabScrollContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
   },
   tabButton: {
-    flex: 1,
+    minWidth: 100,
     paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  firstTabButton: {
+    marginLeft: 0,
+  },
+  lastTabButton: {
+    marginRight: 0,
+  },
+  tabIcon: {
+    marginRight: 6,
   },
   tabButtonText: {
     fontSize: 14,
