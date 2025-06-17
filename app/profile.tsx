@@ -1053,7 +1053,9 @@ export default function ProfileScreen() {
                   resizeMode="cover"
                 />
               ) : (
-              <FontAwesome5 name="user" size={40} color={colors.primary} />
+                <Text style={[styles.profileInitial, { color: colors.primary }]}>
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
               )}
               
               <View style={styles.cameraIconContainer}>
@@ -1805,6 +1807,10 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+  },
+  profileInitial: {
+    fontSize: 36,
+    fontWeight: 'bold',
   },
   cameraIconContainer: {
     position: 'absolute',

@@ -43,6 +43,7 @@ export default function EditProfileScreen() {
   const [fitnessGoalInput, setFitnessGoalInput] = useState('');
   const [activityLevelInput, setActivityLevelInput] = useState('');
   const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
+  const [userName, setUserName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -95,7 +96,10 @@ export default function EditProfileScreen() {
       const storedActivityLevel = await AsyncStorage.getItem(USER_ACTIVITY_LEVEL_KEY);
       const storedProfilePicture = await AsyncStorage.getItem(USER_PROFILE_PICTURE_KEY);
       
-      if (storedName) setNameInput(storedName);
+      if (storedName) {
+        setNameInput(storedName);
+        setUserName(storedName);
+      }
       if (storedAge) setAgeInput(storedAge);
       if (storedGender) setGenderInput(storedGender);
       if (storedFitnessGoal) setFitnessGoalInput(storedFitnessGoal);
@@ -113,6 +117,7 @@ export default function EditProfileScreen() {
     setIsSaving(true);
     try {
       await AsyncStorage.setItem(USER_NAME_KEY, nameInput);
+      setUserName(nameInput);
       await AsyncStorage.setItem(USER_AGE_KEY, ageInput);
       await AsyncStorage.setItem(USER_GENDER_KEY, genderInput);
       await AsyncStorage.setItem(USER_FITNESS_GOAL_KEY, fitnessGoalInput);
@@ -316,14 +321,16 @@ export default function EditProfileScreen() {
                 style={styles.avatarGradient}
               >
                 {profilePictureUri ? (
-                  <Image 
-                    source={{ uri: profilePictureUri }} 
-                    style={styles.profileImage} 
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <FontAwesome5 name="user" size={40} color={colors.primary} />
-                )}
+                <Image 
+                  source={{ uri: profilePictureUri }} 
+                  style={styles.profileImage} 
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={[styles.profileInitial, { color: colors.primary }]}>
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
+              )}
                 
                 <View style={styles.cameraIconContainer}>
                   <FontAwesome5 name="camera" size={14} color="white" />
@@ -721,6 +728,10 @@ const styles = StyleSheet.create({
     height: 90,
     borderRadius: 45,
   },
+  profileInitial: {
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
   cameraIconContainer: {
     position: 'absolute',
     bottom: 0,
@@ -834,4 +845,4 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     opacity: 0.7,
   },
-}); 
+});

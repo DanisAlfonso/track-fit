@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Animated } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Animated, Image } from 'react-native';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -13,8 +13,9 @@ import { useWorkout } from '@/context/WorkoutContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressBottomSheet } from '@/components/ProgressBottomSheet';
 
-// User profile key from profile.tsx
+// User profile keys
 const USER_NAME_KEY = 'user_name';
+const USER_PROFILE_PICTURE_KEY = 'user_profile_picture';
 
 // Define stat icon colors
 const statColors = {
@@ -93,6 +94,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [todaysRoutine, setTodaysRoutine] = useState<{ name: string; id: number; exerciseCount: number } | null>(null);
   const [userName, setUserName] = useState('Fitness Enthusiast');
+  const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
   const [isRestDayToday, setIsRestDayToday] = useState(false);
   const [strengthProgress, setStrengthProgress] = useState<StrengthProgress[]>([]);
   const [monthlyGains, setMonthlyGains] = useState<MonthlyStrengthGains | null>(null);
@@ -252,15 +254,18 @@ export default function HomeScreen() {
       // It's a rest day if there are no routines scheduled for today
       setIsRestDayToday(weeklyScheduleResult.length === 0);
 
-      // Load user name from AsyncStorage
+      // Load user name and profile picture from AsyncStorage
       try {
         const name = await AsyncStorage.getItem(USER_NAME_KEY);
         if (name) {
           setUserName(name);
         }
+        
+        const profilePicture = await AsyncStorage.getItem(USER_PROFILE_PICTURE_KEY);
+        setProfilePictureUri(profilePicture);
       } catch (error) {
-        console.error('Error loading user name:', error);
-        // Keep default name if there's an error
+        console.error('Error loading user profile data:', error);
+        // Keep default values if there's an error
       }
 
       // Load strength progress data
@@ -757,7 +762,17 @@ export default function HomeScreen() {
               colors={[colors.primary, colors.secondary]}
               style={styles.profileIconContainer}
             >
-              <FontAwesome name="user" size={16} color="white" />
+              {profilePictureUri ? (
+                <Image 
+                  source={{ uri: profilePictureUri }} 
+                  style={styles.profileImage} 
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={styles.profileInitial}>
+                  {userName.charAt(0).toUpperCase()}
+                </Text>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -1161,6 +1176,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  profileInitial: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
   },
   welcomeMessage: {
     fontSize: 28,
