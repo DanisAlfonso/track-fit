@@ -526,13 +526,6 @@ export default function HistoryScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Workout History</Text>
-          <TouchableOpacity 
-            style={[styles.analyticsButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/analytics')}
-          >
-            <FontAwesome name="bar-chart" size={16} color="#fff" />
-            <Text style={styles.analyticsButtonText}>Analytics</Text>
-          </TouchableOpacity>
         </View>
 
         <FlatList
@@ -804,23 +797,7 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontStyle: 'italic',
   },
-  analyticsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  analyticsButtonText: {
-    color: '#fff',
-    marginLeft: 6,
-    fontWeight: '500',
-  },
+
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
