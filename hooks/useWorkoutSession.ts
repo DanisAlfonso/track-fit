@@ -428,7 +428,8 @@ export function useWorkoutSession(routineId?: string | string[], existingWorkout
       weight: defaultWeight,
       rest_time: defaultRestTime,
       completed: false,
-      notes: ''
+      notes: '',
+      training_type: 'moderate' // Default training type
     });
     
     // Update the total number of sets for the exercise
