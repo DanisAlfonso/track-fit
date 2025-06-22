@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Animated, Image } from 'react-native';
+import { StyleSheet, ScrollView, View, Text, TouchableOpacity, Alert, ActivityIndicator, RefreshControl, Animated, Image, FlatList } from 'react-native';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from 'react-native';
@@ -178,7 +178,7 @@ export default function HomeScreen() {
         WHERE w.completed_at IS NOT NULL
         AND EXISTS (SELECT 1 FROM workouts WHERE id = w.id)
         ORDER BY w.date DESC
-        LIMIT 3
+        LIMIT 8
       `);
       setRecentWorkouts(recentWorkoutsResults);
       
@@ -398,7 +398,7 @@ export default function HomeScreen() {
         INNER JOIN exercise_workout_counts ewc ON r.exercise_id = ewc.exercise_id
         WHERE r.best_recent_1rm > p.best_previous_1rm
         ORDER BY improvement_percentage DESC
-        LIMIT 3
+        LIMIT 8
       `;
       
       const progressResults = await db.getAllAsync<StrengthProgress>(
@@ -1208,81 +1208,81 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           
-          {/* Monthly Summary */}
-          {monthlyGains && (
-            <View style={[styles.monthlyGainsCard, { backgroundColor: colors.card }]}>
-              <LinearGradient
-                colors={['#10B981', '#059669']}
-                style={styles.monthlyGainsIconContainer}
-              >
-                <FontAwesome5 name="chart-line" size={16} color="white" />
-              </LinearGradient>
-              <View style={styles.monthlyGainsContent}>
-                <Text style={[styles.monthlyGainsTitle, { color: colors.text }]}>This Month</Text>
-                <Text style={[styles.monthlyGainsText, { color: colors.subtext }]}>
-                  {monthlyGains.total_exercises_improved} exercise{monthlyGains.total_exercises_improved !== 1 ? 's' : ''} improved
-                  {monthlyGains.best_improvement && (
-                    <Text> • Best: {monthlyGains.best_improvement.exercise_name} (+{monthlyGains.best_improvement.improvement.toFixed(1)}kg)</Text>
-                  )}
-                </Text>
-              </View>
-            </View>
-          )}
+
           
-          {/* Top 3 Exercises with Recent Improvements */}
-          <View style={styles.strengthProgressList}>
-            {strengthProgress.map((exercise, index) => (
+          {/* Strength Progress - Horizontal Scroll */}
+          <FlatList
+            data={strengthProgress}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.strengthProgressScrollContainer}
+            keyExtractor={(item) => item.exercise_id.toString()}
+            renderItem={({ item: exercise, index }) => (
               <TouchableOpacity 
-                key={exercise.exercise_id}
-                style={[styles.strengthProgressCard, { backgroundColor: colors.card }]}
+                style={[styles.strengthProgressCardHorizontal, { backgroundColor: colors.card }]}
                 onPress={() => router.push(`/exercise/history/${exercise.exercise_id}`)}
                 activeOpacity={0.7}
               >
-                <View style={styles.strengthProgressContent}>
+                <LinearGradient
+                  colors={[colors.card + '40', colors.card + '80']}
+                  style={styles.cardGlassEffect}
+                >
                   <View style={styles.strengthProgressHeader}>
-                    <Text style={[styles.strengthProgressName, { color: colors.text }]}>
-                      {exercise.exercise_name}
-                    </Text>
-                    <View style={[styles.improvementBadge, { backgroundColor: colors.primaryLight }]}>
-                      <FontAwesome5 name="arrow-up" size={10} color={colors.primary} />
-                      <Text style={[styles.improvementText, { color: colors.primary }]}>
+                    <View style={styles.exerciseHeaderWithIcon}>
+                      <LinearGradient
+                        colors={['#8B5CF6', '#A855F7']}
+                        style={styles.exerciseIconContainer}
+                      >
+                        <FontAwesome5 name="dumbbell" size={14} color="white" />
+                      </LinearGradient>
+                      <Text style={[styles.strengthProgressNameHorizontal, { color: colors.text }]} numberOfLines={2}>
+                        {exercise.exercise_name}
+                      </Text>
+                    </View>
+                    <View style={[styles.improvementBadgeHorizontal, { backgroundColor: colors.primaryLight }]}>
+                      <FontAwesome5 name="chart-line" size={12} color={colors.primary} />
+                      <Text style={[styles.improvementTextHorizontal, { color: colors.primary }]}>
                         +{exercise.improvement.toFixed(1)}kg
                       </Text>
                     </View>
                   </View>
                   
-                  <View style={styles.strengthProgressMeta}>
-                    <View style={styles.strengthProgressMetaItem}>
-                      <FontAwesome5 name="weight" size={12} color={colors.primary} style={styles.metaIcon} />
-                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
-                        1RM: {exercise.current_1rm.toFixed(1)}kg
+                  <View style={styles.strengthProgressStatsHorizontal}>
+                    <View style={styles.statItem}>
+                      <Text style={[styles.strengthStatValue, { color: colors.text }]}>
+                        {exercise.current_1rm.toFixed(1)}kg
                       </Text>
+                      <Text style={[styles.strengthStatLabel, { color: colors.subtext }]}>1RM</Text>
                     </View>
-                    <View style={styles.strengthProgressMetaItem}>
-                      <FontAwesome5 name="percentage" size={12} color={colors.primary} style={styles.metaIcon} />
-                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statItem}>
+                      <Text style={[styles.strengthStatValue, { color: colors.primary }]}>
                         +{exercise.improvement_percentage.toFixed(1)}%
                       </Text>
-                    </View>
-                    <View style={styles.strengthProgressMetaItem}>
-                      <FontAwesome5 name="dumbbell" size={12} color={colors.primary} style={styles.metaIcon} />
-                      <Text style={[styles.strengthProgressMetaText, { color: colors.subtext }]}>
-                        {exercise.total_workout_sessions} session{exercise.total_workout_sessions !== 1 ? 's' : ''}
-                      </Text>
+                      <Text style={[styles.strengthStatLabel, { color: colors.subtext }]}>Growth</Text>
                     </View>
                   </View>
                   
-                  <Text style={[styles.lastWorkoutDate, { color: colors.subtext }]}>
-                    Last: {formatDate(exercise.last_workout_date)} • Recent: {exercise.recent_workout_sessions}, Previous: {exercise.previous_workout_sessions}
+                  <View style={styles.progressBarContainer}>
+                    <View style={[styles.strengthProgressBarBackground, { backgroundColor: colors.border }]} />
+                    <View 
+                      style={[
+                        styles.strengthProgressBarFill, 
+                        { 
+                          backgroundColor: colors.primary,
+                          width: `${Math.min(exercise.improvement_percentage * 2, 100)}%`
+                        }
+                      ]} 
+                    />
+                  </View>
+                  
+                  <Text style={[styles.strengthLastWorkoutDate, { color: colors.subtext }]} numberOfLines={1}>
+                    {exercise.total_workout_sessions} sessions • {formatDate(exercise.last_workout_date)}
                   </Text>
-                </View>
-                
-                <View style={styles.arrowContainer}>
-                  <FontAwesome5 name="chevron-right" size={14} color={colors.primary} />
-                </View>
+                </LinearGradient>
               </TouchableOpacity>
-            ))}
-          </View>
+            )}
+          />
         </Animated.View>
       )}
 
@@ -1296,66 +1296,97 @@ export default function HomeScreen() {
         </View>
         
         {recentWorkouts.length > 0 ? (
-          recentWorkouts.map((workout, index) => (
-            <TouchableOpacity 
-              key={workout.id}
-              style={[
-                styles.workoutCard
-              ]}
-              onPress={() => navigateToWorkout(workout.id)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.cardInner, {backgroundColor: colors.card}]}>
-                <View style={[styles.workoutDateContainer, { backgroundColor: colors.primaryLight }]}>
-                  <Text style={[styles.workoutDate, { color: colors.primary }]}>
-                    {formatDate(workout.date)}
-                  </Text>
-                </View>
-                <View style={styles.workoutContent}>
-                  <Text style={[styles.workoutName, { color: colors.text }]}>{workout.routine_name}</Text>
-                  
-                  <View style={styles.workoutMeta}>
-                    <View style={styles.workoutMetaItem}>
-                      <FontAwesome5 name="dumbbell" size={12} color={colors.primary} style={styles.metaIcon} />
-                      <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
-                        {workout.exercise_count} exercises
+          <FlatList
+            data={recentWorkouts}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recentWorkoutsScrollContainer}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item: workout, index }) => (
+              <TouchableOpacity 
+                style={[styles.workoutCardHorizontal, { backgroundColor: colors.card }]}
+                onPress={() => navigateToWorkout(workout.id)}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={[colors.card + '60', colors.card + '90']}
+                  style={styles.workoutCardGlassEffect}
+                >
+                  <View style={styles.workoutCardHeader}>
+                    <View style={[styles.workoutDateBadge, { backgroundColor: colors.primaryLight }]}>
+                      <FontAwesome5 name="calendar" size={10} color={colors.primary} />
+                      <Text style={[styles.workoutDateText, { color: colors.primary }]}>
+                        {formatDate(workout.date).split(' ')[0]}
                       </Text>
                     </View>
-                    <View style={styles.workoutMetaItem}>
-                      <FontAwesome5 name="clock" size={12} color={colors.primary} style={styles.metaIcon} />
-                      <Text style={[styles.workoutMetaText, { color: colors.subtext }]}>
-                        {formatDuration(workout.duration)}
-                      </Text>
+                    <View style={[styles.workoutStatusBadge, { backgroundColor: '#10B981' + '20' }]}>
+                      <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                      <Text style={[styles.statusText, { color: '#10B981' }]}>Completed</Text>
                     </View>
                   </View>
                   
-                  {/* Additional Information */}
-                  <View style={styles.workoutExtraInfo}>
-                    {workout.max_weight ? (
-                      <View style={styles.workoutTagItem}>
-                        <FontAwesome5 name="weight" size={10} color={colors.primary} />
-                        <Text style={[styles.workoutTagText, { color: colors.subtext }]}>
-                          Max: {workout.max_weight}kg
-                        </Text>
-                      </View>
-                    ) : null}
+                  <View style={styles.workoutHeaderWithIcon}>
+                    <LinearGradient
+                      colors={['#F59E0B', '#F97316']}
+                      style={styles.workoutIconContainer}
+                    >
+                      <FontAwesome5 name="fire" size={14} color="white" />
+                    </LinearGradient>
+                    <Text style={[styles.workoutNameHorizontal, { color: colors.text }]} numberOfLines={2}>
+                      {workout.routine_name}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.workoutStatsGrid}>
+                    <View style={styles.workoutStatItem}>
+                      <FontAwesome5 name="dumbbell" size={14} color={colors.primary} />
+                      <Text style={[styles.workoutStatValue, { color: colors.text }]}>
+                        {workout.exercise_count}
+                      </Text>
+                      <Text style={[styles.workoutStatLabel, { color: colors.subtext }]}>Exercises</Text>
+                    </View>
                     
-                    {workout.primary_muscles ? (
-                      <View style={styles.workoutTagItem}>
-                        <FontAwesome5 name="running" size={10} color={colors.primary} />
-                        <Text style={[styles.workoutTagText, { color: colors.subtext }]}>
-                          {workout.primary_muscles.split(',').slice(0, 2).join(', ')}
+                    <View style={styles.workoutStatItem}>
+                      <FontAwesome5 name="clock" size={14} color={colors.primary} />
+                      <Text style={[styles.workoutStatValue, { color: colors.text }]}>
+                        {formatDuration(workout.duration).split(' ')[0]}
+                      </Text>
+                      <Text style={[styles.workoutStatLabel, { color: colors.subtext }]}>Duration</Text>
+                    </View>
+                    
+                    {workout.max_weight && (
+                      <View style={styles.workoutStatItem}>
+                        <FontAwesome5 name="weight" size={14} color={colors.primary} />
+                        <Text style={[styles.workoutStatValue, { color: colors.text }]}>
+                          {workout.max_weight}kg
                         </Text>
+                        <Text style={[styles.workoutStatLabel, { color: colors.subtext }]}>Max</Text>
                       </View>
-                    ) : null}
+                    )}
                   </View>
-                </View>
-                <View style={styles.arrowContainer}>
-                  <FontAwesome5 name="chevron-right" size={14} color={colors.primary} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))
+                  
+                  {workout.primary_muscles && (
+                    <View style={styles.muscleTagsContainer}>
+                      {workout.primary_muscles.split(',').slice(0, 2).map((muscle, idx) => (
+                        <View key={idx} style={[styles.muscleTag, { backgroundColor: colors.primaryLight }]}>
+                          <Text style={[styles.muscleTagText, { color: colors.primary }]} numberOfLines={1}>
+                            {muscle.trim()}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  
+                  <View style={styles.workoutCardFooter}>
+                    <Text style={[styles.workoutTimeAgo, { color: colors.subtext }]}>
+                      {formatDate(workout.date)}
+                    </Text>
+                    <FontAwesome5 name="chevron-right" size={12} color={colors.primary} />
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          />
         ) : (
           <View style={[styles.emptyWorkoutsContainer, { backgroundColor: colors.card }]}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No Workouts Yet</Text>
@@ -1699,6 +1730,8 @@ const styles = StyleSheet.create({
   calendarWidget: {
     borderRadius: 20,
     padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -1930,38 +1963,7 @@ const styles = StyleSheet.create({
   strengthProgressContainer: {
     marginBottom: 24,
   },
-  monthlyGainsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  monthlyGainsIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  monthlyGainsContent: {
-    flex: 1,
-  },
-  monthlyGainsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  monthlyGainsText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+
   strengthProgressList: {
     gap: 12,
   },
@@ -1981,16 +1983,262 @@ const styles = StyleSheet.create({
   },
   strengthProgressHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  exerciseHeaderWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  exerciseIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   strengthProgressName: {
     fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 12,
+    fontWeight: 'bold',
   },
+  
+  // New Horizontal Scroll Styles for Strength Progress
+  strengthProgressScrollContainer: {
+    paddingLeft: 0,
+    paddingRight: 24,
+  },
+  strengthProgressCardHorizontal: {
+    width: 320,
+    height: 220,
+    marginRight: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardGlassEffect: {
+    padding: 18,
+    height: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'space-between',
+  },
+  strengthProgressNameHorizontal: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    lineHeight: 18,
+    flex: 1,
+  },
+  improvementBadgeHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  improvementTextHorizontal: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  strengthProgressStatsHorizontal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 10,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  strengthStatValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  strengthStatLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    opacity: 0.8,
+  },
+  statDivider: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    marginHorizontal: 16,
+  },
+  strengthProgressBarBackground: {
+    height: 4,
+    borderRadius: 2,
+    marginVertical: 8,
+  },
+  strengthProgressBarFill: {
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  strengthLastWorkoutDate: {
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.7,
+    lineHeight: 14,
+  },
+  
+  // New Horizontal Scroll Styles for Recent Workouts
+  recentWorkoutsScrollContainer: {
+    paddingLeft: 0,
+    paddingRight: 24,
+  },
+  workoutCardHorizontal: {
+    width: 320,
+    height: 220,
+    marginRight: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  workoutCardGlassEffect: {
+    padding: 18,
+    height: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'space-between',
+  },
+  workoutCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  workoutHeaderWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  workoutIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  workoutDateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  workoutDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  workoutStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  workoutNameHorizontal: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    lineHeight: 18,
+    flex: 1,
+  },
+  workoutStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  workoutStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  workoutStatValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  workoutStatLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  muscleTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  muscleTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    maxWidth: 80,
+  },
+  muscleTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  workoutCardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 0,
+    borderTopColor: 'transparent',
+  },
+  workoutTimeAgo: {
+    fontSize: 11,
+    opacity: 0.8,
+  },
+  
+  // Keep existing styles
+   strengthProgressNameOriginal: {
+     fontSize: 16,
+     fontWeight: '600',
+     flex: 1,
+     marginRight: 12,
+   },
   improvementBadge: {
     flexDirection: 'row',
     alignItems: 'center',

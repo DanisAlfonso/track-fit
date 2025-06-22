@@ -597,8 +597,10 @@ export default function WorkoutAnalyticsScreen() {
                 <View style={styles.volumeBreakdown}>
                   {trainingTypeVolumes.heavy > 0 && (
                     <View style={styles.volumeBreakdownRow}>
-                      <View style={[styles.intensityDot, { backgroundColor: '#6F74DD' }]} />
-                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Heavy:</Text>
+                      <View style={styles.intensityRowHeader}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#6F74DD' }]} />
+                        <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Heavy:</Text>
+                      </View>
                       <Text style={[styles.intensityValue, { color: colors.text }]}>
                         {trainingTypeVolumes.heavy.toLocaleString()} kg
                       </Text>
@@ -607,8 +609,10 @@ export default function WorkoutAnalyticsScreen() {
                   
                   {trainingTypeVolumes.moderate > 0 && (
                     <View style={styles.volumeBreakdownRow}>
-                      <View style={[styles.intensityDot, { backgroundColor: '#FFB300' }]} />
-                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Moderate:</Text>
+                      <View style={styles.intensityRowHeader}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#FFB300' }]} />
+                        <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Moderate:</Text>
+                      </View>
                       <Text style={[styles.intensityValue, { color: colors.text }]}>
                         {trainingTypeVolumes.moderate.toLocaleString()} kg
                       </Text>
@@ -617,8 +621,10 @@ export default function WorkoutAnalyticsScreen() {
                   
                   {trainingTypeVolumes.light > 0 && (
                     <View style={styles.volumeBreakdownRow}>
-                      <View style={[styles.intensityDot, { backgroundColor: '#4CAF50' }]} />
-                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Light:</Text>
+                      <View style={styles.intensityRowHeader}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#4CAF50' }]} />
+                        <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Light:</Text>
+                      </View>
                       <Text style={[styles.intensityValue, { color: colors.text }]}>
                         {trainingTypeVolumes.light.toLocaleString()} kg
                       </Text>
@@ -627,8 +633,10 @@ export default function WorkoutAnalyticsScreen() {
                   
                   {trainingTypeVolumes.unspecified > 0 && (
                     <View style={styles.volumeBreakdownRow}>
-                      <View style={[styles.intensityDot, { backgroundColor: '#757575' }]} />
-                      <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Other:</Text>
+                      <View style={styles.intensityRowHeader}>
+                        <View style={[styles.intensityDot, { backgroundColor: '#757575' }]} />
+                        <Text style={[styles.intensityLabel, { color: colors.subtext }]}>Other:</Text>
+                      </View>
                       <Text style={[styles.intensityValue, { color: colors.text }]}>
                         {trainingTypeVolumes.unspecified.toLocaleString()} kg
                       </Text>
@@ -2453,27 +2461,35 @@ const styles = StyleSheet.create({
   volumeBreakdown: {
     marginTop: 10,
     width: '100%',
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   volumeBreakdownRow: {
+    flexDirection: 'column',
+    marginTop: 6,
+    paddingHorizontal: 4,
+  },
+  intensityRowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    paddingHorizontal: 6,
+    marginBottom: 2,
   },
   intensityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+    flexShrink: 0,
   },
   intensityLabel: {
-    fontSize: 12,
-    flex: 1,
+    fontSize: 10,
+    fontWeight: '500',
+    flexShrink: 0,
   },
   intensityValue: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'left',
+    marginLeft: 14,
   },
   muscleDistributionContainer: {
     width: '100%',
