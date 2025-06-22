@@ -12,6 +12,7 @@ import { useToast } from '@/context/ToastContext';
 import { useWorkout } from '@/context/WorkoutContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProgressBottomSheet } from '@/components/ProgressBottomSheet';
+import { RoutineBottomSheet } from '@/components/RoutineBottomSheet';
 
 // User profile keys
 const USER_NAME_KEY = 'user_name';
@@ -98,11 +99,17 @@ export default function HomeScreen() {
   const [isRestDayToday, setIsRestDayToday] = useState(false);
   const [strengthProgress, setStrengthProgress] = useState<StrengthProgress[]>([]);
   const [monthlyGains, setMonthlyGains] = useState<MonthlyStrengthGains | null>(null);
+  const [weeklySchedule, setWeeklySchedule] = useState<any[]>([]);
 
   // ProgressBottomSheet state
   const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
   const [bottomSheetType, setBottomSheetType] = useState<'totalWorkouts' | 'totalTime' | 'thisWeek' | 'streak'>('totalWorkouts');
   const [bottomSheetValue, setBottomSheetValue] = useState<string | number>('');
+
+  // RoutineBottomSheet state
+  const [routineBottomSheetVisible, setRoutineBottomSheetVisible] = useState(false);
+  const [selectedRoutineId, setSelectedRoutineId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -270,6 +277,9 @@ export default function HomeScreen() {
 
       // Load strength progress data
       await loadStrengthProgress();
+      
+      // Load weekly schedule
+      await loadWeeklySchedule();
     } catch (error) {
       console.error('Error loading home data:', error);
     } finally {
@@ -451,6 +461,37 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Error loading today\'s routine:', error);
+    }
+  };
+
+  const loadWeeklySchedule = async () => {
+    try {
+      const db = await getDatabase();
+      const schedule = [];
+      
+      for (let day = 0; day < 7; day++) {
+        const routines = await db.getAllAsync(`
+          SELECT 
+            r.id,
+            r.name,
+            COUNT(re.id) as exercise_count
+          FROM weekly_schedule ws
+          JOIN routines r ON ws.routine_id = r.id
+          LEFT JOIN routine_exercises re ON r.id = re.routine_id
+          WHERE ws.day_of_week = ?
+          GROUP BY r.id, r.name
+          ORDER BY ws.created_at ASC
+        `, [day]) as any[];
+        
+        schedule.push({
+          day_of_week: day,
+          routines: routines || []
+        });
+      }
+      
+      setWeeklySchedule(schedule);
+    } catch (error) {
+      console.error('Error loading weekly schedule:', error);
     }
   };
 
@@ -814,6 +855,8 @@ export default function HomeScreen() {
         </View>
       </View>
 
+
+
       {/* Today's Workout */}
       {todaysRoutine && (
         <Animated.View 
@@ -932,6 +975,220 @@ export default function HomeScreen() {
           )}
         </View>
       </View>
+
+      {/* Workout Calendar Widget */}
+      <Animated.View 
+        style={[
+          styles.calendarWidgetContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: translateY }]
+          }
+        ]}
+      >
+        <View style={styles.calendarWidgetHeader}>
+          <View style={styles.calendarTitleContainer}>
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.calendarIconContainer}
+            >
+              <FontAwesome5 name="calendar-week" size={16} color="white" />
+            </LinearGradient>
+            <Text style={[styles.calendarWidgetTitle, { color: colors.text }]}>This Week</Text>
+          </View>
+          <TouchableOpacity 
+            onPress={() => router.push('/weekly-schedule')}
+            style={styles.viewScheduleButton}
+          >
+            <Text style={[styles.viewScheduleText, { color: colors.primary }]}>View All</Text>
+            <FontAwesome5 name="chevron-right" size={12} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+        
+        <View style={[styles.calendarWidget, { backgroundColor: colors.card }]}>
+          <View style={styles.weekDaysContainer}>
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => {
+              const today = new Date();
+              const currentDay = today.getDay();
+              // Convert Sunday-based index (0-6) to Monday-based index (0-6)
+              const mondayBasedIndex = (index + 1) % 7;
+              const isToday = mondayBasedIndex === currentDay;
+              
+              // Calculate the date for this day
+              const startOfWeek = new Date(today);
+              const dayDiff = today.getDay() === 0 ? 6 : today.getDay() - 1; // Monday = 0
+              startOfWeek.setDate(today.getDate() - dayDiff);
+              const dayDate = new Date(startOfWeek);
+              dayDate.setDate(startOfWeek.getDate() + index);
+              
+              const daySchedule = weeklySchedule.find(s => s.day_of_week === mondayBasedIndex);
+              const hasWorkout = daySchedule?.routines && daySchedule.routines.length > 0;
+              const multipleRoutines = daySchedule?.routines && daySchedule.routines.length > 1;
+              
+              // Get routine type for color coding
+              const routineType = daySchedule?.routines?.[0]?.name?.toLowerCase();
+              let routineColor = colors.primary;
+              if (routineType?.includes('cardio') || routineType?.includes('run')) {
+                routineColor = '#FF6B6B';
+              } else if (routineType?.includes('strength') || routineType?.includes('weight')) {
+                routineColor = '#4ECDC4';
+              } else if (routineType?.includes('yoga') || routineType?.includes('stretch')) {
+                routineColor = '#45B7D1';
+              }
+              
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dayContainer,
+                    isToday && styles.todayContainer,
+                    isToday && { backgroundColor: colors.primary },
+                    hasWorkout && !isToday && { backgroundColor: `${routineColor}15` }
+                  ]}
+                  onPress={() => {
+                    if (hasWorkout && daySchedule?.routines && daySchedule.routines.length > 0) {
+                      // If there's a workout scheduled, show routine details in bottom sheet
+                      const currentDate = new Date();
+                      currentDate.setDate(currentDate.getDate() - currentDate.getDay() + 1 + index); // Monday = 1
+                      setSelectedRoutineId(daySchedule.routines[0].id);
+                      setSelectedDate(currentDate);
+                      setRoutineBottomSheetVisible(true);
+                    } else {
+                      // If no workout, navigate to weekly schedule to add one
+                      router.push('/weekly-schedule');
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dayLabel,
+                    { color: isToday ? 'white' : colors.subtext },
+                    isToday && styles.todayLabel
+                  ]}>
+                    {day}
+                  </Text>
+                  
+                  <Text style={[
+                    styles.dateNumber,
+                    { color: isToday ? 'white' : colors.text },
+                    isToday && styles.todayDateNumber
+                  ]}>
+                    {dayDate.getDate()}
+                  </Text>
+                  
+                  <View style={styles.dayContent}>
+                    {hasWorkout ? (
+                      <View style={styles.workoutIndicatorContainer}>
+                        <View style={[
+                          styles.workoutIndicator,
+                          { backgroundColor: isToday ? 'white' : routineColor }
+                        ]}>
+                          <FontAwesome5 
+                            name="dumbbell" 
+                            size={10} 
+                            color={isToday ? colors.primary : 'white'} 
+                          />
+                        </View>
+                        {multipleRoutines && (
+                          <View style={[
+                            styles.multipleRoutinesBadge,
+                            { backgroundColor: isToday ? 'rgba(255,255,255,0.8)' : colors.primary }
+                          ]}>
+                            <Text style={[
+                              styles.multipleRoutinesText,
+                              { color: isToday ? colors.primary : 'white' }
+                            ]}>
+                              +{daySchedule.routines.length - 1}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={[
+                        styles.restIndicator,
+                        { backgroundColor: isToday ? 'rgba(255,255,255,0.3)' : colors.border }
+                      ]} />
+                    )}
+                    
+                    {hasWorkout && daySchedule.routines[0]?.name && (
+                      <Text 
+                        style={[
+                          styles.routineName,
+                          { color: isToday ? 'rgba(255,255,255,0.9)' : colors.subtext }
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {daySchedule.routines[0].name.length > 6 
+                          ? daySchedule.routines[0].name.substring(0, 6) + '...' 
+                          : daySchedule.routines[0].name}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          
+          {/* Weekly Progress Summary */}
+          <View style={styles.weeklyProgressContainer}>
+            <View style={styles.progressHeader}>
+              <Text style={[styles.progressTitle, { color: colors.text }]}>Weekly Progress</Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarBackground, { backgroundColor: colors.border }]}>
+                  <Animated.View 
+                    style={[
+                      styles.progressBarFill,
+                      { 
+                        backgroundColor: colors.primary,
+                        width: `${Math.round(((stats?.this_week || 0) / Math.max(weeklySchedule.filter(day => day.routines.length > 0).length, 1)) * 100)}%`
+                      }
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.progressPercentage, { color: colors.primary }]}>
+                  {Math.round(((stats?.this_week || 0) / Math.max(weeklySchedule.filter(day => day.routines.length > 0).length, 1)) * 100)}%
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.progressStats}>
+              <View style={styles.progressItem}>
+                <View style={[styles.progressIcon, { backgroundColor: `${colors.primary}20` }]}>
+                  <FontAwesome5 name="calendar-check" size={12} color={colors.primary} />
+                </View>
+                <Text style={[styles.progressValue, { color: colors.text }]}>
+                  {weeklySchedule.filter(day => day.routines.length > 0).length}
+                </Text>
+                <Text style={[styles.progressLabel, { color: colors.subtext }]}>Planned</Text>
+              </View>
+              
+              <View style={[styles.progressDivider, { backgroundColor: colors.border }]} />
+              
+              <View style={styles.progressItem}>
+                <View style={[styles.progressIcon, { backgroundColor: `#4ECDC420` }]}>
+                  <FontAwesome5 name="check-circle" size={12} color="#4ECDC4" />
+                </View>
+                <Text style={[styles.progressValue, { color: colors.text }]}>
+                  {stats?.this_week || 0}
+                </Text>
+                <Text style={[styles.progressLabel, { color: colors.subtext }]}>Completed</Text>
+              </View>
+              
+              <View style={[styles.progressDivider, { backgroundColor: colors.border }]} />
+              
+              <View style={styles.progressItem}>
+                <View style={[styles.progressIcon, { backgroundColor: `#FF6B6B20` }]}>
+                  <FontAwesome5 name="fire" size={12} color="#FF6B6B" />
+                </View>
+                <Text style={[styles.progressValue, { color: colors.text }]}>
+                  {Math.max(0, weeklySchedule.filter(day => day.routines.length > 0).length - (stats?.this_week || 0))}
+                </Text>
+                <Text style={[styles.progressLabel, { color: colors.subtext }]}>Remaining</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
 
       {/* Strength Progress Summary */}
       {strengthProgress.length > 0 && (
@@ -1129,6 +1386,13 @@ export default function HomeScreen() {
         onClose={() => setBottomSheetVisible(false)}
         type={bottomSheetType}
         value={bottomSheetValue}
+      />
+      
+      <RoutineBottomSheet
+        visible={routineBottomSheetVisible}
+        onClose={() => setRoutineBottomSheetVisible(false)}
+        routineId={selectedRoutineId}
+        date={selectedDate}
       />
     </>
   );
@@ -1397,6 +1661,212 @@ const styles = StyleSheet.create({
   },
   activityIndicator: {
     marginRight: 8,
+  },
+  calendarWidgetContainer: {
+    marginBottom: 24,
+  },
+  calendarWidgetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  calendarTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calendarIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  calendarWidgetTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  viewScheduleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewScheduleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  calendarWidget: {
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  weekDaysContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  dayContainer: {
+    alignItems: 'center',
+    width: 42,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 14,
+    minHeight: 85,
+    justifyContent: 'space-between',
+  },
+  todayContainer: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    transform: [{ scale: 1.05 }],
+  },
+  dayLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  todayLabel: {
+    fontWeight: 'bold',
+  },
+  dateNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  todayDateNumber: {
+    fontWeight: '800',
+  },
+  dayContent: {
+    alignItems: 'center',
+    minHeight: 28,
+    justifyContent: 'center',
+  },
+  workoutIndicatorContainer: {
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 4,
+  },
+  workoutIndicator: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  multipleRoutinesBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  multipleRoutinesText: {
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  restIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 4,
+    opacity: 0.6,
+  },
+  routineName: {
+    fontSize: 8,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 10,
+    letterSpacing: 0.2,
+  },
+  weeklyProgressContainer: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  progressHeader: {
+    marginBottom: 16,
+  },
+  progressTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  progressBarBackground: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+    minWidth: 2,
+  },
+  progressPercentage: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    minWidth: 35,
+    textAlign: 'right',
+  },
+  progressStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  progressItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  progressIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  progressValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  progressLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  progressDivider: {
+    width: 1,
+    height: 40,
+    marginHorizontal: 8,
   },
   todaysWorkoutContainer: {
     marginBottom: 24,

@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '@/context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Routine = {
   id: number;
@@ -37,6 +38,7 @@ export default function RoutineDetailScreen() {
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
+  const insets = useSafeAreaInsets();
 
   const [routine, setRoutine] = useState<Routine | null>(null);
   const [exercises, setExercises] = useState<RoutineExercise[]>([]);
@@ -414,7 +416,8 @@ export default function RoutineDetailScreen() {
       <View style={[styles.bottomButtonContainer, { 
         backgroundColor: colors.background,
         borderTopWidth: 1,
-        borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+        borderTopColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+        paddingBottom: insets.bottom + 16
       }]}>
         <TouchableOpacity 
           style={[styles.startWorkoutButton, { backgroundColor: colors.primary }]}
@@ -590,4 +593,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-}); 
+});
