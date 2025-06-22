@@ -13,6 +13,7 @@ import {
   RefreshControl
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -76,6 +77,7 @@ export default function MeasurementsScreen() {
   const colorScheme = useColorScheme();
   const { theme } = useTheme();
   const { showToast } = useToast();
+  const insets = useSafeAreaInsets();
   const systemTheme = colorScheme ?? 'light';
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
@@ -870,7 +872,7 @@ export default function MeasurementsScreen() {
       onRequestClose={() => setAddModalVisible(false)}
     >
       <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: insets.bottom + 20 }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Add Measurement</Text>
           
           <View style={styles.formGroup}>
@@ -1155,14 +1157,14 @@ export default function MeasurementsScreen() {
         )}
         
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          style={[styles.addButton, { backgroundColor: colors.primary, bottom: insets.bottom + 80 }]}
           onPress={openAddMeasurementModal}
         >
           <FontAwesome5 name="plus" size={20} color="white" />
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.manageButton, { backgroundColor: colors.card }]}
+          style={[styles.manageButton, { backgroundColor: colors.card, bottom: insets.bottom + 20 }]}
           onPress={() => router.push('/measurement-settings')}
         >
           <FontAwesome5 name="cog" size={16} color={colors.primary} style={styles.manageIcon} />

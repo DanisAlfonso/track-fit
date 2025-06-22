@@ -11,6 +11,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useToast } from '@/context/ToastContext';
 import * as ImagePicker from 'expo-image-picker';
 import { ActionSheet, ActionSheetOption } from '@/components/ActionSheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Storage keys for user profile data
 const USER_NAME_KEY = 'user_name';
@@ -28,6 +29,7 @@ export default function EditProfileScreen() {
   const currentTheme = theme === 'system' ? systemTheme : theme;
   const colors = Colors[currentTheme];
   const isDark = currentTheme === 'dark';
+  const insets = useSafeAreaInsets();
   
   const router = useRouter();
   
@@ -299,7 +301,7 @@ export default function EditProfileScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header with gradient */}
